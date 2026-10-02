@@ -1,0 +1,45 @@
+{
+  "name": "ask-ai-backend",
+  "version": "1.0.0",
+  "description": "Ask AI \u2014 a NotebookLM-style research notebook backend (Express + PostgreSQL + Google OAuth + LangChain with any model provider).",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "db:migrate": "node scripts/migrate.js",
+    "create-database": "node scripts/createDatabase.js",
+    "cli-chat": "node scripts/cliChat.js",
+    "mmr-demo": "node scripts/mmrDemo.js",
+    "multiquery-demo": "node scripts/multiQueryDemo.js",
+    "check-api": "node scripts/checkApi.js"
+  },
+  "dependencies": {
+    "@huggingface/inference": "^4.13.30",
+    "@langchain/community": "^1.1.29",
+    "@langchain/core": "^1.2.14",
+    "@langchain/openai": "^1.6.1",
+    "@langchain/textsplitters": "^1.0.2",
+    "adm-zip": "^0.6.1",
+    "cheerio": "^1.0.0",
+    "connect-pg-simple": "^10.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-session": "^1.19.0",
+    "fast-xml-parser": "^5.11.2",
+    "mammoth": "^1.7.2",
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^10.0.13",
+    "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0",
+    "pdf-parse": "^1.1.1",
+    "pg": "^8.23.1",
+    "uuid": "^11.1.1"
+  },
+  "author": "Raghav Biyani",
+  "license": "ISC",
+  "engines": {
+    "node": ">=20"
+  }
+}

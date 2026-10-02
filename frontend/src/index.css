@@ -1,0 +1,176 @@
+@import url("https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap");
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400..600&family=Plus+Jakarta+Sans:wght@500..800&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg: 240 244 249;
+    --panel: 255 255 255;
+    --panel-2: 243 246 251;
+    --panel-3: 232 237 245;
+    --line: 223 228 236;
+    --ink: 31 31 31;
+    --ink-2: 68 71 70;
+    --ink-3: 117 119 118;
+    --accent: 11 87 208;
+    --accent-fg: 255 255 255;
+    --accent-soft: 211 227 253;
+    --accent-soft-fg: 4 30 73;
+    --danger: 179 38 30;
+    --success: 20 108 46;
+    --mark: 255 234 160;
+    color-scheme: light;
+  }
+
+  .dark {
+    --bg: 19 19 20;
+    --panel: 30 31 32;
+    --panel-2: 40 42 44;
+    --panel-3: 52 54 56;
+    --line: 60 64 67;
+    --ink: 227 227 227;
+    --ink-2: 196 199 197;
+    --ink-3: 142 145 143;
+    --accent: 168 199 250;
+    --accent-fg: 6 46 111;
+    --accent-soft: 0 74 119;
+    --accent-soft-fg: 194 231 255;
+    --danger: 242 139 130;
+    --success: 109 213 140;
+    --mark: 110 88 10;
+    color-scheme: dark;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-bg text-ink font-sans antialiased;
+    overscroll-behavior: none;
+  }
+
+  ::selection {
+    @apply bg-accent-soft text-accent-soft-fg;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-full px-4 h-9 text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60;
+  }
+  .btn-primary {
+    @apply btn bg-accent text-accent-fg hover:bg-accent/90;
+  }
+  .btn-outline {
+    @apply btn border border-line text-ink-2 hover:bg-panel-2 hover:text-ink;
+  }
+  .btn-ghost {
+    @apply btn text-ink-2 hover:bg-panel-2 hover:text-ink;
+  }
+  .icon-btn {
+    @apply inline-flex items-center justify-center w-9 h-9 shrink-0 rounded-full text-ink-2 hover:bg-panel-2 hover:text-ink transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60;
+  }
+  .input {
+    @apply w-full rounded-xl border border-line bg-panel px-3 py-2 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent;
+  }
+  .panel {
+    @apply bg-panel rounded-2xl border border-line/60 flex flex-col min-h-0 overflow-hidden;
+  }
+  .panel-header {
+    @apply flex items-center justify-between h-12 px-4 border-b border-line/60 shrink-0;
+  }
+  .skeleton {
+    @apply rounded bg-gradient-to-r from-panel-2 via-panel-3 to-panel-2 bg-[length:200%_100%] animate-shimmer;
+  }
+}
+
+.material-symbols-outlined {
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+  line-height: 1;
+  user-select: none;
+}
+.material-symbols-outlined.filled {
+  font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24;
+}
+
+/* Thin, unobtrusive scrollbars */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--line)) transparent;
+}
+
+/* Markdown content (chat answers, summaries, source guides) */
+.prose-cm {
+  @apply text-[15px] leading-7 text-ink break-words;
+}
+.prose-cm > :first-child {
+  margin-top: 0;
+}
+.prose-cm > :last-child {
+  margin-bottom: 0;
+}
+.prose-cm p,
+.prose-cm ul,
+.prose-cm ol,
+.prose-cm pre,
+.prose-cm blockquote,
+.prose-cm table {
+  @apply my-3;
+}
+.prose-cm h1 {
+  @apply font-display text-2xl font-bold mt-6 mb-3;
+}
+.prose-cm h2 {
+  @apply font-display text-xl font-semibold mt-6 mb-2;
+}
+.prose-cm h3 {
+  @apply font-display text-base font-semibold mt-5 mb-1.5;
+}
+.prose-cm ul {
+  @apply list-disc pl-6;
+}
+.prose-cm ol {
+  @apply list-decimal pl-6;
+}
+.prose-cm li {
+  @apply my-1;
+}
+.prose-cm li > ul,
+.prose-cm li > ol {
+  @apply my-1;
+}
+.prose-cm strong {
+  @apply font-semibold;
+}
+.prose-cm a {
+  @apply text-accent underline underline-offset-2;
+}
+.prose-cm code {
+  @apply font-mono text-[13px] bg-panel-2 rounded px-1 py-0.5;
+}
+.prose-cm pre {
+  @apply bg-panel-2 rounded-xl p-3 overflow-x-auto;
+}
+.prose-cm pre code {
+  @apply bg-transparent p-0;
+}
+.prose-cm blockquote {
+  @apply border-l-4 border-line pl-4 text-ink-2 italic;
+}
+.prose-cm table {
+  @apply w-full text-sm border-collapse;
+}
+.prose-cm th,
+.prose-cm td {
+  @apply border border-line px-2 py-1 text-left;
+}
+.prose-cm hr {
+  @apply my-6 border-line;
+}

@@ -1,0 +1,21 @@
+# dependencies & builds
+node_modules/
+dist/
+
+# secrets — never commit these
+.env
+.env.*
+!.env.example
+
+# runtime files
+backend/uploads/*
+!backend/uploads/.gitkeep
+*.log
+
+# local / editor leftovers
+.tmp/
+.qodo/
+.dist/
+.DS_Store
+Thumbs.db
+client_secret*.json
