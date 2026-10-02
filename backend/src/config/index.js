@@ -32,8 +32,8 @@ const embeddingBaseUrl =
   trimSlash(process.env.EMBEDDING_BASE_URL) || (embeddingProvider === "openai" ? chatBaseUrl : undefined);
 const embeddingApiKey =
   process.env.EMBEDDING_API_KEY ||
-  (embeddingProvider === "openai" && isLocal(embeddingBaseUrl) ? "not-needed" : undefined) ||
-  process.env.CHAT_API_KEY;
+  process.env.CHAT_API_KEY ||
+  (embeddingProvider === "openai" && isLocal(embeddingBaseUrl) ? "not-needed" : undefined);
 
 const ai = {
   provider: hostOf(chatBaseUrl),
@@ -72,7 +72,7 @@ export const config = {
 
   db: {
     url: process.env.DATABASE_URL,
-    host: process.env.PGHOST || "localhost",
+    host: process.env.PGHOST || "127.0.0.1",
     port: num(process.env.PGPORT, 5432),
     user: process.env.PGUSER || "postgres",
     password: process.env.PGPASSWORD,

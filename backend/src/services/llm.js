@@ -1,5 +1,6 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { AIMessage, HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { jsonrepair } from "jsonrepair";
 import { config } from "../config/index.js";
 
 // Chat goes through LangChain's ChatOpenAI, which works with any provider that
@@ -91,27 +92,52 @@ export async function* streamCompletion(messages) {
   }
 }
 
-function parseJsonLoose(text) {
-  try {
-    return JSON.parse(text);
-  } catch {
-    const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (fenced) return JSON.parse(fenced[1]);
-    const start = text.search(/[[{]/);
-    const end = Math.max(text.lastIndexOf("}"), text.lastIndexOf("]"));
-    if (start !== -1 && end > start) return JSON.parse(text.slice(start, end + 1));
-    throw new Error("The model did not return valid JSON.");
-  }
+// Candidate JSON snippets in a model reply: the whole text, a ```json fenced
+// block, and the outermost {...} slice (to the end of the text if the reply
+// was cut off before the closing brace).
+function jsonCandidates(text) {
+  const candidates = [text.trim()];
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenced) candidates.push(fenced[1].trim());
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start !== -1) candidates.push(end > start ? text.slice(start, end + 1) : text.slice(start));
+  return [...new Set(candidates.filter(Boolean))];
 }
 
-// Asks for a JSON object and parses it, retrying once because smaller models
+const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+
+// Parses JSON strictly first, then lets jsonrepair fix what smaller models get
+// wrong (trailing commas, single quotes, truncation…). Prefers an object result.
+function parseJsonLoose(text) {
+  const candidates = jsonCandidates(text);
+  let fallback;
+  for (const parse of [JSON.parse, (c) => JSON.parse(jsonrepair(c))]) {
+    for (const candidate of candidates) {
+      try {
+        const value = parse(candidate);
+        if (isObject(value)) return value;
+        fallback ??= { value };
+      } catch {
+        // try the next candidate
+      }
+    }
+  }
+  if (fallback) return fallback.value;
+  throw new Error("The model did not return valid JSON.");
+}
+
+// Asks for a JSON object and parses it, retrying because smaller models
 // occasionally emit a truncated or malformed object.
+const JSON_ATTEMPTS = 3;
 export async function completeJson(system, user) {
   let lastError;
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < JSON_ATTEMPTS; attempt++) {
     try {
       const text = await complete(
-        `${system}\n\nRespond with a single valid JSON object and nothing else — no prose, no markdown code fences.`,
+        `${system}
+
+Respond with a single valid JSON object and nothing else — no prose, no markdown code fences.`,
         user
       );
       return parseJsonLoose(text);
