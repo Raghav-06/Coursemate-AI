@@ -83,7 +83,7 @@ async function safeFetch(rawUrl) {
       redirect: "manual",
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; AskAI/1.0; +https://localhost)",
+        "User-Agent": "Mozilla/5.0 (compatible; CourseMateAI/1.0; +https://localhost)",
         Accept: "text/html,application/xhtml+xml,application/pdf,text/plain;q=0.9,*/*;q=0.8",
       },
     });

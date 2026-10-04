@@ -255,7 +255,7 @@ export default function EmailAuth() {
             {busy && <Spinner />} Sign in
           </button>
           <p className="text-sm text-ink-2 text-center">
-            New to Ask AI? <TextLink onClick={() => go("signup")}>Create an account</TextLink>
+            New to CourseMate AI? <TextLink onClick={() => go("signup")}>Create an account</TextLink>
           </p>
         </form>
       )}

@@ -1,4 +1,4 @@
--- Ask AI schema. Idempotent: safe to run on every start
+-- CourseMate AI schema. Idempotent: safe to run on every start
 -- (`npm run db:migrate` runs it by hand). gen_random_uuid() is built into
 -- PostgreSQL 13+.
 

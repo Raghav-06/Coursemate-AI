@@ -131,7 +131,7 @@ export default function HomePage() {
 
       <main className="max-w-6xl mx-auto px-4 sm:px-8 pb-16">
         <h1 className="font-display text-3xl sm:text-[42px] leading-tight font-semibold tracking-tight mt-6 sm:mt-10 mb-8 bg-gradient-to-r from-blue-600 via-violet-500 to-rose-500 bg-clip-text text-transparent dark:from-blue-300 dark:via-violet-300 dark:to-rose-300">
-          {user?.givenName ? `Welcome, ${user.givenName}` : "Welcome to Ask AI"}
+          {user?.givenName ? `Welcome, ${user.givenName}` : "Welcome to CourseMate AI"}
         </h1>
 
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">

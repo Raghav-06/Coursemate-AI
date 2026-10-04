@@ -3,7 +3,7 @@ import { ensureCurrentEmbeddings, loadMergedStore, mmrSearch } from "./vectorSto
 import { streamCompletion } from "./llm.js";
 
 const SYSTEM_PROMPT = [
-  "You are Ask AI, a research and study assistant. Help the user understand their sources.",
+  "You are CourseMate AI, a research and study assistant. Help the user understand their sources.",
   "",
   "Ground every answer ONLY in the numbered source passages provided with the question.",
   "After each sentence or bullet that uses a passage, cite it with its number in square brackets, e.g. [2]. Cite several like [1][4]. Never cite a number that was not provided, and do not add a separate references list.",

@@ -1,6 +1,6 @@
 import { query, withTransaction } from "./pool.js";
 
-// Data access for Ask AI, backed by PostgreSQL via `pg`. Rows are mapped
+// Data access for CourseMate AI, backed by PostgreSQL via `pg`. Rows are mapped
 // to the camelCase objects the API has always returned, so routes and the
 // frontend don't care where data lives.
 //

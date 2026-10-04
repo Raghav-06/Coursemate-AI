@@ -1,4 +1,4 @@
-# Ask AI
+# CourseMate AI
 
 A NotebookLM-style research notebook: sign in with Google (or with email + password), create notebooks, add sources
 (PDF, DOCX, PPTX, TXT/MD/CSV, websites, arXiv papers, pasted text), and ask questions that are
@@ -86,7 +86,7 @@ Each user only ever sees their own data.
 2. Create an App Password at https://myaccount.google.com/apppasswords.
 3. In `backend/.env`: `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=465`, `SMTP_SECURE=true`,
    `SMTP_USER=you@gmail.com`, `SMTP_PASS=<the 16-character app password>`,
-   `MAIL_FROM="Ask AI <you@gmail.com>"`.
+   `MAIL_FROM="CourseMate AI <you@gmail.com>"`.
 
 ---
 

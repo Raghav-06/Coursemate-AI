@@ -143,7 +143,7 @@ function Composer({ disabled, streaming, selectedCount, placeholder, suggestions
           </button>
         )}
       </div>
-      <p className="text-center text-[11px] text-ink-3 mt-2">Ask AI can be inaccurate; please double-check its responses.</p>
+      <p className="text-center text-[11px] text-ink-3 mt-2">CourseMate AI can be inaccurate; please double-check its responses.</p>
     </div>
   );
 }

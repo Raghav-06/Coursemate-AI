@@ -11,7 +11,7 @@ function Banners({ health }) {
   if (health?.offline) {
     return (
       <div className="bg-danger text-white text-sm text-center px-4 py-2">
-        Can't reach the Ask AI server. Start it with <code className="font-mono">cd backend &amp;&amp; npm start</code>, then reload.
+        Can't reach the CourseMate AI server. Start it with <code className="font-mono">cd backend &amp;&amp; npm start</code>, then reload.
       </div>
     );
   }

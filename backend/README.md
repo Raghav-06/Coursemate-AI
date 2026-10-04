@@ -1,4 +1,4 @@
-# Ask AI Backend (Node / Express / PostgreSQL)
+# CourseMate AI Backend (Node / Express / PostgreSQL)
 
 Setup, environment variables, Google OAuth and the API reference are in the
 [project README](../README.md).

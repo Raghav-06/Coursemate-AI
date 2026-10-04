@@ -1,7 +1,7 @@
 {
-  "name": "ask-ai-backend",
+  "name": "coursemate-ai-backend",
   "version": "1.0.0",
-  "description": "Ask AI — a NotebookLM-style research notebook backend (Express + PostgreSQL + Google OAuth + LangChain with any model provider).",
+  "description": "CourseMate AI — a NotebookLM-style research notebook backend (Express + PostgreSQL + Google OAuth + LangChain with any model provider).",
   "type": "module",
   "main": "server.js",
   "scripts": {

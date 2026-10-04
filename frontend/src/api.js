@@ -1,4 +1,4 @@
-// Thin client for the Ask AI backend. In dev, Vite proxies /api to :3000;
+// Thin client for the CourseMate AI backend. In dev, Vite proxies /api to :3000;
 // set VITE_API_URL to call a backend on another origin.
 const BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
@@ -23,7 +23,7 @@ async function request(path, { method = "GET", body, form } = {}) {
       body: form ?? (body ? JSON.stringify(body) : undefined),
     });
   } catch {
-    throw new Error("Can't reach the Ask AI server. Is the backend running on port 3000?");
+    throw new Error("Can't reach the CourseMate AI server. Is the backend running on port 3000?");
   }
   if (response.status === 204) return null;
   const data = await response.json().catch(() => null);
@@ -82,7 +82,7 @@ export const api = {
       });
     } catch (err) {
       if (err.name === "AbortError") return;
-      throw new Error("Can't reach the Ask AI server. Is the backend running on port 3000?");
+      throw new Error("Can't reach the CourseMate AI server. Is the backend running on port 3000?");
     }
     if (!response.ok) {
       const data = await response.json().catch(() => null);

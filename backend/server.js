@@ -25,7 +25,7 @@ async function main() {
 
   const app = createApp();
   const server = app.listen(config.port, () => {
-    console.log(`✅ Ask AI backend running at http://localhost:${config.port}`);
+    console.log(`✅ CourseMate AI backend running at http://localhost:${config.port}`);
   });
 
   const shutdown = () => server.close(() => pool.end().finally(() => process.exit(0)));

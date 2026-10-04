@@ -29,7 +29,7 @@ function UploadHome({ onFiles, uploading, setMode }) {
   return (
     <div className="flex flex-col gap-5">
       <p className="text-sm text-ink-2 leading-6">
-        Sources let Ask AI base its responses on the information that matters most to you. (Examples: lecture notes, course
+        Sources let CourseMate AI base its responses on the information that matters most to you. (Examples: lecture notes, course
         readings, research papers, textbook chapters, slide decks, etc.)
       </p>
       <div

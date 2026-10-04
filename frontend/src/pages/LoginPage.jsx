@@ -69,7 +69,7 @@ export default function LoginPage({ serverError }) {
       <header className="sticky top-0 z-20 bg-bg/90 backdrop-blur flex items-center justify-between h-16 px-4 sm:px-8">
         <div className="flex items-center gap-2.5">
           <img src="/favicon.svg" alt="" className="w-8 h-8" />
-          <span className="font-display text-[19px] font-semibold tracking-tight">Ask AI</span>
+          <span className="font-display text-[19px] font-semibold tracking-tight">CourseMate AI</span>
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle />

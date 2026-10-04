@@ -109,7 +109,7 @@ export const config = {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
-    mailFrom: process.env.MAIL_FROM || `Ask AI <${process.env.SMTP_USER || "no-reply@localhost"}>`,
+    mailFrom: process.env.MAIL_FROM || `CourseMate AI <${process.env.SMTP_USER || "no-reply@localhost"}>`,
     codeTtlMinutes: num(process.env.EMAIL_CODE_TTL_MINUTES, 10),
     resendSeconds: num(process.env.EMAIL_CODE_RESEND_SECONDS, 60),
     maxAttempts: num(process.env.EMAIL_CODE_MAX_ATTEMPTS, 5),
