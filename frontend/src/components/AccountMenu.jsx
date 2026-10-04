@@ -49,14 +49,14 @@ export default function AccountMenu() {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="rounded-full p-1 hover:bg-panel-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+        className="rounded-full p-1 hover:bg-panel-2 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent/60"
         aria-label={`Google Account: ${user.name || user.email}`}
         title={`${user.name ?? ""}\n${user.email}`}
       >
         <Avatar user={user} />
       </button>
       {open && (
-        <div role="menu" className="absolute right-0 top-full mt-2 z-[60] w-72 rounded-3xl bg-panel-2 border border-line shadow-pop p-4 animate-fade-in">
+        <div role="menu" className="absolute right-0 top-full mt-2 z-60 w-72 rounded-3xl bg-panel-2 border border-line shadow-pop p-4 animate-fade-in">
           <p className="text-center text-sm text-ink-2 truncate">{user.email}</p>
           <div className="flex flex-col items-center gap-2 my-4">
             <Avatar user={user} size={72} />

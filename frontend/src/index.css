@@ -2,9 +2,184 @@
 
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400..600&family=Plus+Jakarta+Sans:wght@500..800&display=swap");
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/* Dark mode is class-based: the theme toggle puts `dark` on <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+  Semantic colors resolve to the CSS variables below (:root / .dark), so light
+  and dark themes swap by toggling the `dark` class. `inline` makes utilities
+  reference the variables directly, and opacity modifiers (bg-accent/90) still work.
+*/
+@theme inline {
+  --color-bg: rgb(var(--bg));
+  --color-panel: rgb(var(--panel));
+  --color-panel-2: rgb(var(--panel-2));
+  --color-panel-3: rgb(var(--panel-3));
+  --color-line: rgb(var(--line));
+  --color-ink: rgb(var(--ink));
+  --color-ink-2: rgb(var(--ink-2));
+  --color-ink-3: rgb(var(--ink-3));
+  --color-accent: rgb(var(--accent));
+  --color-accent-fg: rgb(var(--accent-fg));
+  --color-accent-soft: rgb(var(--accent-soft));
+  --color-accent-soft-fg: rgb(var(--accent-soft-fg));
+  --color-danger: rgb(var(--danger));
+  --color-success: rgb(var(--success));
+  --color-mark: rgb(var(--mark));
+
+  --font-sans: Inter, system-ui, sans-serif;
+  --font-display: "Plus Jakarta Sans", Inter, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  --shadow-pop: 0 8px 28px -6px rgb(0 0 0 / 0.25), 0 2px 6px rgb(0 0 0 / 0.08);
+
+  --animate-fade-in: fade-in 160ms ease-out;
+  --animate-shimmer: shimmer 1.6s linear infinite;
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+}
+
+/*
+  Keep Tailwind v3's look: v4 redefined the default palette in oklch (more
+  saturated) and made text-* line heights relative, so pin the palette shades
+  this app uses and the absolute line heights to their v3 values.
+*/
+@theme {
+  --color-gray-200: #e5e7eb;
+  --color-amber-50: #fffbeb;
+  --color-amber-400: #fbbf24;
+  --color-amber-600: #d97706;
+  --color-amber-950: #451a03;
+  --color-blue-50: #eff6ff;
+  --color-blue-300: #93c5fd;
+  --color-blue-400: #60a5fa;
+  --color-blue-600: #2563eb;
+  --color-blue-950: #172554;
+  --color-cyan-50: #ecfeff;
+  --color-cyan-950: #083344;
+  --color-emerald-50: #ecfdf5;
+  --color-emerald-400: #34d399;
+  --color-emerald-600: #059669;
+  --color-emerald-950: #022c22;
+  --color-lime-50: #f7fee7;
+  --color-lime-950: #1a2e05;
+  --color-orange-400: #fb923c;
+  --color-orange-600: #ea580c;
+  --color-red-400: #f87171;
+  --color-red-600: #dc2626;
+  --color-rose-50: #fff1f2;
+  --color-rose-300: #fda4af;
+  --color-rose-500: #f43f5e;
+  --color-rose-950: #4c0519;
+  --color-sky-400: #38bdf8;
+  --color-sky-600: #0284c7;
+  --color-violet-50: #f5f3ff;
+  --color-violet-300: #c4b5fd;
+  --color-violet-400: #a78bfa;
+  --color-violet-500: #8b5cf6;
+  --color-violet-600: #7c3aed;
+  --color-violet-950: #2e1065;
+
+  --text-xs--line-height: 1rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl--line-height: 1.75rem;
+  --text-2xl--line-height: 2rem;
+  --text-3xl--line-height: 2.25rem;
+  --text-4xl--line-height: 2.5rem;
+}
+
+/*
+  v3 preflight compatibility: buttons showed a pointer cursor and form
+  controls didn't inherit italic text.
+*/
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  button,
+  input,
+  select,
+  optgroup,
+  textarea {
+    font-style: normal;
+  }
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+@utility btn {
+  @apply inline-flex items-center justify-center gap-1.5 rounded-full px-4 h-9 text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent/60;
+}
+
+@utility btn-primary {
+  @apply btn bg-accent text-accent-fg hover:bg-accent/90;
+}
+
+@utility btn-outline {
+  @apply btn border border-line text-ink-2 hover:bg-panel-2 hover:text-ink;
+}
+
+@utility btn-ghost {
+  @apply btn text-ink-2 hover:bg-panel-2 hover:text-ink;
+}
+
+@utility icon-btn {
+  @apply inline-flex items-center justify-center w-9 h-9 shrink-0 rounded-full text-ink-2 hover:bg-panel-2 hover:text-ink transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent/60;
+}
+
+@utility input {
+  @apply w-full rounded-xl border border-line bg-panel px-3 py-2 text-sm text-ink placeholder:text-ink-3 focus:outline-hidden focus:border-accent focus:ring-1 focus:ring-accent;
+}
+
+@utility panel {
+  @apply bg-panel rounded-2xl border border-line/60 flex flex-col min-h-0 overflow-hidden;
+}
+
+@utility panel-header {
+  @apply flex items-center justify-between h-12 px-4 border-b border-line/60 shrink-0;
+}
+
+@utility skeleton {
+  @apply rounded-sm bg-linear-to-r/srgb from-panel-2 via-panel-3 to-panel-2 bg-size-[200%_100%] animate-shimmer;
+}
 
 @layer base {
   :root {
@@ -61,36 +236,6 @@
   }
 }
 
-@layer components {
-  .btn {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-full px-4 h-9 text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60;
-  }
-  .btn-primary {
-    @apply btn bg-accent text-accent-fg hover:bg-accent/90;
-  }
-  .btn-outline {
-    @apply btn border border-line text-ink-2 hover:bg-panel-2 hover:text-ink;
-  }
-  .btn-ghost {
-    @apply btn text-ink-2 hover:bg-panel-2 hover:text-ink;
-  }
-  .icon-btn {
-    @apply inline-flex items-center justify-center w-9 h-9 shrink-0 rounded-full text-ink-2 hover:bg-panel-2 hover:text-ink transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60;
-  }
-  .input {
-    @apply w-full rounded-xl border border-line bg-panel px-3 py-2 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent;
-  }
-  .panel {
-    @apply bg-panel rounded-2xl border border-line/60 flex flex-col min-h-0 overflow-hidden;
-  }
-  .panel-header {
-    @apply flex items-center justify-between h-12 px-4 border-b border-line/60 shrink-0;
-  }
-  .skeleton {
-    @apply rounded bg-gradient-to-r from-panel-2 via-panel-3 to-panel-2 bg-[length:200%_100%] animate-shimmer;
-  }
-}
-
 .material-symbols-outlined {
   font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
   line-height: 1;
@@ -108,7 +253,7 @@
 
 /* Markdown content (chat answers, summaries, source guides) */
 .prose-cm {
-  @apply text-[15px] leading-7 text-ink break-words;
+  @apply text-[15px] leading-7 text-ink wrap-break-word;
 }
 .prose-cm > :first-child {
   margin-top: 0;
@@ -153,7 +298,7 @@
   @apply text-accent underline underline-offset-2;
 }
 .prose-cm code {
-  @apply font-mono text-[13px] bg-panel-2 rounded px-1 py-0.5;
+  @apply font-mono text-[13px] bg-panel-2 rounded-sm px-1 py-0.5;
 }
 .prose-cm pre {
   @apply bg-panel-2 rounded-xl p-3 overflow-x-auto;

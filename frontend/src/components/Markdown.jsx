@@ -56,7 +56,7 @@ function CitationChip({ citation, onOpen }) {
               width,
               ...(below ? { top: anchor.bottom + 8 } : { bottom: window.innerHeight - anchor.top + 8 }),
             }}
-            className="z-[80] p-4 rounded-2xl bg-panel-2 border border-line shadow-pop animate-fade-in"
+            className="z-80 p-4 rounded-2xl bg-panel-2 border border-line shadow-pop animate-fade-in"
           >
             <div className="flex items-center gap-2 text-xs font-semibold text-ink-2 mb-2">
               <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
@@ -64,7 +64,7 @@ function CitationChip({ citation, onOpen }) {
               </span>
               <span className="truncate">{citation.sourceTitle}</span>
             </div>
-            <p className="text-[13px] leading-5 text-ink line-clamp-[10] whitespace-pre-line">{citation.text}</p>
+            <p className="text-[13px] leading-5 text-ink line-clamp-10 whitespace-pre-line">{citation.text}</p>
             {onOpen && (
               <button type="button" className="mt-2 text-xs font-medium text-accent hover:underline" onClick={() => onOpen(citation)}>
                 Open in source

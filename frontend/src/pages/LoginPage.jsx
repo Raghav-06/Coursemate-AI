@@ -21,7 +21,7 @@ function GoogleButton({ large = false, full = false }) {
     <button
       type="button"
       onClick={signInWithGoogle}
-      className={`inline-flex items-center justify-center gap-3 rounded-full bg-panel border border-line text-ink font-medium shadow-sm hover:bg-panel-2 hover:shadow-pop transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 ${
+      className={`inline-flex items-center justify-center gap-3 rounded-full bg-panel border border-line text-ink font-medium shadow-xs hover:bg-panel-2 hover:shadow-pop transition focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent/60 ${
         large ? "h-12 px-7 text-base" : "h-10 px-5 text-sm"
       } ${full ? "w-full" : ""}`}
     >
@@ -66,7 +66,7 @@ export default function LoginPage({ serverError }) {
 
   return (
     <div className="h-full overflow-y-auto scroll-thin">
-      <header className="sticky top-0 z-20 bg-bg/90 backdrop-blur flex items-center justify-between h-16 px-4 sm:px-8">
+      <header className="sticky top-0 z-20 bg-bg/90 backdrop-blur-sm flex items-center justify-between h-16 px-4 sm:px-8">
         <div className="flex items-center gap-2.5">
           <img src="/favicon.svg" alt="" className="w-8 h-8" />
           <span className="font-display text-[19px] font-semibold tracking-tight">CourseMate AI</span>
@@ -88,7 +88,7 @@ export default function LoginPage({ serverError }) {
             </span>
             <h1 className="font-display text-4xl sm:text-[54px] font-semibold tracking-tight leading-[1.08]">
               Understand anything,{" "}
-              <span className="bg-gradient-to-r from-blue-600 via-violet-500 to-rose-500 bg-clip-text text-transparent dark:from-blue-300 dark:via-violet-300 dark:to-rose-300">
+              <span className="bg-linear-to-r/srgb from-blue-600 via-violet-500 to-rose-500 bg-clip-text text-transparent dark:from-blue-300 dark:via-violet-300 dark:to-rose-300">
                 grounded in your sources
               </span>
             </h1>
@@ -98,7 +98,7 @@ export default function LoginPage({ serverError }) {
             </p>
           </div>
 
-          <div id="sign-in" className="w-full max-w-[420px] mx-auto rounded-3xl bg-panel border border-line shadow-sm p-6 sm:p-7 flex flex-col gap-5">
+          <div id="sign-in" className="w-full max-w-[420px] mx-auto rounded-3xl bg-panel border border-line shadow-xs p-6 sm:p-7 flex flex-col gap-5">
             {(authError || serverError) && (
               <div role="alert" className="flex items-start gap-2 rounded-xl border border-danger/40 bg-danger/10 text-danger px-3 py-2.5 text-sm text-left">
                 <Icon name="error" size={18} className="mt-px shrink-0" />

@@ -144,7 +144,7 @@ export function Menu({ items, icon = "more_vert", label = "More options", button
             ref={menuRef}
             role="menu"
             style={{ position: "fixed", ...(position ?? { top: -9999, left: -9999 }) }}
-            className="z-[60] min-w-[200px] py-1.5 rounded-xl bg-panel-2 border border-line shadow-pop animate-fade-in"
+            className="z-60 min-w-[200px] py-1.5 rounded-xl bg-panel-2 border border-line shadow-pop animate-fade-in"
           >
             {items.filter(Boolean).map((item) => (
               <button
@@ -188,7 +188,7 @@ export function Toaster() {
   }, []);
 
   return createPortal(
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] flex flex-col items-center gap-2 pointer-events-none">
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-70 flex flex-col items-center gap-2 pointer-events-none">
       {items.map((item) => (
         <div
           key={item.id}

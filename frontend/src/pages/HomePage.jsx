@@ -121,7 +121,7 @@ export default function HomePage() {
 
   return (
     <div className="h-full overflow-y-auto scroll-thin">
-      <header className="sticky top-0 z-20 bg-bg/90 backdrop-blur flex items-center justify-between h-16 px-4 sm:px-8">
+      <header className="sticky top-0 z-20 bg-bg/90 backdrop-blur-sm flex items-center justify-between h-16 px-4 sm:px-8">
         <Logo />
         <div className="flex items-center gap-1">
           <ThemeToggle />
@@ -130,7 +130,7 @@ export default function HomePage() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 sm:px-8 pb-16">
-        <h1 className="font-display text-3xl sm:text-[42px] leading-tight font-semibold tracking-tight mt-6 sm:mt-10 mb-8 bg-gradient-to-r from-blue-600 via-violet-500 to-rose-500 bg-clip-text text-transparent dark:from-blue-300 dark:via-violet-300 dark:to-rose-300">
+        <h1 className="font-display text-3xl sm:text-[42px] leading-tight font-semibold tracking-tight mt-6 sm:mt-10 mb-8 bg-linear-to-r/srgb from-blue-600 via-violet-500 to-rose-500 bg-clip-text text-transparent dark:from-blue-300 dark:via-violet-300 dark:to-rose-300">
           {user?.givenName ? `Welcome, ${user.givenName}` : "Welcome to CourseMate AI"}
         </h1>
 
@@ -141,10 +141,10 @@ export default function HomePage() {
           </button>
           <div className="flex items-center gap-1">
             <div className="flex rounded-full border border-line p-0.5">
-              <IconButton icon="grid_view" label="Grid view" onClick={() => setView("grid")} className={`!w-8 !h-8 ${view === "grid" ? "!bg-accent-soft !text-accent-soft-fg" : ""}`} size={18} />
-              <IconButton icon="view_list" label="List view" onClick={() => setView("list")} className={`!w-8 !h-8 ${view === "list" ? "!bg-accent-soft !text-accent-soft-fg" : ""}`} size={18} />
+              <IconButton icon="grid_view" label="Grid view" onClick={() => setView("grid")} className={`w-8! h-8! ${view === "grid" ? "bg-accent-soft! text-accent-soft-fg!" : ""}`} size={18} />
+              <IconButton icon="view_list" label="List view" onClick={() => setView("list")} className={`w-8! h-8! ${view === "list" ? "bg-accent-soft! text-accent-soft-fg!" : ""}`} size={18} />
             </div>
-            <select value={sort} onChange={(e) => setSort(e.target.value)} className="h-9 rounded-full border border-line bg-bg px-3 text-sm text-ink-2 focus:outline-none focus:border-accent" aria-label="Sort notebooks">
+            <select value={sort} onChange={(e) => setSort(e.target.value)} className="h-9 rounded-full border border-line bg-bg px-3 text-sm text-ink-2 focus:outline-hidden focus:border-accent" aria-label="Sort notebooks">
               <option value="recent">Most recent</option>
               <option value="title">Title</option>
             </select>

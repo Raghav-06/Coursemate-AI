@@ -34,7 +34,7 @@ function EditableTitle({ notebook, onRename }) {
         }
       }}
       aria-label="Notebook title"
-      className="min-w-0 flex-1 max-w-xl bg-transparent font-display text-lg sm:text-xl font-medium text-ink rounded-lg px-2 py-1 -mx-2 hover:bg-panel-2 focus:bg-panel focus:outline-none focus:ring-2 focus:ring-accent/50 truncate"
+      className="min-w-0 flex-1 max-w-xl bg-transparent font-display text-lg sm:text-xl font-medium text-ink rounded-lg px-2 py-1 -mx-2 hover:bg-panel-2 focus:bg-panel focus:outline-hidden focus:ring-2 focus:ring-accent/50 truncate"
     />
   );
 }

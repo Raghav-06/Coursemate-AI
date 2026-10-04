@@ -47,7 +47,7 @@ export default function SourceViewer({ source, citation, onBack, onAsk }) {
 
   return (
     <div className="flex flex-col min-h-0 h-full">
-      <div className="panel-header gap-1 !px-2">
+      <div className="panel-header gap-1 px-2!">
         <IconButton icon="arrow_back" label="Back to sources" onClick={onBack} />
         <Icon name={icon} className={`${color} shrink-0`} size={20} />
         <h2 className="flex-1 min-w-0 truncate text-sm font-medium px-1" title={source.title}>
@@ -68,7 +68,7 @@ export default function SourceViewer({ source, citation, onBack, onAsk }) {
               {source.guide ? (
                 <>
                   <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-3 mb-1.5">Summary</h3>
-                  <Markdown text={source.guide.summary} className="!text-sm !leading-6" />
+                  <Markdown text={source.guide.summary} className="text-sm! leading-6!" />
                   {source.guide.topics?.length > 0 && (
                     <>
                       <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-3 mt-4 mb-2">Key topics</h3>
@@ -103,11 +103,11 @@ export default function SourceViewer({ source, citation, onBack, onAsk }) {
             </div>
           )}
           {text !== null && (
-            <div className="text-[13.5px] leading-6 text-ink-2 whitespace-pre-wrap break-words font-[450]">
+            <div className="text-[13.5px] leading-6 text-ink-2 whitespace-pre-wrap wrap-break-word font-[450]">
               {range ? (
                 <>
                   {text.slice(0, range[0])}
-                  <mark ref={markRef} className="bg-mark text-ink rounded px-0.5">
+                  <mark ref={markRef} className="bg-mark text-ink rounded-sm px-0.5">
                     {text.slice(range[0], range[1])}
                   </mark>
                   {text.slice(range[1])}

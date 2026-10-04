@@ -18,7 +18,7 @@ function AssistantMessage({ message, onOpenCitation, streaming }) {
       {message.content ? <Markdown text={message.content} citations={message.citations} onOpenCitation={onOpenCitation} /> : <TypingDots />}
       {!streaming && (
         <div className="flex items-center gap-1 mt-2 -ml-2">
-          <IconButton icon="content_copy" label="Copy" onClick={() => copyText(stripCitations(message.content))} className="!w-8 !h-8" size={18} />
+          <IconButton icon="content_copy" label="Copy" onClick={() => copyText(stripCitations(message.content))} className="w-8! h-8!" size={18} />
         </div>
       )}
     </div>
@@ -61,7 +61,7 @@ function Overview({ notebook, sources, onAddSources }) {
           <>
             <Markdown text={notebook.summary} />
             <div className="flex items-center gap-1 mt-3 -ml-2">
-              <IconButton icon="content_copy" label="Copy summary" onClick={() => copyText(notebook.summary.replace(/\*\*/g, ""))} className="!w-8 !h-8" size={18} />
+              <IconButton icon="content_copy" label="Copy summary" onClick={() => copyText(notebook.summary.replace(/\*\*/g, ""))} className="w-8! h-8!" size={18} />
             </div>
           </>
         ) : readyCount === 0 ? (
@@ -121,7 +121,7 @@ function Composer({ disabled, streaming, selectedCount, placeholder, suggestions
           }}
           disabled={disabled}
           placeholder={placeholder}
-          className="flex-1 resize-none bg-transparent py-2 text-[15px] leading-6 text-ink placeholder:text-ink-3 focus:outline-none disabled:cursor-not-allowed"
+          className="flex-1 resize-none bg-transparent py-2 text-[15px] leading-6 text-ink placeholder:text-ink-3 focus:outline-hidden disabled:cursor-not-allowed"
         />
         <span className="shrink-0 text-xs text-ink-3 pb-2.5 hidden sm:inline">
           {selectedCount} source{selectedCount === 1 ? "" : "s"}
@@ -210,7 +210,7 @@ export default function ChatPanel({
             {messages.map((m) =>
               m.role === "user" ? (
                 <div key={m.id} className="flex justify-end animate-fade-in">
-                  <div className="max-w-[85%] rounded-3xl rounded-br-lg bg-accent-soft text-accent-soft-fg px-4 py-2.5 text-[15px] leading-6 whitespace-pre-wrap break-words">{m.content}</div>
+                  <div className="max-w-[85%] rounded-3xl rounded-br-lg bg-accent-soft text-accent-soft-fg px-4 py-2.5 text-[15px] leading-6 whitespace-pre-wrap wrap-break-word">{m.content}</div>
                 </div>
               ) : (
                 <AssistantMessage key={m.id} message={m} onOpenCitation={onOpenCitation} />

@@ -60,7 +60,7 @@ function SourceRow({ source, onOpen, onToggle, onRename, onRemove }) {
         {failed && <p className="text-xs text-danger/80 truncate">{source.error}</p>}
       </div>
       <Menu
-        buttonClassName="!w-8 !h-8 opacity-0 group-hover:opacity-100 focus:opacity-100"
+        buttonClassName="w-8! h-8! opacity-0 group-hover:opacity-100 focus:opacity-100"
         items={[
           !failed && { label: "Rename source", icon: "edit", onClick: () => onRename(source) },
           source.url && { label: "Open original link", icon: "open_in_new", onClick: () => window.open(source.url, "_blank", "noopener") },

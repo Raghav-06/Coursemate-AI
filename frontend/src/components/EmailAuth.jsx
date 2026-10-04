@@ -98,7 +98,7 @@ function CodeInput({ value, onChange, onComplete, disabled }) {
             if (e.key === "ArrowLeft") refs.current[i - 1]?.focus();
             if (e.key === "ArrowRight") refs.current[i + 1]?.focus();
           }}
-          className="w-11 h-12 sm:w-12 sm:h-14 rounded-xl border border-line bg-panel text-center text-xl font-semibold text-ink focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/40 disabled:opacity-50"
+          className="w-11 h-12 sm:w-12 sm:h-14 rounded-xl border border-line bg-panel text-center text-xl font-semibold text-ink focus:outline-hidden focus:border-accent focus:ring-2 focus:ring-accent/40 disabled:opacity-50"
         />
       ))}
     </div>
