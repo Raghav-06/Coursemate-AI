@@ -6,6 +6,8 @@ import { removeSource } from "../services/sources.js";
 
 export const sourcesRouter = Router();
 
+const MAX_TITLE_CHARS = 200;
+
 sourcesRouter.param("id", async (req, res, next, id) => {
   try {
     req.source = isUuid(id) ? await getSource(id, req.user.id) : null;
@@ -32,7 +34,8 @@ sourcesRouter.patch(
   asyncHandler(async (req, res) => {
     const { title, selected } = req.body ?? {};
     const patch = {};
-    if (typeof title === "string" && title.trim()) Object.assign(patch, { title: title.trim(), titleIsPlaceholder: false });
+    const cleanTitle = typeof title === "string" ? title.trim().slice(0, MAX_TITLE_CHARS) : "";
+    if (cleanTitle) Object.assign(patch, { title: cleanTitle, titleIsPlaceholder: false });
     if (typeof selected === "boolean") patch.selected = selected;
     res.json(await updateSource(req.params.id, patch));
   })

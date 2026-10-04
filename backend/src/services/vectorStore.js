@@ -98,8 +98,42 @@ class FlatVectorStore {
   }
 }
 
-// Loaded stores are kept in memory: every chat turn re-reads the same chunks.
-const cache = new Map();
+/**
+ * Small LRU of loaded stores: every chat turn re-reads the same chunks, but
+ * memory must stay bounded. Evicted sources reload from Postgres on next use.
+ */
+class LruCache {
+  constructor(maxEntries) {
+    this.maxEntries = maxEntries;
+    this.map = new Map();
+  }
+
+  has(key) {
+    return this.map.has(key);
+  }
+
+  get(key) {
+    if (!this.map.has(key)) return undefined;
+    const value = this.map.get(key);
+    this.map.delete(key);
+    this.map.set(key, value); // most recently used goes last
+    return value;
+  }
+
+  set(key, value) {
+    this.map.delete(key);
+    this.map.set(key, value);
+    while (this.map.size > this.maxEntries) this.map.delete(this.map.keys().next().value);
+    return this;
+  }
+
+  delete(key) {
+    return this.map.delete(key);
+  }
+}
+
+const maxCachedSources = Math.max(1, Number.parseInt(process.env.VECTOR_CACHE_MAX_SOURCES, 10) || 200);
+const cache = new LruCache(maxCachedSources);
 
 export async function buildVectorStore(sourceId, chunks, onProgress) {
   const store = await FlatVectorStore.fromDocuments(chunks, getEmbeddings(), onProgress);
@@ -109,8 +143,12 @@ export async function buildVectorStore(sourceId, chunks, onProgress) {
 }
 
 export async function loadVectorStore(sourceId) {
-  if (!cache.has(sourceId)) cache.set(sourceId, await FlatVectorStore.load(sourceId));
-  return cache.get(sourceId);
+  let store = cache.get(sourceId);
+  if (!store) {
+    store = await FlatVectorStore.load(sourceId);
+    cache.set(sourceId, store);
+  }
+  return store;
 }
 
 /**

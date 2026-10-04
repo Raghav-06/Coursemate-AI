@@ -10,6 +10,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import {
   consumeEmailVerification,
   createEmailVerification,
+  deleteUserSessions,
   getUserCredentials,
   latestEmailVerification,
   markEmailVerified,
@@ -108,6 +109,14 @@ function normalizeEmail(value) {
   return email;
 }
 
+function assertAllowedDomain(email) {
+  const { allowedDomains } = config.auth;
+  const domain = email.split("@").pop();
+  if (allowedDomains.length && !allowedDomains.includes(domain)) {
+    throw httpError(403, `Sign-in is limited to ${allowedDomains.join(", ")} accounts.`);
+  }
+}
+
 function normalizePurpose(value) {
   if (!PURPOSES.includes(value)) throw httpError(400, "Unknown verification purpose.");
   return value;
@@ -135,6 +144,7 @@ authRouter.post(
   "/email/start",
   asyncHandler(async (req, res) => {
     const email = normalizeEmail(req.body?.email);
+    assertAllowedDomain(email);
     const purpose = normalizePurpose(req.body?.purpose ?? "signup");
 
     if (!hit(`start-ip:${req.ip}`, 20, FIFTEEN_MIN)) throw httpError(429, "Too many requests. Try again in a few minutes.");
@@ -230,6 +240,9 @@ authRouter.post(
     delete req.session.pendingEmail;
     reset(`login:${pending.email}`);
 
+    // A password reset signs out every other browser; this one is signed in below.
+    if (pending.purpose === "reset") await deleteUserSessions(user.id);
+
     await logIn(req, user);
     res.status(pending.purpose === "signup" ? 201 : 200).json(publicUser(user));
   })
@@ -239,6 +252,7 @@ authRouter.post(
   "/login",
   asyncHandler(async (req, res) => {
     const email = normalizeEmail(req.body?.email);
+    assertAllowedDomain(email);
     const password = String(req.body?.password ?? "");
     if (!password) throw httpError(400, "Enter your password.");
 

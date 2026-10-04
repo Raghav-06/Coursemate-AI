@@ -201,6 +201,11 @@ export async function touchLogin(userId) {
   await query("UPDATE users SET last_login_at = NOW() WHERE id = $1", [userId]);
 }
 
+// Signs a user out of every browser by dropping their stored sessions.
+export async function deleteUserSessions(userId) {
+  await query("DELETE FROM user_sessions WHERE sess->'passport'->>'user' = $1", [userId]);
+}
+
 // ---- Email verification codes ---------------------------------------------------
 
 export async function createEmailVerification({ email, purpose, codeHash, ttlMinutes }) {

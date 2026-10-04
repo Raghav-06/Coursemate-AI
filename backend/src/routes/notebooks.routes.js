@@ -22,6 +22,11 @@ import { assertApiKey } from "../services/llm.js";
 
 export const notebooksRouter = Router();
 
+const MAX_TITLE_CHARS = 200;
+const MAX_MESSAGE_CHARS = 8000;
+
+const cleanTitle = (value) => (typeof value === "string" ? value.trim().slice(0, MAX_TITLE_CHARS) : "");
+
 const DEFAULT_EMOJIS = ["📓", "📘", "📗", "📙", "📕", "🧠", "🔬", "📚", "💡", "🧪"];
 
 function httpError(status, message) {
@@ -58,7 +63,7 @@ notebooksRouter.get(
 notebooksRouter.post(
   "/",
   asyncHandler(async (req, res) => {
-    const title = req.body?.title?.trim();
+    const title = cleanTitle(req.body?.title);
     const notebook = await addNotebook({
       userId: req.user.id,
       title: title || "Untitled notebook",
@@ -78,7 +83,7 @@ notebooksRouter.patch(
   asyncHandler(async (req, res) => {
     const { title, emoji } = req.body ?? {};
     const patch = {};
-    if (typeof title === "string" && title.trim()) Object.assign(patch, { title: title.trim(), titleIsAuto: false });
+    if (cleanTitle(title)) Object.assign(patch, { title: cleanTitle(title), titleIsAuto: false });
     if (typeof emoji === "string" && emoji.trim()) patch.emoji = emoji.trim();
     res.json(await updateNotebook(req.params.id, patch));
   })
@@ -148,7 +153,8 @@ notebooksRouter.post(
 notebooksRouter.post(
   "/:id/sources/url",
   asyncHandler(async (req, res) => {
-    const { url, title } = req.body ?? {};
+    const { url } = req.body ?? {};
+    const title = cleanTitle(req.body?.title);
     const urls = (Array.isArray(req.body?.urls) ? req.body.urls : [url]).map((u) => String(u ?? "").trim()).filter(Boolean);
     if (urls.length === 0) throw httpError(400, "Paste at least one link.");
     for (const u of urls) {
@@ -166,7 +172,7 @@ notebooksRouter.post(
       created.push(
         await createSource(
           req.params.id,
-          { type: "url", url: u, title: title?.trim() || u, titleIsPlaceholder: !title?.trim() },
+          { type: "url", url: u, title: title || u.slice(0, MAX_TITLE_CHARS), titleIsPlaceholder: !title },
           async () => {
             const loaded = await loadUrl(u);
             return { text: loaded.text, title: loaded.title };
@@ -186,7 +192,7 @@ notebooksRouter.post(
     if (!text.trim()) throw httpError(400, "Paste some text to add as a source.");
     await assertCapacity(req.params.id, 1);
 
-    const title = req.body?.title?.trim() || "Pasted text";
+    const title = cleanTitle(req.body?.title) || "Pasted text";
     const source = await createSource(req.params.id, { type: "text", title }, async () => ({ text }));
     res.status(202).json(source);
   })
@@ -222,6 +228,7 @@ notebooksRouter.post(
   asyncHandler(async (req, res) => {
     const content = String(req.body?.content ?? "").trim();
     if (!content) throw httpError(400, "Message content is required.");
+    if (content.length > MAX_MESSAGE_CHARS) throw httpError(413, "Messages are limited to 8,000 characters.");
 
     const sources = await resolveSources(req.params.id, req.body?.sourceIds);
     if (sources.length === 0) throw httpError(409, "Select at least one ready source to chat with.");
