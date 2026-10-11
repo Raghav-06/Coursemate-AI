@@ -37,10 +37,13 @@ export async function answerQuestion({ sources, question, history = [] }) {
     chunk: doc.metadata.chunk,
     start: doc.metadata.start ?? null,
     end: doc.metadata.end ?? null,
+    location: doc.metadata.location ?? null,
     text: doc.pageContent,
   }));
 
-  const context = citations.map((c) => `[${c.number}] (from "${c.sourceTitle}")\n${c.text}`).join("\n\n");
+  const context = citations
+    .map((c) => `[${c.number}] (from "${c.sourceTitle}"${c.location ? `, ${c.location}` : ""})\n${c.text}`)
+    .join("\n\n");
 
   const priorTurns = history
     .slice(-config.limits.chatHistoryMessages)

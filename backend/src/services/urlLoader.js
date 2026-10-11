@@ -1,7 +1,7 @@
 import dns from "node:dns/promises";
 import net from "node:net";
 import * as cheerio from "cheerio";
-import { extractPdfBuffer } from "./ingestion.js";
+import { pdfSegments } from "./ingestion.js";
 
 const FETCH_TIMEOUT_MS = 20_000;
 const MAX_BYTES = 15 * 1024 * 1024;
@@ -154,7 +154,8 @@ function extractHtml(html, finalUrl) {
 
 /**
  * Downloads a web page (or a PDF / plain-text file behind a link) and returns
- * its readable text, ready for the same chunk -> embed pipeline as uploads.
+ * its readable text — or, for PDFs, its pages as segments — ready for the same
+ * chunk -> embed pipeline as uploads.
  */
 export async function loadUrl(rawUrl) {
   let parsed;
@@ -169,9 +170,9 @@ export async function loadUrl(rawUrl) {
   const buffer = await readBody(response);
 
   if (contentType.includes("application/pdf") || finalUrl.pathname.toLowerCase().endsWith(".pdf")) {
-    const text = await extractPdfBuffer(buffer);
+    const segments = await pdfSegments(buffer);
     const fileName = decodeURIComponent(finalUrl.pathname.split("/").pop() || "") || finalUrl.hostname;
-    return { title: fileName, text, finalUrl: finalUrl.href };
+    return { title: fileName, segments, finalUrl: finalUrl.href };
   }
 
   if (contentType.includes("html") || contentType === "") {

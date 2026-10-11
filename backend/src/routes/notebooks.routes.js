@@ -22,7 +22,8 @@ import {
 } from "../db/store.js";
 import { config } from "../config/index.js";
 import { httpError, idList, resolveSources, resolveUnitId } from "./helpers.js";
-import { extractText } from "../services/ingestion.js";
+import { extractDocument } from "../services/ingestion.js";
+import { keepOriginal } from "../services/originals.js";
 import { loadUrl } from "../services/urlLoader.js";
 import { assertCapacity, createSource, removeSourceFiles, unlinkQuietly } from "../services/sources.js";
 import { answerQuestion } from "../services/ragService.js";
@@ -192,13 +193,15 @@ notebooksRouter.post(
 
     const created = [];
     for (const file of files) {
+      const fileType = path.extname(file.originalname).slice(1).toLowerCase();
       created.push(
         await createSource(
           req.params.id,
-          { type: "file", unitId, title: file.originalname, fileName: file.originalname, fileType: path.extname(file.originalname).slice(1).toLowerCase() },
-          async () => {
+          { type: "file", unitId, title: file.originalname, fileName: file.originalname, fileType },
+          async (sourceId) => {
+            // The original is kept so the source can be re-processed later.
             try {
-              return { text: await extractText(file.path) };
+              return await extractDocument(await keepOriginal(file.path, { id: sourceId, fileType }));
             } finally {
               unlinkQuietly(file.path);
             }
@@ -237,10 +240,7 @@ notebooksRouter.post(
         await createSource(
           req.params.id,
           { type: "url", unitId, url: u, title: title || u.slice(0, MAX_TITLE_CHARS), titleIsPlaceholder: !title },
-          async () => {
-            const loaded = await loadUrl(u);
-            return { text: loaded.text, title: loaded.title };
-          }
+          () => loadUrl(u)
         )
       );
     }

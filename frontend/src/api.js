@@ -69,6 +69,7 @@ export const api = {
   getSourceContent: (sourceId) => request(`/api/sources/${sourceId}/content`),
   updateSource: (sourceId, patch) => request(`/api/sources/${sourceId}`, { method: "PATCH", body: patch }),
   deleteSource: (sourceId) => request(`/api/sources/${sourceId}`, { method: "DELETE" }),
+  reprocessSource: (sourceId) => request(`/api/sources/${sourceId}/reprocess`, { method: "POST" }),
   searchArxiv: (query) => request(`/api/arxiv?query=${encodeURIComponent(query)}&maxDocs=10`),
 
   listMessages: (id) => request(`/api/notebooks/${id}/messages`),

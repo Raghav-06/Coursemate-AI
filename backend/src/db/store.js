@@ -313,12 +313,12 @@ export async function updateNotebook(id, patch) {
 }
 
 // Chunks and messages go with it (ON DELETE CASCADE). Returns the
-// removed sources so callers can drop any caches.
+// removed sources so callers can drop caches and stored files.
 export async function deleteNotebook(id) {
   return withTransaction(async (client) => {
-    const { rows } = await client.query("SELECT id, notebook_id FROM sources WHERE notebook_id = $1", [id]);
+    const { rows } = await client.query("SELECT id, notebook_id, type, file_type FROM sources WHERE notebook_id = $1", [id]);
     await client.query("DELETE FROM notebooks WHERE id = $1", [id]);
-    return rows.map((r) => ({ id: r.id, notebookId: r.notebook_id }));
+    return rows.map((r) => ({ id: r.id, notebookId: r.notebook_id, type: r.type, fileType: r.file_type }));
   });
 }
 
@@ -403,6 +403,15 @@ export async function updateSource(id, patch) {
   return toSource(rows[0]);
 }
 
+/** Marks a source as processing unless it already is; false if it was (so only one run starts). */
+export async function claimSourceForProcessing(id) {
+  const { rowCount } = await query(
+    "UPDATE sources SET status = 'processing', progress = 0, error = NULL WHERE id = $1 AND status <> 'processing'",
+    [id]
+  );
+  return rowCount === 1;
+}
+
 export async function deleteSource(id) {
   const { rows } = await query(`DELETE FROM sources WHERE id = $1 RETURNING ${SOURCE_FIELDS}`, [id]);
   const source = toSource(rows[0]);
@@ -410,9 +419,14 @@ export async function deleteSource(id) {
   return source;
 }
 
-// Full extracted text of a source.
-export async function setSourceContent(id, text) {
-  await query("UPDATE sources SET content = $1 WHERE id = $2", [text, id]);
+// Full extracted text of a source, with its page/slide locations (or null).
+export async function setSourceContent(id, text, locations = null) {
+  await query("UPDATE sources SET content = $1, locations = $2 WHERE id = $3", [text, locations ? JSON.stringify(locations) : null, id]);
+}
+
+export async function getSourceLocations(id) {
+  const { rows } = await query("SELECT locations FROM sources WHERE id = $1", [id]);
+  return rows[0]?.locations ?? null;
 }
 
 export async function getSourceContent(id) {
@@ -491,12 +505,12 @@ export async function replaceChunks(sourceId, records) {
       const batch = records.slice(i, i + CHUNK_BATCH);
       const values = [];
       const tuples = batch.map((r) => {
-        values.push(sourceId, r.metadata.chunk, r.pageContent, r.metadata.start, r.metadata.end, r.embedding);
+        values.push(sourceId, r.metadata.chunk, r.pageContent, r.metadata.start, r.metadata.end, r.metadata.location ?? null, r.embedding);
         const n = values.length;
-        return `($${n - 5}, $${n - 4}, $${n - 3}, $${n - 2}, $${n - 1}, $${n})`;
+        return `($${n - 6}, $${n - 5}, $${n - 4}, $${n - 3}, $${n - 2}, $${n - 1}, $${n})`;
       });
       await client.query(
-        `INSERT INTO chunks (source_id, chunk_index, content, start_offset, end_offset, embedding) VALUES ${tuples.join(", ")}`,
+        `INSERT INTO chunks (source_id, chunk_index, content, start_offset, end_offset, location, embedding) VALUES ${tuples.join(", ")}`,
         values
       );
     }
@@ -505,7 +519,7 @@ export async function replaceChunks(sourceId, records) {
 
 export async function loadChunks(sourceId) {
   const { rows } = await query(
-    `SELECT c.chunk_index, c.content, c.start_offset, c.end_offset, c.embedding, s.title
+    `SELECT c.chunk_index, c.content, c.start_offset, c.end_offset, c.location, c.embedding, s.title
        FROM chunks c JOIN sources s ON s.id = c.source_id
       WHERE c.source_id = $1
       ORDER BY c.chunk_index`,
@@ -513,7 +527,7 @@ export async function loadChunks(sourceId) {
   );
   return rows.map((r) => ({
     pageContent: r.content,
-    metadata: { sourceId, source: r.title, chunk: r.chunk_index, start: r.start_offset, end: r.end_offset },
+    metadata: { sourceId, source: r.title, chunk: r.chunk_index, start: r.start_offset, end: r.end_offset, location: r.location },
     embedding: r.embedding,
   }));
 }

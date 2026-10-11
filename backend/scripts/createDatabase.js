@@ -6,7 +6,7 @@ import path from "node:path";
 import { v4 as uuidv4 } from "uuid";
 import { pool } from "../src/db/pool.js";
 import { addNotebook, addSource, getSource, getUserByEmail } from "../src/db/store.js";
-import { extractText } from "../src/services/ingestion.js";
+import { extractDocument } from "../src/services/ingestion.js";
 import { processSource } from "../src/services/sourceProcessor.js";
 
 async function main() {
@@ -25,7 +25,7 @@ async function main() {
     const title = path.basename(filePath);
     await addSource({ id, notebookId: notebook.id, type: "file", title, fileName: title, fileType: path.extname(title).slice(1) });
     console.log(`Ingesting ${title}...`);
-    await processSource(id, async () => ({ text: await extractText(filePath) }));
+    await processSource(id, () => extractDocument(filePath));
     const source = await getSource(id);
     console.log(source.status === "ready" ? `  ✅ ${source.chunkCount} chunks` : `  ❌ ${source.error}`);
   }

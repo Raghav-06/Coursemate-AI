@@ -105,6 +105,12 @@ CREATE TABLE IF NOT EXISTS chunks (
 );
 CREATE INDEX IF NOT EXISTS chunks_source_idx ON chunks (source_id, chunk_index);
 
+-- Where each page / slide sits in sources.content: [{ "label": "p. 12", "start": 0, "end": 1834 }].
+-- NULL for sources without pages (or added before locations existed; "Re-process" fills it).
+ALTER TABLE sources ADD COLUMN IF NOT EXISTS locations JSONB;
+-- The page(s) / slide(s) a chunk spans, e.g. "p. 12", "pp. 12–13", "Slide 4".
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS location TEXT;
+
 -- Chat history, one thread per notebook.
 CREATE TABLE IF NOT EXISTS messages (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),

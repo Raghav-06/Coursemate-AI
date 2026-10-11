@@ -1,8 +1,13 @@
-import { getSourceContent, setSourceContent } from "../db/store.js";
+import { getSourceContent, getSourceLocations, setSourceContent } from "../db/store.js";
 
-// A source's full extracted text lives in sources.content.
-export async function saveSourceText(sourceId, text) {
-  await setSourceContent(sourceId, text);
+// A source's full extracted text lives in sources.content, and where each
+// page / slide starts in it in sources.locations.
+export async function saveSourceText(sourceId, text, locations = null) {
+  await setSourceContent(sourceId, text, locations);
+}
+
+export async function readSourceLocations(sourceId) {
+  return getSourceLocations(sourceId);
 }
 
 export async function readSourceText(sourceId) {

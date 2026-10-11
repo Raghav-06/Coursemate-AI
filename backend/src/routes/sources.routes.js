@@ -2,8 +2,8 @@ import { Router } from "express";
 import { asyncHandler, isUuid } from "../utils/asyncHandler.js";
 import { getSource, updateSource } from "../db/store.js";
 import { resolveUnitId } from "./helpers.js";
-import { readSourceText } from "../services/sourceText.js";
-import { removeSource } from "../services/sources.js";
+import { readSourceLocations, readSourceText } from "../services/sourceText.js";
+import { removeSource, reprocessSource } from "../services/sources.js";
 
 export const sourcesRouter = Router();
 
@@ -21,11 +21,22 @@ sourcesRouter.param("id", async (req, res, next, id) => {
 
 sourcesRouter.get("/:id", (req, res) => res.json(req.source));
 
-// Full extracted text, for the source viewer and citation highlighting.
+// Full extracted text, for the source viewer and citation highlighting, plus
+// where each page / slide starts in it ([{ label, start, end }] or null).
 sourcesRouter.get(
   "/:id/content",
   asyncHandler(async (req, res) => {
-    res.json({ text: await readSourceText(req.params.id) });
+    const [text, locations] = await Promise.all([readSourceText(req.params.id), readSourceLocations(req.params.id)]);
+    res.json({ text, locations });
+  })
+);
+
+// Extracts and embeds the source again (e.g. to add page / slide numbers to
+// a source added before they existed). 202 + the source, now "processing".
+sourcesRouter.post(
+  "/:id/reprocess",
+  asyncHandler(async (req, res) => {
+    res.status(202).json(await reprocessSource(req.source));
   })
 );
 

@@ -5,6 +5,7 @@ import { migrate, pool } from "./src/db/pool.js";
 
 async function main() {
   await fs.mkdir(config.paths.uploadDir, { recursive: true });
+  await fs.mkdir(config.paths.originalsDir, { recursive: true });
 
   for (const problem of configProblems()) console.warn(`⚠️  ${problem}`);
 

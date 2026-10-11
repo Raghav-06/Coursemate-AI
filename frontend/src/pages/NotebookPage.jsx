@@ -97,6 +97,7 @@ export default function NotebookPage({ notebookId }) {
           for (const s of srcs) {
             const before = prev.find((p) => p.id === s.id);
             if (before?.status === "processing" && s.status === "error") toast(`Couldn't add "${s.title}": ${s.error}`, "error");
+            if (before?.status === "processing" && s.status === "ready" && s.error) toast(`"${s.title}": ${s.error}`, "error");
           }
           return srcs;
         });
@@ -134,6 +135,16 @@ export default function NotebookPage({ notebookId }) {
   const openAdd = (unitId = null) => {
     setAddUnitId(unitId);
     setAddOpen(true);
+  };
+
+  const reprocessSource = async (id) => {
+    try {
+      const updated = await api.reprocessSource(id);
+      setSources((list) => list.map((s) => (s.id === id ? updated : s)));
+      toast("Re-processing the source…");
+    } catch (err) {
+      toast(err.message, "error");
+    }
   };
 
   const moveSource = async (id, unitId) => {
@@ -314,6 +325,7 @@ export default function NotebookPage({ notebookId }) {
       onToggle={toggleSources}
       onRename={renameSource}
       onMove={moveSource}
+      onReprocess={reprocessSource}
       onRemove={removeSource}
       onCreateUnit={createUnit}
       onRenameUnit={renameUnit}

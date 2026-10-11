@@ -60,7 +60,7 @@ function MoveSourceDialog({ source, units, onClose, onMove }) {
   );
 }
 
-function SourceRow({ source, hasUnits, onOpen, onToggle, onRename, onMove, onRemove }) {
+function SourceRow({ source, hasUnits, onOpen, onToggle, onRename, onMove, onReprocess, onRemove }) {
   const [icon, color] = sourceIcon(source);
   const processing = source.status === "processing";
   const failed = source.status === "error";
@@ -96,6 +96,7 @@ function SourceRow({ source, hasUnits, onOpen, onToggle, onRename, onMove, onRem
           !failed && { label: "Rename source", icon: "edit", onClick: () => onRename(source) },
           hasUnits && { label: "Move to unit", icon: "drive_file_move", onClick: () => onMove(source) },
           source.url && { label: "Open original link", icon: "open_in_new", onClick: () => window.open(source.url, "_blank", "noopener") },
+          !processing && { label: "Re-process", icon: "refresh", onClick: () => onReprocess(source.id) },
           { label: "Remove source", icon: "delete", danger: true, onClick: () => onRemove(source) },
         ]}
       />
@@ -145,6 +146,7 @@ export default function SourcesPanel({
   onToggle,
   onRename,
   onMove,
+  onReprocess,
   onRemove,
   onCreateUnit,
   onRenameUnit,
@@ -182,7 +184,7 @@ export default function SourcesPanel({
       return next;
     });
 
-  const rowProps = { hasUnits: units.length > 0, onOpen, onToggle, onRename: setRenaming, onMove: setMoving, onRemove: setRemoving };
+  const rowProps = { hasUnits: units.length > 0, onOpen, onToggle, onRename: setRenaming, onMove: setMoving, onReprocess, onRemove: setRemoving };
 
   if (collapsed) {
     return (
@@ -202,7 +204,7 @@ export default function SourcesPanel({
   if (viewedSource) {
     return (
       <section className="panel w-full">
-        <SourceViewer source={viewedSource} citation={viewer.citation} onBack={onCloseViewer} onAsk={onAsk} />
+        <SourceViewer source={viewedSource} citation={viewer.citation} onBack={onCloseViewer} onAsk={onAsk} onReprocess={onReprocess} />
       </section>
     );
   }

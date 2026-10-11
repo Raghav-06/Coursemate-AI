@@ -143,6 +143,9 @@ export const config = {
   paths: {
     // Uploaded files are kept here only while their text is extracted.
     uploadDir: path.resolve(root, process.env.UPLOAD_DIR || "./uploads"),
+    // Original uploaded files, kept so a source can be re-processed (and, for
+    // images, shown in the viewer). Deleted together with the source.
+    originalsDir: path.resolve(root, process.env.ORIGINALS_DIR || path.join(process.env.UPLOAD_DIR || "./uploads", "originals")),
     // Built frontend to serve in production (optional).
     clientDist: path.resolve(root, process.env.CLIENT_DIST_DIR || "../frontend/dist"),
   },

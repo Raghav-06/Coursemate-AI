@@ -1,11 +1,14 @@
 import fs from "node:fs/promises";
 import { v4 as uuidv4 } from "uuid";
 import { config } from "../config/index.js";
-import { addSource, countSources, deleteSource } from "../db/store.js";
+import { addSource, claimSourceForProcessing, countSources, deleteSource, getSource } from "../db/store.js";
 import { processSource } from "./sourceProcessor.js";
 import { deleteVectorStore } from "./vectorStore.js";
-import { deleteSourceText } from "./sourceText.js";
+import { deleteSourceText, readSourceText } from "./sourceText.js";
 import { refreshNotebookOverview } from "./notebookOverview.js";
+import { deleteOriginal, hasOriginal, originalPath } from "./originals.js";
+import { extractDocument, slideSegmentsFromText } from "./ingestion.js";
+import { loadUrl } from "./urlLoader.js";
 
 export async function assertCapacity(notebookId, adding) {
   const count = await countSources(notebookId);
@@ -16,9 +19,9 @@ export async function assertCapacity(notebookId, adding) {
 }
 
 /**
- * Registers a source and ingests it in the background. `load` resolves to
- * { text, title? }; a loaded title replaces the placeholder (e.g. a URL's
- * page title replaces the raw URL).
+ * Registers a source and ingests it in the background. `load(sourceId)`
+ * resolves to { text | segments, title? }; a loaded title replaces the
+ * placeholder (e.g. a URL's page title replaces the raw URL).
  */
 export async function createSource(notebookId, fields, load) {
   const source = {
@@ -40,13 +43,48 @@ export async function createSource(notebookId, fields, load) {
 export async function removeSource(id) {
   const source = await deleteSource(id);
   if (!source) return null;
-  await Promise.all([deleteVectorStore(id), deleteSourceText(id)]);
+  await Promise.all([deleteVectorStore(id), deleteSourceText(id), deleteOriginal(source)]);
   refreshNotebookOverview(source.notebookId);
   return source;
 }
 
 export async function removeSourceFiles(sources) {
-  await Promise.all(sources.flatMap((s) => [deleteVectorStore(s.id), deleteSourceText(s.id)]));
+  await Promise.all(sources.flatMap((s) => [deleteVectorStore(s.id), deleteSourceText(s.id), deleteOriginal(s)]));
+}
+
+const conflict = (message) => Object.assign(new Error(message), { status: 409 });
+
+/**
+ * Extracts, chunks and embeds a source again — e.g. so a source added before
+ * page numbers existed gains them. Files use the kept original (old PPTX
+ * sources recover their slides from the stored text), links are fetched
+ * again, pasted text is re-chunked. Runs in the background like a new source.
+ */
+export async function reprocessSource(source) {
+  if (source.status === "processing") throw conflict("This source is still being processed.");
+
+  let load;
+  if (source.type === "file") {
+    if (await hasOriginal(source)) {
+      load = () => extractDocument(originalPath(source));
+    } else if (source.fileType === "pptx") {
+      const segments = slideSegmentsFromText(await readSourceText(source.id));
+      if (segments) load = async () => ({ segments });
+    }
+    if (!load) {
+      throw conflict("The original file of this source wasn't kept (it was added before page numbers were supported). Remove it and upload it again to get page numbers.");
+    }
+  } else if (source.type === "url") {
+    load = () => loadUrl(source.url);
+  } else {
+    const text = await readSourceText(source.id);
+    load = async () => ({ text });
+  }
+
+  const wasReady = source.status === "ready";
+  if (!(await claimSourceForProcessing(source.id))) throw conflict("This source is still being processed.");
+  processSource(source.id, load, { reprocess: wasReady });
+  return getSource(source.id);
 }
 
 export function unlinkQuietly(filePath) {

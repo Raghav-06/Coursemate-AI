@@ -41,7 +41,7 @@ function CitationChip({ citation, onOpen }) {
         onBlur={hide}
         onClick={() => onOpen?.(citation)}
         className="inline-flex items-center justify-center align-[2px] min-w-[20px] h-5 px-1 mx-0.5 rounded-full text-[11px] font-semibold leading-none bg-panel-3 text-ink-2 hover:bg-accent hover:text-accent-fg transition-colors no-underline"
-        aria-label={`Citation ${citation.number}: ${citation.sourceTitle}`}
+        aria-label={`Citation ${citation.number}: ${citation.sourceTitle}${citation.location ? `, ${citation.location}` : ""}`}
       >
         {citation.number}
       </button>
@@ -63,6 +63,7 @@ function CitationChip({ citation, onOpen }) {
                 description
               </span>
               <span className="truncate">{citation.sourceTitle}</span>
+              {citation.location && <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-accent-soft text-accent-soft-fg text-[11px] font-semibold">{citation.location}</span>}
             </div>
             <p className="text-[13px] leading-5 text-ink line-clamp-10 whitespace-pre-line">{citation.text}</p>
             {onOpen && (

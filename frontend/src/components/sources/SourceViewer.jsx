@@ -17,8 +17,49 @@ function locate(text, citation) {
   return approx === -1 ? null : [approx, Math.min(text.length, approx + passage.length)];
 }
 
-export default function SourceViewer({ source, citation, onBack, onAsk }) {
+// Splits the text at page/slide starts (rendered as markers) and around the
+// highlighted range.
+function SourceText({ text, locations, range, markRef }) {
+  const cuts = new Set([0, text.length]);
+  const starts = new Map();
+  for (const l of locations ?? []) {
+    if (l.start >= 0 && l.start < text.length) {
+      cuts.add(l.start);
+      starts.set(l.start, l.label);
+    }
+  }
+  if (range) range.forEach((p) => cuts.add(p));
+  const points = [...cuts].sort((a, b) => a - b);
+  const parts = [];
+  let marked = false;
+  for (let i = 0; i < points.length - 1; i++) {
+    const [a, b] = [points[i], points[i + 1]];
+    if (starts.has(a)) {
+      parts.push(
+        <span key={`loc-${a}`} className="flex items-center gap-2 mt-4 mb-1 select-none" aria-label={starts.get(a)}>
+          <span className="px-2 py-0.5 rounded-md bg-panel-3 text-ink-3 text-[11px] font-semibold not-italic">{starts.get(a)}</span>
+          <span className="flex-1 border-t border-line/70" />
+        </span>
+      );
+    }
+    const piece = text.slice(a, b);
+    if (range && a >= range[0] && b <= range[1]) {
+      parts.push(
+        <mark key={a} ref={marked ? undefined : markRef} className="bg-mark text-ink rounded-sm px-0.5">
+          {piece}
+        </mark>
+      );
+      marked = true;
+    } else {
+      parts.push(<span key={a}>{piece}</span>);
+    }
+  }
+  return <>{parts}</>;
+}
+
+export default function SourceViewer({ source, citation, onBack, onAsk, onReprocess }) {
   const [text, setText] = useState(null);
+  const [locations, setLocations] = useState(null);
   const [error, setError] = useState(null);
   const [guideOpen, setGuideOpen] = useState(!citation);
   const markRef = useRef(null);
@@ -29,13 +70,20 @@ export default function SourceViewer({ source, citation, onBack, onAsk }) {
     setText(null);
     setError(null);
     api.getSourceContent(source.id).then(
-      (r) => !cancelled && setText(r.text),
+      (r) => {
+        if (cancelled) return;
+        setText(r.text);
+        setLocations(r.locations);
+      },
       (err) => !cancelled && setError(err.message)
     );
     return () => {
       cancelled = true;
     };
-  }, [source.id]);
+  }, [source.id, source.status]);
+
+  // PDFs, slide decks and links to PDFs can carry page/slide numbers.
+  const paged = /^(pdf|pptx)$/.test(source.fileType ?? "") || /\.pdf($|\?)|arxiv\.org/i.test(source.url ?? "");
 
   useEffect(() => setGuideOpen(!citation), [citation]);
 
@@ -53,6 +101,7 @@ export default function SourceViewer({ source, citation, onBack, onAsk }) {
         <h2 className="flex-1 min-w-0 truncate text-sm font-medium px-1" title={source.title}>
           {source.title}
         </h2>
+        {citation?.location && <span className="shrink-0 px-2 py-0.5 rounded-md bg-accent-soft text-accent-soft-fg text-[11px] font-semibold">{citation.location}</span>}
         {source.url && <IconButton icon="open_in_new" label="Open original" onClick={() => window.open(source.url, "_blank", "noopener")} />}
       </div>
 
@@ -90,7 +139,20 @@ export default function SourceViewer({ source, citation, onBack, onAsk }) {
               ) : (
                 <p className="text-sm text-ink-3">The guide for this source is being written, or couldn't be generated.</p>
               )}
-              {source.wordCount && <p className="mt-4 text-xs text-ink-3">{source.wordCount.toLocaleString()} words</p>}
+              {source.wordCount && (
+                <p className="mt-4 text-xs text-ink-3">
+                  {source.wordCount.toLocaleString()} words{locations?.length ? ` · ${locations.length} ${/^Slide/.test(locations[0].label) ? "slides" : "pages"}` : ""}
+                </p>
+              )}
+              {text !== null && !locations && paged && source.status === "ready" && onReprocess && (
+                <p className="mt-3 flex flex-wrap items-center gap-2 text-xs text-ink-3">
+                  No page numbers for this source yet.
+                  <button type="button" className="font-medium text-accent hover:underline" onClick={() => onReprocess(source.id)}>
+                    Re-process
+                  </button>
+                </p>
+              )}
+              {source.status === "processing" && <p className="mt-3 text-xs text-ink-3">Re-processing…</p>}
             </div>
           )}
         </div>
@@ -104,17 +166,7 @@ export default function SourceViewer({ source, citation, onBack, onAsk }) {
           )}
           {text !== null && (
             <div className="text-[13.5px] leading-6 text-ink-2 whitespace-pre-wrap wrap-break-word font-[450]">
-              {range ? (
-                <>
-                  {text.slice(0, range[0])}
-                  <mark ref={markRef} className="bg-mark text-ink rounded-sm px-0.5">
-                    {text.slice(range[0], range[1])}
-                  </mark>
-                  {text.slice(range[1])}
-                </>
-              ) : (
-                text || "This source has no text."
-              )}
+              {text ? <SourceText text={text} locations={locations} range={range} markRef={markRef} /> : "This source has no text."}
             </div>
           )}
         </div>
