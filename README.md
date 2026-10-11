@@ -12,6 +12,11 @@ suggested questions.
   add, rename, reorder and delete units, move sources between them, and pick the unit when adding
   sources. Sources without a unit live under *General*. A scope selector above the chat input limits
   answers to the whole course or to chosen units.
+- **Page and slide citations** — PDFs (uploaded or linked) record their pages and PPTX decks their
+  slides, so citations read *p. 12*, *pp. 12–13* or *Slide 4* in the chips, popovers and source
+  viewer (which shows page/slide markers). Original uploads are kept so any source can be
+  **re-processed**; sources added before this feature gain page numbers that way (links are
+  re-fetched; older slide decks recover their slides from the stored text).
 
 | Layer     | Tech |
 |-----------|------|
@@ -122,7 +127,10 @@ React (5173) ──/auth, /api──▶ Express (3000) ──▶ PostgreSQL
 - **Authorization:** every `/api/*` route requires a session, and every notebook and source
   lookup is filtered by the signed-in user's id, so other users' ids return 404.
 - **Sources:** text is extracted (files, URLs, pasted text), saved to `sources.content`, split into
-  overlapping chunks, embedded, and stored in `chunks.embedding` (`REAL[]`).
+  overlapping chunks, embedded, and stored in `chunks.embedding` (`REAL[]`). Pages and slides are
+  recorded as character ranges in `sources.locations`, and each chunk stores the page(s) it spans
+  in `chunks.location`. Uploaded files are kept in `ORIGINALS_DIR` (default `uploads/originals`)
+  until their source is deleted.
 - **Chat:** MMR retrieval over the selected sources → the model answers with `[n]` citations,
   streamed to the browser via Server-Sent Events. History is stored in `messages`.
 - **AI through LangChain:** chat uses LangChain's `ChatOpenAI` class pointed at `CHAT_BASE_URL`,
@@ -155,7 +163,8 @@ React (5173) ──/auth, /api──▶ Express (3000) ──▶ PostgreSQL
 | POST | `/api/notebooks/:id/sources/url` | Add links `{ urls: [], unitId? }` |
 | POST | `/api/notebooks/:id/sources/text` | Add pasted text `{ title?, text, unitId? }` |
 | GET/PATCH/DELETE | `/api/sources/:id` | Source details / rename, select, move `{ unitId }` / delete |
-| GET | `/api/sources/:id/content` | Full source text |
+| GET | `/api/sources/:id/content` | Full source text + page/slide `locations` `[{ label, start, end }]` |
+| POST | `/api/sources/:id/reprocess` | Extract, chunk and embed a source again (202; 409 while processing) |
 | GET/DELETE | `/api/notebooks/:id/messages` | Chat history / clear |
 | POST | `/api/notebooks/:id/chat` | Ask a question (SSE stream) `{ content, sourceIds?, unitIds? }` |
 | GET | `/api/arxiv?query=` | Discover arXiv papers |

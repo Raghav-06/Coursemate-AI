@@ -7,8 +7,8 @@ resuming the work in a new conversation.
 | # | Stage | Status |
 |---|-------|--------|
 | 1 | Courses with units | ✅ done |
-| 2 | Page and slide citations | ⏳ next |
-| 3 | Spaced-repetition flashcards | — |
+| 2 | Page and slide citations | ✅ done |
+| 3 | Spaced-repetition flashcards | ⏳ next |
 | 4 | Quizzes, graded answers, weak topics | — |
 | 5 | Past-paper analysis | — |
 | 6 | Exam mode, revision plans, daily goal, streaks | — |
@@ -54,3 +54,27 @@ verified against a local test harness (kept outside the repo):
   to General; another user got 404 on every unit route and on moving a source; signed out → 401.
   Existing database (from before this stage) migrated without data loss. UI: units grouped, scope
   menu lists units with counts, no page errors.
+
+### 2. Page and slide citations ✅
+- Extraction (`services/ingestion.js`) returns labelled segments: PDF pages via pdf-parse's per-page
+  hook (uploads and PDF links), PPTX slides. `assembleSegments` joins them into the normalised text
+  and records `sources.locations` `[{label, start, end}]`; `chunks.location` is computed per chunk
+  ("p. 12", "pp. 12–13", "Slide 4", "Slides 4–6"). Citations carry `location`, and the model sees
+  it in each passage header.
+- Originals: uploads are now kept in `ORIGINALS_DIR` (default `<UPLOAD_DIR>/originals`, new
+  setting) as `<sourceId>.<ext>` and deleted with the source/course. `POST /api/sources/:id/reprocess`
+  re-extracts from the original, re-fetches links, recovers slides of old PPTX sources from their
+  stored "Slide N" headings, and re-chunks pasted text. Old *uploaded* PDFs (no original kept) get a
+  clear 409 asking to re-upload. A failed re-process keeps the source usable and records the error.
+  Concurrent re-process requests: only one starts (atomic claim).
+- UI: location badge in citation popovers and the viewer header; page/slide markers in the source
+  viewer; "Re-process" in each source's menu and a hint in the viewer for paged sources without
+  page numbers.
+- Tested (curl): 3-page PDF upload + PDF link → 3 page locations; PPTX → 3 slide locations; chunk
+  rows carry locations; chat citations show "p. 3", "Slides 1–3". Sources created by the Stage 1
+  build (no locations), after migration: PPTX re-process recovered slides, PDF-link re-process gained
+  pages, uploaded PDF → 409 with message; 3 concurrent re-process calls → one 202 + two 409; other
+  user → 404; deleting a source removed its stored original. UI: chip label/popover/viewer show
+  "p. 3", markers p. 1–3 rendered, highlighted passage scrolled into view.
+- Note: the Stage 2 code commit went out before these doc updates (a script error); the docs
+  follow in a separate commit.
