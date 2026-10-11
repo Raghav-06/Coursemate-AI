@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import Markdown, { stripCitations } from "../Markdown";
 import { ConfirmDialog, Icon, IconButton, Menu, copyText } from "../ui";
+import ScopeSelector from "./ScopeSelector";
 
 function TypingDots() {
   return (
@@ -52,7 +53,7 @@ function Overview({ notebook, sources, onAddSources }) {
       </p>
       <div className="mt-4">
         {pending ? (
-          <div className="flex flex-col gap-2" aria-label="Writing notebook summary">
+          <div className="flex flex-col gap-2" aria-label="Writing course summary">
             <div className="skeleton h-4 w-full" />
             <div className="skeleton h-4 w-11/12" />
             <div className="skeleton h-4 w-4/5" />
@@ -72,7 +73,7 @@ function Overview({ notebook, sources, onAddSources }) {
   );
 }
 
-function Composer({ disabled, streaming, selectedCount, placeholder, suggestions, onSend, onStop }) {
+function Composer({ disabled, streaming, selectedCount, placeholder, suggestions, toolbar, onSend, onStop }) {
   const [value, setValue] = useState("");
   const ref = useRef(null);
 
@@ -107,6 +108,7 @@ function Composer({ disabled, streaming, selectedCount, placeholder, suggestions
           ))}
         </div>
       )}
+      {toolbar && <div className="max-w-3xl mx-auto flex items-center gap-2 pb-2">{toolbar}</div>}
       <div className={`max-w-3xl mx-auto flex items-end gap-2 rounded-3xl border border-line bg-panel pl-5 pr-2 py-2 focus-within:border-accent focus-within:ring-1 focus-within:ring-accent ${disabled ? "opacity-60" : ""}`}>
         <textarea
           ref={ref}
@@ -151,6 +153,9 @@ function Composer({ disabled, streaming, selectedCount, placeholder, suggestions
 export default function ChatPanel({
   notebook,
   sources,
+  units = [],
+  scope = [],
+  onScopeChange,
   selectedCount,
   messages,
   streaming,
@@ -183,7 +188,9 @@ export default function ChatPanel({
       : readyCount === 0
         ? "Waiting for sources to finish processing…"
         : selectedCount === 0
-          ? "Select at least one source to chat"
+          ? scope.length
+            ? "No selected sources in these units"
+            : "Select at least one source to chat"
           : "Start typing…";
 
   return (
@@ -229,6 +236,7 @@ export default function ChatPanel({
         selectedCount={selectedCount}
         placeholder={placeholder}
         suggestions={readyCount > 0 ? notebook.suggestedQuestions : []}
+        toolbar={units.length > 0 && onScopeChange ? <ScopeSelector units={units} sources={sources} scope={scope} onChange={onScopeChange} /> : null}
         onSend={onSend}
         onStop={onStop}
       />
@@ -236,7 +244,7 @@ export default function ChatPanel({
       <ConfirmDialog
         open={confirmClear}
         title="Delete chat history?"
-        message="All messages in this notebook's chat will be permanently deleted."
+        message="All messages in this course's chat will be permanently deleted."
         onConfirm={onClear}
         onClose={() => setConfirmClear(false)}
       />

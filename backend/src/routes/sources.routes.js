@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { asyncHandler, isUuid } from "../utils/asyncHandler.js";
 import { getSource, updateSource } from "../db/store.js";
+import { resolveUnitId } from "./helpers.js";
 import { readSourceText } from "../services/sourceText.js";
 import { removeSource } from "../services/sources.js";
 
@@ -28,15 +29,17 @@ sourcesRouter.get(
   })
 );
 
-// body: { title?, selected? }
+// body: { title?, selected?, unitId? } — unitId moves the source to a unit (null/"general" = General)
 sourcesRouter.patch(
   "/:id",
   asyncHandler(async (req, res) => {
-    const { title, selected } = req.body ?? {};
+    const { title, selected, unitId } = req.body ?? {};
     const patch = {};
     const cleanTitle = typeof title === "string" ? title.trim().slice(0, MAX_TITLE_CHARS) : "";
     if (cleanTitle) Object.assign(patch, { title: cleanTitle, titleIsPlaceholder: false });
     if (typeof selected === "boolean") patch.selected = selected;
+    const unit = await resolveUnitId(req.source.notebookId, unitId);
+    if (unit !== undefined) patch.unitId = unit;
     res.json(await updateSource(req.params.id, patch));
   })
 );

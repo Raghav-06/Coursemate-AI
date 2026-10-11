@@ -11,7 +11,7 @@ export async function assertCapacity(notebookId, adding) {
   const count = await countSources(notebookId);
   const max = config.limits.sourcesPerNotebook;
   if (count + adding > max) {
-    throw Object.assign(new Error(`A notebook can hold up to ${max} sources (it has ${count}).`), { status: 409 });
+    throw Object.assign(new Error(`A course can hold up to ${max} sources (it has ${count}).`), { status: 409 });
   }
 }
 

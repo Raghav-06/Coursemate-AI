@@ -144,7 +144,7 @@ export default function HomePage() {
               <IconButton icon="grid_view" label="Grid view" onClick={() => setView("grid")} className={`w-8! h-8! ${view === "grid" ? "bg-accent-soft! text-accent-soft-fg!" : ""}`} size={18} />
               <IconButton icon="view_list" label="List view" onClick={() => setView("list")} className={`w-8! h-8! ${view === "list" ? "bg-accent-soft! text-accent-soft-fg!" : ""}`} size={18} />
             </div>
-            <select value={sort} onChange={(e) => setSort(e.target.value)} className="h-9 rounded-full border border-line bg-bg px-3 text-sm text-ink-2 focus:outline-hidden focus:border-accent" aria-label="Sort notebooks">
+            <select value={sort} onChange={(e) => setSort(e.target.value)} className="h-9 rounded-full border border-line bg-bg px-3 text-sm text-ink-2 focus:outline-hidden focus:border-accent" aria-label="Sort courses">
               <option value="recent">Most recent</option>
               <option value="title">Title</option>
             </select>
@@ -168,7 +168,7 @@ export default function HomePage() {
               <span className="w-14 h-14 rounded-full bg-accent-soft text-accent-soft-fg flex items-center justify-center">
                 <Icon name="add" size={30} />
               </span>
-              <span className="font-display text-base font-medium">Create new notebook</span>
+              <span className="font-display text-base font-medium">Create new course</span>
             </button>
             {sorted.map((nb) => (
               <div
@@ -196,7 +196,7 @@ export default function HomePage() {
               <span className="w-28 hidden sm:block">Updated</span>
               <span />
             </div>
-            {sorted.length === 0 && <p className="px-4 py-6 text-sm text-ink-3">No notebooks yet.</p>}
+            {sorted.length === 0 && <p className="px-4 py-6 text-sm text-ink-3">No courses yet.</p>}
             {sorted.map((nb) => (
               <div
                 key={nb.id}
@@ -226,8 +226,8 @@ export default function HomePage() {
       />
       <ConfirmDialog
         open={Boolean(deleting)}
-        title="Delete notebook?"
-        message={`"${deleting?.title}" and all of its sources and chat history will be permanently deleted.`}
+        title="Delete course?"
+        message={`"${deleting?.title}" and all of its units, sources and chat history will be permanently deleted.`}
         onConfirm={() => remove(deleting)}
         onClose={() => setDeleting(null)}
       />

@@ -196,14 +196,35 @@ function Discover({ onAdd, busy, remaining }) {
 
 const TITLES = { home: "Add sources", link: "Website or PDF link", text: "Paste copied text", discover: "Discover sources" };
 
-export default function AddSourcesDialog({ open, onClose, notebookId, sourceCount, onAdded }) {
+function UnitPicker({ units, value, onChange }) {
+  return (
+    <label className="flex items-center gap-3 mb-4 text-sm text-ink-2">
+      <Icon name="folder" size={20} className="text-ink-3" />
+      Add to
+      <select value={value ?? ""} onChange={(e) => onChange(e.target.value || null)} className="input w-auto! flex-1 min-w-0 py-1.5!" aria-label="Unit for the new sources">
+        {units.map((u) => (
+          <option key={u.id} value={u.id}>
+            {u.title}
+          </option>
+        ))}
+        <option value="">General (no unit)</option>
+      </select>
+    </label>
+  );
+}
+
+export default function AddSourcesDialog({ open, onClose, notebookId, sourceCount, units = [], defaultUnitId = null, onAdded }) {
   const [mode, setMode] = useState("home");
   const [busy, setBusy] = useState(false);
+  const [unitId, setUnitId] = useState(defaultUnitId);
   const remaining = MAX_SOURCES - sourceCount;
 
   useEffect(() => {
-    if (open) setMode("home");
-  }, [open]);
+    if (open) {
+      setMode("home");
+      setUnitId(defaultUnitId);
+    }
+  }, [open, defaultUnitId]);
 
   const run = async (fn) => {
     setBusy(true);
@@ -226,10 +247,10 @@ export default function AddSourcesDialog({ open, onClose, notebookId, sourceCoun
     }
     if (valid.length === 0) return;
     if (valid.length > remaining) {
-      toast(`You can add ${remaining} more source${remaining === 1 ? "" : "s"} to this notebook.`, "error");
+      toast(`You can add ${remaining} more source${remaining === 1 ? "" : "s"} to this course.`, "error");
       return;
     }
-    run(() => api.uploadFiles(notebookId, valid));
+    run(() => api.uploadFiles(notebookId, valid, unitId));
   };
 
   return (
@@ -258,19 +279,24 @@ export default function AddSourcesDialog({ open, onClose, notebookId, sourceCoun
       }
     >
       {remaining <= 0 ? (
-        <p className="text-sm text-ink-2 py-6 text-center">This notebook has reached the {MAX_SOURCES}-source limit. Remove a source to add another.</p>
-      ) : mode === "home" ? (
-        <UploadHome onFiles={uploadFiles} uploading={busy} setMode={setMode} />
-      ) : mode === "link" ? (
-        <LinkForm busy={busy} onSubmit={(urls) => run(() => api.addUrls(notebookId, urls))} />
-      ) : mode === "text" ? (
-        <TextForm busy={busy} onSubmit={(title, text) => run(() => api.addText(notebookId, title, text))} />
+        <p className="text-sm text-ink-2 py-6 text-center">This course has reached the {MAX_SOURCES}-source limit. Remove a source to add another.</p>
       ) : (
-        <Discover
-          busy={busy}
-          remaining={remaining}
-          onAdd={(papers) => run(async () => (await Promise.all(papers.map((p) => api.addUrl(notebookId, p.pdfLink ?? p.link, p.title)))).flat())}
-        />
+        <>
+          {units.length > 0 && <UnitPicker units={units} value={unitId} onChange={setUnitId} />}
+          {mode === "home" ? (
+            <UploadHome onFiles={uploadFiles} uploading={busy} setMode={setMode} />
+          ) : mode === "link" ? (
+            <LinkForm busy={busy} onSubmit={(urls) => run(() => api.addUrls(notebookId, urls, unitId))} />
+          ) : mode === "text" ? (
+            <TextForm busy={busy} onSubmit={(title, text) => run(() => api.addText(notebookId, title, text, unitId))} />
+          ) : (
+            <Discover
+              busy={busy}
+              remaining={remaining}
+              onAdd={(papers) => run(async () => (await Promise.all(papers.map((p) => api.addUrl(notebookId, p.pdfLink ?? p.link, p.title, unitId)))).flat())}
+            />
+          )}
+        </>
       )}
     </Modal>
   );

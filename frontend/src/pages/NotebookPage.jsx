@@ -33,7 +33,7 @@ function EditableTitle({ notebook, onRename }) {
           e.currentTarget.blur();
         }
       }}
-      aria-label="Notebook title"
+      aria-label="Course title"
       className="min-w-0 flex-1 max-w-xl bg-transparent font-display text-lg sm:text-xl font-medium text-ink rounded-lg px-2 py-1 -mx-2 hover:bg-panel-2 focus:bg-panel focus:outline-hidden focus:ring-2 focus:ring-accent/50 truncate"
     />
   );
@@ -42,10 +42,13 @@ function EditableTitle({ notebook, onRename }) {
 export default function NotebookPage({ notebookId }) {
   const [notebook, setNotebook] = useState(null);
   const [sources, setSources] = useState([]);
+  const [units, setUnits] = useState([]);
   const [messages, setMessages] = useState([]);
   const [loadError, setLoadError] = useState(null);
 
   const [addOpen, setAddOpen] = useState(false);
+  const [addUnitId, setAddUnitId] = useState(null); // unit preselected in Add sources
+  const [scope, setScope] = useState([]); // chat scope: unit ids ("general" = no unit); [] = whole course
   const [viewer, setViewer] = useState(null); // { sourceId, citation? }
   const [streaming, setStreaming] = useState(null); // { question, text, citations }
   const [collapsed, setCollapsed] = useState({ sources: false });
@@ -59,12 +62,13 @@ export default function NotebookPage({ notebookId }) {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([api.getNotebook(notebookId), api.listSources(notebookId), api.listMessages(notebookId)])
-      .then(([nb, srcs, msgs]) => {
+    Promise.all([api.getNotebook(notebookId), api.listSources(notebookId), api.listMessages(notebookId), api.listUnits(notebookId)])
+      .then(([nb, srcs, msgs, unitList]) => {
         if (cancelled) return;
         setNotebook(nb);
         setSources(srcs);
         setMessages(msgs);
+        setUnits(unitList);
         if (srcs.length === 0 || window.location.hash.includes("new=1")) setAddOpen(true);
         history.replaceState(null, "", `#/notebook/${notebookId}`);
         if (srcs.some((s) => s.status === "ready") && !nb.summary) {
@@ -127,6 +131,65 @@ export default function NotebookPage({ notebookId }) {
     setAddOpen(false);
   };
 
+  const openAdd = (unitId = null) => {
+    setAddUnitId(unitId);
+    setAddOpen(true);
+  };
+
+  const moveSource = async (id, unitId) => {
+    try {
+      const updated = await api.updateSource(id, { unitId });
+      setSources((list) => list.map((s) => (s.id === id ? updated : s)));
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
+
+  // ---- Units ------------------------------------------------------------------
+
+  const createUnit = async (title) => {
+    try {
+      const unit = await api.createUnit(notebookId, title);
+      setUnits((list) => [...list, unit]);
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
+
+  const renameUnit = async (unitId, title) => {
+    try {
+      const unit = await api.renameUnit(notebookId, unitId, title);
+      setUnits((list) => list.map((u) => (u.id === unitId ? unit : u)));
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
+
+  const moveUnit = async (unitId, delta) => {
+    const ids = units.map((u) => u.id);
+    const from = ids.indexOf(unitId);
+    const to = from + delta;
+    if (from === -1 || to < 0 || to >= ids.length) return;
+    ids.splice(to, 0, ids.splice(from, 1)[0]);
+    setUnits(ids.map((id) => units.find((u) => u.id === id)));
+    try {
+      setUnits(await api.reorderUnits(notebookId, ids));
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
+
+  const deleteUnit = async (unitId) => {
+    try {
+      await api.deleteUnit(notebookId, unitId);
+      setUnits((list) => list.filter((u) => u.id !== unitId));
+      setSources((list) => list.map((s) => (s.unitId === unitId ? { ...s, unitId: null } : s)));
+      setScope((list) => list.filter((id) => id !== unitId));
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
+
   const toggleSources = async (ids, selected) => {
     setSources((list) => list.map((s) => (ids.includes(s.id) ? { ...s, selected } : s)));
     try {
@@ -164,13 +227,17 @@ export default function NotebookPage({ notebookId }) {
 
   // ---- Chat -------------------------------------------------------------------
 
-  const selectedReady = sources.filter((s) => s.selected && s.status === "ready");
+  // Sources the chat will use: ticked, ready, and inside the chosen units.
+  const unitIdSet = new Set(units.map((u) => u.id));
+  const scopeIds = scope.filter((id) => id === "general" || unitIdSet.has(id));
+  const inScope = (s) => scopeIds.length === 0 || scopeIds.includes(s.unitId && unitIdSet.has(s.unitId) ? s.unitId : "general");
+  const selectedReady = sources.filter((s) => s.selected && s.status === "ready" && inScope(s));
 
   const sendMessage = useCallback(
     async (content) => {
       if (streaming) return;
       if (selectedReady.length === 0) {
-        toast("Select at least one ready source to chat with.", "error");
+        toast(scopeIds.length ? "No selected, ready sources in the chosen units." : "Select at least one ready source to chat with.", "error");
         return;
       }
       setTab("chat");
@@ -181,8 +248,7 @@ export default function NotebookPage({ notebookId }) {
       try {
         await api.chat(
           notebookId,
-          content,
-          selectedReady.map((s) => s.id),
+          { content, sourceIds: selectedReady.map((s) => s.id), ...(scopeIds.length ? { unitIds: scopeIds } : {}) },
           (event) => {
             if (event.type === "user") setMessages((list) => [...list, event.message]);
             if (event.type === "citations") setStreaming((s) => s && { ...s, citations: event.citations });
@@ -202,7 +268,7 @@ export default function NotebookPage({ notebookId }) {
         abortRef.current = null;
       }
     },
-    [notebookId, selectedReady, streaming]
+    [notebookId, selectedReady, scopeIds, streaming]
   );
 
   const stopStreaming = () => abortRef.current?.abort();
@@ -224,7 +290,7 @@ export default function NotebookPage({ notebookId }) {
         <Icon name="error" size={40} className="text-danger" />
         <p className="text-ink-2">{loadError}</p>
         <button type="button" className="btn-primary" onClick={() => navigate("/")}>
-          Back to notebooks
+          Back to courses
         </button>
       </div>
     );
@@ -241,12 +307,18 @@ export default function NotebookPage({ notebookId }) {
   const sourcesPanel = (
     <SourcesPanel
       sources={sources}
+      units={units}
       collapsed={isWide && collapsed.sources}
       onToggleCollapsed={isWide ? () => setCollapsed((c) => ({ ...c, sources: !c.sources })) : null}
-      onAdd={() => setAddOpen(true)}
+      onAdd={openAdd}
       onToggle={toggleSources}
       onRename={renameSource}
+      onMove={moveSource}
       onRemove={removeSource}
+      onCreateUnit={createUnit}
+      onRenameUnit={renameUnit}
+      onMoveUnit={moveUnit}
+      onDeleteUnit={deleteUnit}
       viewer={viewer}
       onOpen={(sourceId) => setViewer({ sourceId })}
       onCloseViewer={() => setViewer(null)}
@@ -258,6 +330,9 @@ export default function NotebookPage({ notebookId }) {
     <ChatPanel
       notebook={notebook}
       sources={sources}
+      units={units}
+      scope={scopeIds}
+      onScopeChange={setScope}
       selectedCount={selectedReady.length}
       messages={messages}
       streaming={streaming}
@@ -265,7 +340,7 @@ export default function NotebookPage({ notebookId }) {
       onStop={stopStreaming}
       onClear={clearChat}
       onOpenCitation={openCitation}
-      onAddSources={() => setAddOpen(true)}
+      onAddSources={() => openAdd()}
     />
   );
 
@@ -313,6 +388,8 @@ export default function NotebookPage({ notebookId }) {
         onClose={() => setAddOpen(false)}
         notebookId={notebookId}
         sourceCount={sources.length}
+        units={units}
+        defaultUnitId={addUnitId}
         onAdded={addedSources}
       />
     </div>

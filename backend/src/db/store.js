@@ -53,6 +53,7 @@ function toSource(r) {
   return {
     id: r.id,
     notebookId: r.notebook_id,
+    unitId: r.unit_id ?? null,
     type: r.type,
     title: r.title,
     titleIsPlaceholder: r.title_is_placeholder,
@@ -283,7 +284,7 @@ export async function addNotebook(notebook) {
      VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
     [
       notebook.userId,
-      notebook.title ?? "Untitled notebook",
+      notebook.title ?? "Untitled course",
       notebook.titleIsAuto ?? true,
       notebook.emoji ?? "📓",
       notebook.summary ?? null,
@@ -324,7 +325,7 @@ export async function deleteNotebook(id) {
 // ---- Sources ---------------------------------------------------------------
 
 // Everything except the (potentially huge) full text.
-const SOURCE_FIELDS = `id, notebook_id, type, title, title_is_placeholder, url, file_name, file_type, status,
+const SOURCE_FIELDS = `id, notebook_id, unit_id, type, title, title_is_placeholder, url, file_name, file_type, status,
   progress, selected, guide, chunk_count, char_count, word_count, error, embedding_model, created_at`;
 
 export async function listSources(notebookId) {
@@ -354,8 +355,8 @@ export async function countSources(notebookId) {
 
 export async function addSource(source) {
   const { rows } = await query(
-    `INSERT INTO sources (id, notebook_id, type, title, title_is_placeholder, url, file_name, file_type, status, progress, selected)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    `INSERT INTO sources (id, notebook_id, type, title, title_is_placeholder, url, file_name, file_type, status, progress, selected, unit_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
      RETURNING ${SOURCE_FIELDS}`,
     [
       source.id,
@@ -369,6 +370,7 @@ export async function addSource(source) {
       source.status ?? "processing",
       source.progress ?? 0,
       source.selected ?? true,
+      source.unitId ?? null,
     ]
   );
   await touch(source.notebookId);
@@ -376,6 +378,7 @@ export async function addSource(source) {
 }
 
 const SOURCE_COLUMNS = {
+  unitId: "unit_id",
   title: "title",
   titleIsPlaceholder: "title_is_placeholder",
   status: "status",
@@ -415,6 +418,65 @@ export async function setSourceContent(id, text) {
 export async function getSourceContent(id) {
   const { rows } = await query("SELECT content FROM sources WHERE id = $1", [id]);
   return rows[0]?.content ?? "";
+}
+
+// ---- Units -------------------------------------------------------------------
+
+function toUnit(r) {
+  if (!r) return null;
+  return { id: r.id, notebookId: r.notebook_id, title: r.title, position: r.position, createdAt: iso(r.created_at) };
+}
+
+export async function listUnits(notebookId) {
+  const { rows } = await query("SELECT * FROM units WHERE notebook_id = $1 ORDER BY position, created_at", [notebookId]);
+  return rows.map(toUnit);
+}
+
+/** A unit inside the given notebook (null otherwise). */
+export async function getUnit(id, notebookId) {
+  const { rows } = await query("SELECT * FROM units WHERE id = $1 AND notebook_id = $2", [id, notebookId]);
+  return toUnit(rows[0]);
+}
+
+export async function countUnits(notebookId) {
+  const { rows } = await query("SELECT COUNT(*)::int AS count FROM units WHERE notebook_id = $1", [notebookId]);
+  return rows[0].count;
+}
+
+// New units go last.
+export async function addUnit(notebookId, title) {
+  const { rows } = await query(
+    `INSERT INTO units (notebook_id, title, position)
+     VALUES ($1, $2, COALESCE((SELECT MAX(position) + 1 FROM units WHERE notebook_id = $1), 0)) RETURNING *`,
+    [notebookId, title]
+  );
+  await touch(notebookId);
+  return toUnit(rows[0]);
+}
+
+export async function renameUnit(id, title) {
+  const { rows } = await query("UPDATE units SET title = $1 WHERE id = $2 RETURNING *", [title, id]);
+  return toUnit(rows[0]);
+}
+
+/** Sets positions from an ordered list of unit ids; ids not listed keep their relative order after them. */
+export async function reorderUnits(notebookId, orderedIds) {
+  await withTransaction(async (client) => {
+    const { rows } = await client.query("SELECT id FROM units WHERE notebook_id = $1 ORDER BY position, created_at", [notebookId]);
+    const known = rows.map((r) => r.id);
+    const order = [...orderedIds.filter((id) => known.includes(id)), ...known.filter((id) => !orderedIds.includes(id))];
+    for (const [position, id] of order.entries()) {
+      await client.query("UPDATE units SET position = $1 WHERE id = $2", [position, id]);
+    }
+  });
+  return listUnits(notebookId);
+}
+
+// Its sources move to "General" (ON DELETE SET NULL).
+export async function deleteUnit(id) {
+  const { rows } = await query("DELETE FROM units WHERE id = $1 RETURNING *", [id]);
+  if (rows[0]) await touch(rows[0].notebook_id);
+  return toUnit(rows[0]);
 }
 
 // ---- Chunks (vector store) ---------------------------------------------------

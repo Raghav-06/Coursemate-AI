@@ -80,6 +80,19 @@ CREATE TABLE IF NOT EXISTS sources (
 );
 CREATE INDEX IF NOT EXISTS sources_notebook_idx ON sources (notebook_id, created_at);
 
+-- Units (chapters / modules) group a course's sources. A source without a
+-- unit belongs to "General".
+CREATE TABLE IF NOT EXISTS units (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  notebook_id  UUID NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
+  title        TEXT NOT NULL,
+  position     INTEGER NOT NULL DEFAULT 0,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS units_notebook_idx ON units (notebook_id, position);
+ALTER TABLE sources ADD COLUMN IF NOT EXISTS unit_id UUID REFERENCES units(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS sources_unit_idx ON sources (unit_id);
+
 -- Chunks of each source with their embedding vectors, used for retrieval.
 CREATE TABLE IF NOT EXISTS chunks (
   id            BIGSERIAL PRIMARY KEY,

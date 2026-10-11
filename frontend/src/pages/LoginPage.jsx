@@ -35,7 +35,7 @@ const FEATURES = [
   {
     icon: "upload_file",
     title: "Upload your sources",
-    body: "Add PDFs, Word docs, slides, websites, arXiv papers or pasted text — up to 50 sources per notebook.",
+    body: "Add PDFs, Word docs, slides, websites, arXiv papers or pasted text — up to 50 sources per course.",
   },
   {
     icon: "forum",
@@ -45,7 +45,7 @@ const FEATURES = [
   {
     icon: "summarize",
     title: "Get the gist instantly",
-    body: "Every source gets a guide with a summary and key topics, and each notebook gets an overview with suggested questions to start from.",
+    body: "Every source gets a guide with a summary and key topics, and each course gets an overview with suggested questions to start from.",
   },
 ];
 
@@ -93,7 +93,7 @@ export default function LoginPage({ serverError }) {
               </span>
             </h1>
             <p className="mt-6 text-lg text-ink-2 max-w-xl">
-              Create a notebook, add your documents and links, then ask questions and get answers grounded in your sources,
+              Create a course, add your documents and links, then ask questions and get answers grounded in your sources,
               with citations you can click to read the exact passage.
             </p>
           </div>
@@ -112,7 +112,7 @@ export default function LoginPage({ serverError }) {
               <span className="flex-1 h-px bg-line" />
             </div>
             <EmailAuth />
-            <p className="text-xs text-ink-3 text-center">Your notebooks are private to your account.</p>
+            <p className="text-xs text-ink-3 text-center">Your courses are private to your account.</p>
           </div>
         </section>
 

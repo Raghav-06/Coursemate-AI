@@ -49,15 +49,23 @@ export const api = {
   deleteNotebook: (id) => request(`/api/notebooks/${id}`, { method: "DELETE" }),
   refreshOverview: (id) => request(`/api/notebooks/${id}/overview`, { method: "POST" }),
 
+  listUnits: (id) => request(`/api/notebooks/${id}/units`),
+  createUnit: (id, title) => request(`/api/notebooks/${id}/units`, { method: "POST", body: { title } }),
+  renameUnit: (id, unitId, title) => request(`/api/notebooks/${id}/units/${unitId}`, { method: "PATCH", body: { title } }),
+  reorderUnits: (id, unitIds) => request(`/api/notebooks/${id}/units/order`, { method: "PUT", body: { unitIds } }),
+  deleteUnit: (id, unitId) => request(`/api/notebooks/${id}/units/${unitId}`, { method: "DELETE" }),
+
+  // `unitId` (optional) files new sources under a unit; null = General.
   listSources: (id) => request(`/api/notebooks/${id}/sources`),
-  uploadFiles: (id, files) => {
+  uploadFiles: (id, files, unitId) => {
     const form = new FormData();
+    if (unitId) form.append("unitId", unitId);
     for (const file of files) form.append("files", file);
     return request(`/api/notebooks/${id}/sources/files`, { method: "POST", form });
   },
-  addUrls: (id, urls) => request(`/api/notebooks/${id}/sources/url`, { method: "POST", body: { urls } }),
-  addUrl: (id, url, title) => request(`/api/notebooks/${id}/sources/url`, { method: "POST", body: { url, title } }),
-  addText: (id, title, text) => request(`/api/notebooks/${id}/sources/text`, { method: "POST", body: { title, text } }),
+  addUrls: (id, urls, unitId) => request(`/api/notebooks/${id}/sources/url`, { method: "POST", body: { urls, unitId } }),
+  addUrl: (id, url, title, unitId) => request(`/api/notebooks/${id}/sources/url`, { method: "POST", body: { url, title, unitId } }),
+  addText: (id, title, text, unitId) => request(`/api/notebooks/${id}/sources/text`, { method: "POST", body: { title, text, unitId } }),
   getSourceContent: (sourceId) => request(`/api/sources/${sourceId}/content`),
   updateSource: (sourceId, patch) => request(`/api/sources/${sourceId}`, { method: "PATCH", body: patch }),
   deleteSource: (sourceId) => request(`/api/sources/${sourceId}`, { method: "DELETE" }),
@@ -67,17 +75,17 @@ export const api = {
   clearMessages: (id) => request(`/api/notebooks/${id}/messages`, { method: "DELETE" }),
 
   /**
-   * Streams a chat answer. `onEvent` receives the server's SSE events:
-   * user | citations | delta | done | error.
+   * Streams a chat answer. `body`: { content, sourceIds?, unitIds? }.
+   * `onEvent` receives the server's SSE events: user | citations | delta | done | error.
    */
-  async chat(id, content, sourceIds, onEvent, signal) {
+  async chat(id, body, onEvent, signal) {
     let response;
     try {
       response = await fetch(`${BASE}/api/notebooks/${id}/chat`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content, sourceIds }),
+        body: JSON.stringify(body),
         signal,
       });
     } catch (err) {

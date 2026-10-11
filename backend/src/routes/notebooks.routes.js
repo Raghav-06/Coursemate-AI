@@ -5,14 +5,23 @@ import { upload } from "../middleware/upload.js";
 import {
   addMessage,
   addNotebook,
+  addUnit,
   clearMessages,
+  countUnits,
   deleteNotebook,
+  deleteUnit,
   getNotebook,
+  getUnit,
   listMessages,
   listNotebooks,
   listSources,
+  listUnits,
+  renameUnit,
+  reorderUnits,
   updateNotebook,
 } from "../db/store.js";
+import { config } from "../config/index.js";
+import { httpError, idList, resolveSources, resolveUnitId } from "./helpers.js";
 import { extractText } from "../services/ingestion.js";
 import { loadUrl } from "../services/urlLoader.js";
 import { assertCapacity, createSource, removeSourceFiles, unlinkQuietly } from "../services/sources.js";
@@ -23,33 +32,32 @@ import { assertApiKey } from "../services/llm.js";
 export const notebooksRouter = Router();
 
 const MAX_TITLE_CHARS = 200;
+const MAX_UNIT_TITLE_CHARS = 120;
 const MAX_MESSAGE_CHARS = 8000;
 
-const cleanTitle = (value) => (typeof value === "string" ? value.trim().slice(0, MAX_TITLE_CHARS) : "");
+const cleanTitle = (value, max = MAX_TITLE_CHARS) => (typeof value === "string" ? value.trim().slice(0, max) : "");
 
 const DEFAULT_EMOJIS = ["📓", "📘", "📗", "📙", "📕", "🧠", "🔬", "📚", "💡", "🧪"];
-
-function httpError(status, message) {
-  return Object.assign(new Error(message), { status });
-}
 
 // Loads :id into req.notebook or 404s. Only the signed-in user's notebooks match.
 notebooksRouter.param("id", async (req, _res, next, id) => {
   try {
     req.notebook = isUuid(id) ? await getNotebook(id, req.user.id) : null;
-    next(req.notebook ? undefined : httpError(404, "Notebook not found."));
+    next(req.notebook ? undefined : httpError(404, "Course not found."));
   } catch (err) {
     next(err);
   }
 });
 
-// Sources a request should use: explicit ids if given, else the ones ticked
-// in the sources panel. Only ingested sources can be used.
-async function resolveSources(notebookId, sourceIds) {
-  const all = await listSources(notebookId);
-  const wanted = Array.isArray(sourceIds) ? all.filter((s) => sourceIds.includes(s.id)) : all.filter((s) => s.selected);
-  return wanted.filter((s) => s.status === "ready");
-}
+// Loads :unitId (a unit of the course already loaded by :id) into req.unit.
+notebooksRouter.param("unitId", async (req, _res, next, unitId) => {
+  try {
+    req.unit = isUuid(unitId) && req.notebook ? await getUnit(unitId, req.notebook.id) : null;
+    next(req.unit ? undefined : httpError(404, "Unit not found."));
+  } catch (err) {
+    next(err);
+  }
+});
 
 // ---- Notebooks -------------------------------------------------------------
 
@@ -66,7 +74,7 @@ notebooksRouter.post(
     const title = cleanTitle(req.body?.title);
     const notebook = await addNotebook({
       userId: req.user.id,
-      title: title || "Untitled notebook",
+      title: title || "Untitled course",
       titleIsAuto: !title,
       emoji: DEFAULT_EMOJIS[Math.floor(Math.random() * DEFAULT_EMOJIS.length)],
       summary: null,
@@ -106,6 +114,57 @@ notebooksRouter.post(
   })
 );
 
+// ---- Units -----------------------------------------------------------------
+
+notebooksRouter.get(
+  "/:id/units",
+  asyncHandler(async (req, res) => {
+    res.json(await listUnits(req.params.id));
+  })
+);
+
+// body: { title }
+notebooksRouter.post(
+  "/:id/units",
+  asyncHandler(async (req, res) => {
+    const title = cleanTitle(req.body?.title, MAX_UNIT_TITLE_CHARS);
+    if (!title) throw httpError(400, "Give the unit a name.");
+    const max = config.limits.unitsPerNotebook;
+    if ((await countUnits(req.params.id)) >= max) throw httpError(409, `A course can have up to ${max} units.`);
+    res.status(201).json(await addUnit(req.params.id, title));
+  })
+);
+
+// body: { unitIds: [...] } — the new order. Registered before /:unitId so
+// "order" is never read as a unit id.
+notebooksRouter.put(
+  "/:id/units/order",
+  asyncHandler(async (req, res) => {
+    const unitIds = idList(req.body?.unitIds, { name: "unitIds" });
+    if (!unitIds) throw httpError(400, "unitIds is required.");
+    res.json(await reorderUnits(req.params.id, unitIds));
+  })
+);
+
+// body: { title }
+notebooksRouter.patch(
+  "/:id/units/:unitId",
+  asyncHandler(async (req, res) => {
+    const title = cleanTitle(req.body?.title, MAX_UNIT_TITLE_CHARS);
+    if (!title) throw httpError(400, "Give the unit a name.");
+    res.json(await renameUnit(req.unit.id, title));
+  })
+);
+
+// Its sources move to General.
+notebooksRouter.delete(
+  "/:id/units/:unitId",
+  asyncHandler(async (req, res) => {
+    await deleteUnit(req.unit.id);
+    res.status(204).end();
+  })
+);
+
 // ---- Sources ---------------------------------------------------------------
 
 notebooksRouter.get(
@@ -115,14 +174,16 @@ notebooksRouter.get(
   })
 );
 
-// multipart "files" (one or many)
+// multipart "files" (one or many), plus an optional "unitId" field
 notebooksRouter.post(
   "/:id/sources/files",
   upload.array("files"),
   asyncHandler(async (req, res) => {
     const files = req.files ?? [];
     if (files.length === 0) throw httpError(400, "No files uploaded.");
+    let unitId;
     try {
+      unitId = await resolveUnitId(req.params.id, req.body?.unitId);
       await assertCapacity(req.params.id, files.length);
     } catch (err) {
       await Promise.all(files.map((f) => unlinkQuietly(f.path)));
@@ -134,7 +195,7 @@ notebooksRouter.post(
       created.push(
         await createSource(
           req.params.id,
-          { type: "file", title: file.originalname, fileName: file.originalname, fileType: path.extname(file.originalname).slice(1).toLowerCase() },
+          { type: "file", unitId, title: file.originalname, fileName: file.originalname, fileType: path.extname(file.originalname).slice(1).toLowerCase() },
           async () => {
             try {
               return { text: await extractText(file.path) };
@@ -149,7 +210,7 @@ notebooksRouter.post(
   })
 );
 
-// body: { urls: string[] } or { url, title? } — websites, PDF links, arXiv papers…
+// body: { urls: string[] } or { url, title? }, plus unitId? — websites, PDF links, arXiv papers…
 notebooksRouter.post(
   "/:id/sources/url",
   asyncHandler(async (req, res) => {
@@ -157,7 +218,9 @@ notebooksRouter.post(
     const title = cleanTitle(req.body?.title);
     const urls = (Array.isArray(req.body?.urls) ? req.body.urls : [url]).map((u) => String(u ?? "").trim()).filter(Boolean);
     if (urls.length === 0) throw httpError(400, "Paste at least one link.");
+    if (urls.length > 50) throw httpError(400, "Add up to 50 links at a time.");
     for (const u of urls) {
+      if (u.length > 2048) throw httpError(400, "Links are limited to 2,048 characters.");
       try {
         const parsed = new URL(u);
         if (!/^https?:$/.test(parsed.protocol)) throw new Error();
@@ -165,6 +228,7 @@ notebooksRouter.post(
         throw httpError(400, `"${u}" is not a valid http(s) link.`);
       }
     }
+    const unitId = await resolveUnitId(req.params.id, req.body?.unitId);
     await assertCapacity(req.params.id, urls.length);
 
     const created = [];
@@ -172,7 +236,7 @@ notebooksRouter.post(
       created.push(
         await createSource(
           req.params.id,
-          { type: "url", url: u, title: title || u.slice(0, MAX_TITLE_CHARS), titleIsPlaceholder: !title },
+          { type: "url", unitId, url: u, title: title || u.slice(0, MAX_TITLE_CHARS), titleIsPlaceholder: !title },
           async () => {
             const loaded = await loadUrl(u);
             return { text: loaded.text, title: loaded.title };
@@ -184,16 +248,18 @@ notebooksRouter.post(
   })
 );
 
-// body: { title?, text } — "Copied text" sources
+// body: { title?, text, unitId? } — "Copied text" sources
 notebooksRouter.post(
   "/:id/sources/text",
   asyncHandler(async (req, res) => {
     const text = String(req.body?.text ?? "");
     if (!text.trim()) throw httpError(400, "Paste some text to add as a source.");
+    if (text.length > 2_000_000) throw httpError(413, "Pasted text is limited to 2 million characters.");
+    const unitId = await resolveUnitId(req.params.id, req.body?.unitId);
     await assertCapacity(req.params.id, 1);
 
     const title = cleanTitle(req.body?.title) || "Pasted text";
-    const source = await createSource(req.params.id, { type: "text", title }, async () => ({ text }));
+    const source = await createSource(req.params.id, { type: "text", unitId, title }, async () => ({ text }));
     res.status(202).json(source);
   })
 );
@@ -216,7 +282,8 @@ notebooksRouter.delete(
 );
 
 /**
- * body: { content, sourceIds? } — streams the answer as Server-Sent Events:
+ * body: { content, sourceIds?, unitIds? } — unitIds limits retrieval to those
+ * units ("general" = sources without a unit). Streams the answer as Server-Sent Events:
  *   { type: "user", message }        the stored user message
  *   { type: "citations", citations } passages the answer may cite as [n]
  *   { type: "delta", text }          answer text as it is generated
@@ -230,8 +297,11 @@ notebooksRouter.post(
     if (!content) throw httpError(400, "Message content is required.");
     if (content.length > MAX_MESSAGE_CHARS) throw httpError(413, "Messages are limited to 8,000 characters.");
 
-    const sources = await resolveSources(req.params.id, req.body?.sourceIds);
-    if (sources.length === 0) throw httpError(409, "Select at least one ready source to chat with.");
+    const unitIds = idList(req.body?.unitIds, { allow: ["general"], name: "unitIds" });
+    const sources = await resolveSources(req.params.id, { sourceIds: idList(req.body?.sourceIds, { name: "sourceIds" }), unitIds });
+    if (sources.length === 0) {
+      throw httpError(409, unitIds?.length ? "No selected, ready sources in the chosen units." : "Select at least one ready source to chat with.");
+    }
     assertApiKey(); // fail fast (503) before storing the question if no API key is set
 
     const history = await listMessages(req.params.id);

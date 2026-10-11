@@ -134,6 +134,7 @@ export const config = {
   limits: {
     // NotebookLM caps a notebook at 50 sources.
     sourcesPerNotebook: num(process.env.MAX_SOURCES_PER_NOTEBOOK, 50),
+    unitsPerNotebook: num(process.env.MAX_UNITS_PER_NOTEBOOK, 50),
     uploadMaxMb: num(process.env.UPLOAD_MAX_MB, 200),
     // Previous chat messages replayed to the LLM so follow-ups have context.
     chatHistoryMessages: num(process.env.CHAT_HISTORY_MESSAGES, 6),

@@ -1,9 +1,17 @@
 # CourseMate AI
 
-A NotebookLM-style research notebook: sign in with Google (or with email + password), create notebooks, add sources
-(PDF, DOCX, PPTX, TXT/MD/CSV, websites, arXiv papers, pasted text), and ask questions that are
-answered **only from your sources, with clickable citations**. Each source gets a guide (summary +
-key topics) and each notebook an overview with suggested questions.
+A study and exam-prep app for college courses: sign in with Google (or with email + password), create a
+**course**, split it into **units**, add your material (PDF, DOCX, PPTX, TXT/MD/CSV, websites, arXiv
+papers, pasted text), and ask questions that are answered **only from your sources, with clickable
+citations**. Each source gets a guide (summary + key topics) and each course an overview with
+suggested questions.
+
+## Features
+
+- **Courses with units** — group sources into units (chapters / modules) with collapsible headers;
+  add, rename, reorder and delete units, move sources between them, and pick the unit when adding
+  sources. Sources without a unit live under *General*. A scope selector above the chat input limits
+  answers to the whole course or to chosen units.
 
 | Layer     | Tech |
 |-----------|------|
@@ -70,7 +78,10 @@ npm run dev           # http://localhost:3000
 cd frontend
 npm install
 npm run dev           # open http://localhost:5173
+                      # backend on another port? BACKEND_URL=http://localhost:3100 npm run dev
 ```
+
+> Internally (database tables, API paths) a course is still called a *notebook*.
 
 Click **Sign in with Google**, or use email:
 
@@ -134,16 +145,19 @@ React (5173) ──/auth, /api──▶ Express (3000) ──▶ PostgreSQL
 | POST | `/auth/email/verify` | Check the code `{ email, purpose, code }` |
 | POST | `/auth/email/complete` | Set the password (and name on sign-up) → signed in |
 | POST | `/auth/login` | Email + password sign-in |
-| GET/POST | `/api/notebooks` | List / create notebooks |
-| GET/PATCH/DELETE | `/api/notebooks/:id` | Read / rename / delete |
+| GET/POST | `/api/notebooks` | List / create courses |
+| GET/PATCH/DELETE | `/api/notebooks/:id` | Read / rename / delete a course |
+| GET/POST | `/api/notebooks/:id/units` | List / create units `{ title }` |
+| PATCH/DELETE | `/api/notebooks/:id/units/:unitId` | Rename / delete a unit (its sources move to General) |
+| PUT | `/api/notebooks/:id/units/order` | Reorder units `{ unitIds: [] }` |
 | GET | `/api/notebooks/:id/sources` | List sources |
-| POST | `/api/notebooks/:id/sources/files` | Upload files (multipart `files`) |
-| POST | `/api/notebooks/:id/sources/url` | Add links `{ urls: [] }` |
-| POST | `/api/notebooks/:id/sources/text` | Add pasted text |
-| GET/PATCH/DELETE | `/api/sources/:id` | Source details / rename, select / delete |
+| POST | `/api/notebooks/:id/sources/files` | Upload files (multipart `files`, optional `unitId`) |
+| POST | `/api/notebooks/:id/sources/url` | Add links `{ urls: [], unitId? }` |
+| POST | `/api/notebooks/:id/sources/text` | Add pasted text `{ title?, text, unitId? }` |
+| GET/PATCH/DELETE | `/api/sources/:id` | Source details / rename, select, move `{ unitId }` / delete |
 | GET | `/api/sources/:id/content` | Full source text |
 | GET/DELETE | `/api/notebooks/:id/messages` | Chat history / clear |
-| POST | `/api/notebooks/:id/chat` | Ask a question (SSE stream) |
+| POST | `/api/notebooks/:id/chat` | Ask a question (SSE stream) `{ content, sourceIds?, unitIds? }` |
 | GET | `/api/arxiv?query=` | Discover arXiv papers |
 
 ## Deploying to production

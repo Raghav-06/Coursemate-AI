@@ -15,7 +15,7 @@ const GUIDE_SAMPLE_CHARS = 24_000;
 async function generateSourceGuide(title, text) {
   const sample = text.length > GUIDE_SAMPLE_CHARS ? `${text.slice(0, GUIDE_SAMPLE_CHARS)}\n[…truncated…]` : text;
   const guide = await completeJson(
-    "You write concise source guides for a research notebook. Summaries are 3-5 sentences, written in plain prose with the most important terms in **bold** markdown. Key topics are 4-8 short noun phrases (2-5 words) that appear in the source.",
+    "You write concise source guides for a college course's study material. Summaries are 3-5 sentences, written in plain prose with the most important terms in **bold** markdown. Key topics are 4-8 short noun phrases (2-5 words) that appear in the source.",
     `Source title: ${title}\n\nSource text:\n${sample}\n\nReturn JSON: {"summary": string, "topics": string[]}`
   );
   return {
