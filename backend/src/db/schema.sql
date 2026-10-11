@@ -129,3 +129,59 @@ CREATE TABLE IF NOT EXISTS user_sessions (
   expire  TIMESTAMP(6) NOT NULL
 );
 CREATE INDEX IF NOT EXISTS user_sessions_expire_idx ON user_sessions (expire);
+
+-- ---- Study: flashcard decks with spaced repetition ---------------------------
+
+-- A deck belongs to a course, optionally to one unit.
+CREATE TABLE IF NOT EXISTS decks (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  notebook_id  UUID NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
+  unit_id      UUID REFERENCES units(id) ON DELETE SET NULL,
+  title        TEXT NOT NULL,
+  created_by   UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS decks_notebook_idx ON decks (notebook_id, created_at);
+
+-- Cards cite the source passage they were made from (source + page/slide + quote).
+CREATE TABLE IF NOT EXISTS cards (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  deck_id     UUID NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
+  front       TEXT NOT NULL,
+  back        TEXT NOT NULL,
+  topic       TEXT,
+  source_id   UUID REFERENCES sources(id) ON DELETE SET NULL,
+  location    TEXT,
+  quote       TEXT,
+  position    INTEGER NOT NULL DEFAULT 0,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS cards_deck_idx ON cards (deck_id, position);
+
+-- Each user's SM-2 state per card (a card with no row is "new" for that user).
+CREATE TABLE IF NOT EXISTS card_reviews (
+  card_id           UUID NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+  user_id           UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  ease              REAL NOT NULL DEFAULT 2.5,
+  interval_days     REAL NOT NULL DEFAULT 0,
+  repetitions       INTEGER NOT NULL DEFAULT 0,
+  due_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_reviewed_at  TIMESTAMPTZ,
+  lapses            INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (card_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS card_reviews_user_due_idx ON card_reviews (user_id, due_at);
+
+-- Every rating given, for the new-cards-per-day cap and daily activity.
+CREATE TABLE IF NOT EXISTS review_log (
+  id           BIGSERIAL PRIMARY KEY,
+  user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  card_id      UUID REFERENCES cards(id) ON DELETE SET NULL,
+  notebook_id  UUID REFERENCES notebooks(id) ON DELETE CASCADE,
+  rating       TEXT NOT NULL,           -- again | hard | good | easy
+  was_new      BOOLEAN NOT NULL DEFAULT FALSE,
+  reviewed_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS review_log_user_idx ON review_log (user_id, reviewed_at);

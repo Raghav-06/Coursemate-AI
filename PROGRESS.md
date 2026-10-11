@@ -8,8 +8,8 @@ resuming the work in a new conversation.
 |---|-------|--------|
 | 1 | Courses with units | ✅ done |
 | 2 | Page and slide citations | ✅ done |
-| 3 | Spaced-repetition flashcards | ⏳ next |
-| 4 | Quizzes, graded answers, weak topics | — |
+| 3 | Spaced-repetition flashcards | ✅ done |
+| 4 | Quizzes, graded answers, weak topics | ⏳ next |
 | 5 | Past-paper analysis | — |
 | 6 | Exam mode, revision plans, daily goal, streaks | — |
 | 7 | Explain-it-back and Indian languages | — |
@@ -78,3 +78,30 @@ verified against a local test harness (kept outside the repo):
   "p. 3", markers p. 1–3 rendered, highlighted passage scrolled into view.
 - Note: the Stage 2 code commit went out before these doc updates (a script error); the docs
   follow in a separate commit.
+
+### 3. Spaced-repetition flashcards ✅
+- DB: `decks` (notebook, unit nullable, title, created_by), `cards` (front, back, topic, source_id,
+  location, quote, position), per-user `card_reviews` (ease 2.5, interval_days, repetitions, due_at,
+  last_reviewed_at, lapses), `review_log` (every rating; feeds the new-card cap and, later, daily
+  activity). Queries in `backend/src/db/study.js`; course-access SQL is centralised in
+  `backend/src/db/access.js` (Stage 9 switches it to membership).
+- SM-2 (`services/srs.js`): again → 10 min, back to start (lapse + ease −0.2 only for learned
+  cards); hard/good/easy = SM-2 quality 3/4/5 with ×1.2 / ×ease / ×ease×1.3 intervals; first
+  intervals 1d (easy 4d), second 6d (hard 3d, easy 8d). Previews returned with each queued card.
+- Generation (`services/flashcards.js` + shared `services/studyContext.js`): numbered passages
+  sampled evenly from the chosen sources → `completeJson` → validated (empty/duplicate cards
+  dropped, lengths capped, bad passage numbers resolved by word overlap) → each card cites its
+  source, page/slide and quote.
+- New setting `NEW_CARDS_PER_DAY` (default 20, per user per course, in the user's timezone via the
+  `X-Timezone` header validated against `pg_timezone_names`).
+- UI: Chat / Study switch in the course header (and mobile nav) with an "N due" badge; Study area
+  with due summary, deck list, generate dialog (units, 10/20/30, difficulty), deck editor
+  (add/edit/delete cards, rename, unit, citations), review screen (flip, 4 ratings with next
+  interval, keys 1–4 / Space / Esc, "again" cards return in-session, completion summary).
+- Tested: SM-2 traces (good→1d→6d→15d, hard, again lapses, easy) and previews; generate with bad
+  count/difficulty → 400; unit-scoped deck (all cards cite unit sources), course deck cards cite
+  p. 1–3; model duplicates/empty cards dropped, invalid passage number resolved; manual deck + card
+  CRUD with length validation; deck list counts; queue capped at 20 new → 17 after 3 reviews;
+  forced-due card returns first with previews; deck from another course → 404; second user → 404 on
+  deck/card/review/edit/delete. UI: badge, review via Space + "3" (18 → 17 left), editor, generate
+  dialog, mobile dark layout.

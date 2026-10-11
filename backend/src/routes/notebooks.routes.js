@@ -29,6 +29,7 @@ import { assertCapacity, createSource, removeSourceFiles, unlinkQuietly } from "
 import { answerQuestion } from "../services/ragService.js";
 import { refreshNotebookOverview } from "../services/notebookOverview.js";
 import { assertApiKey } from "../services/llm.js";
+import { courseStudyRoutes } from "./study.routes.js";
 
 export const notebooksRouter = Router();
 
@@ -340,3 +341,7 @@ notebooksRouter.post(
   })
 );
 
+
+// ---- Study (flashcard decks) ------------------------------------------------
+
+courseStudyRoutes(notebooksRouter);

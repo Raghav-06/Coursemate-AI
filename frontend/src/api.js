@@ -5,6 +5,15 @@ const BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 // Fired when the session has expired so the app can show the sign-in page.
 export const UNAUTHORIZED_EVENT = "cm:unauthorized";
 
+// The server uses the browser's timezone for "today" (new-card caps, goals, streaks).
+const TIMEZONE = (() => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
+})();
+
 function failure(response, data) {
   if (response.status === 401 && !new URL(response.url).pathname.startsWith("/auth/")) {
     window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
@@ -19,7 +28,7 @@ async function request(path, { method = "GET", body, form } = {}) {
       method,
       // Sends the session cookie (also when the API is on another origin).
       credentials: "include",
-      headers: body ? { "Content-Type": "application/json" } : undefined,
+      headers: { "X-Timezone": TIMEZONE, ...(body ? { "Content-Type": "application/json" } : {}) },
       body: form ?? (body ? JSON.stringify(body) : undefined),
     });
   } catch {
@@ -72,6 +81,19 @@ export const api = {
   reprocessSource: (sourceId) => request(`/api/sources/${sourceId}/reprocess`, { method: "POST" }),
   searchArxiv: (query) => request(`/api/arxiv?query=${encodeURIComponent(query)}&maxDocs=10`),
 
+  // Flashcards (decks are per course; review state is per user)
+  listDecks: (id) => request(`/api/notebooks/${id}/decks`),
+  createDeck: (id, body) => request(`/api/notebooks/${id}/decks`, { method: "POST", body }),
+  generateDeck: (id, body) => request(`/api/notebooks/${id}/decks/generate`, { method: "POST", body }),
+  getDeck: (deckId) => request(`/api/decks/${deckId}`),
+  updateDeck: (deckId, patch) => request(`/api/decks/${deckId}`, { method: "PATCH", body: patch }),
+  deleteDeck: (deckId) => request(`/api/decks/${deckId}`, { method: "DELETE" }),
+  addCard: (deckId, card) => request(`/api/decks/${deckId}/cards`, { method: "POST", body: card }),
+  updateCard: (cardId, patch) => request(`/api/cards/${cardId}`, { method: "PATCH", body: patch }),
+  deleteCard: (cardId) => request(`/api/cards/${cardId}`, { method: "DELETE" }),
+  reviewQueue: (id, deckId) => request(`/api/notebooks/${id}/review${deckId ? `?deckId=${deckId}` : ""}`),
+  reviewCard: (cardId, rating) => request(`/api/cards/${cardId}/review`, { method: "POST", body: { rating } }),
+
   listMessages: (id) => request(`/api/notebooks/${id}/messages`),
   clearMessages: (id) => request(`/api/notebooks/${id}/messages`, { method: "DELETE" }),
 
@@ -85,7 +107,7 @@ export const api = {
       response = await fetch(`${BASE}/api/notebooks/${id}/chat`, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Timezone": TIMEZONE },
         body: JSON.stringify(body),
         signal,
       });

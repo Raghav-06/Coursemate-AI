@@ -7,6 +7,35 @@ import { Icon, Spinner, toast } from "../components/ui";
 import SourcesPanel from "../components/sources/SourcesPanel";
 import AddSourcesDialog from "../components/sources/AddSourcesDialog";
 import ChatPanel from "../components/chat/ChatPanel";
+import StudyPanel from "../components/study/StudyPanel";
+
+// Main-area tools of a course.
+const VIEWS = [
+  ["chat", "Chat", "chat"],
+  ["study", "Study", "style"],
+];
+
+function ViewTabs({ view, onChange, badges }) {
+  return (
+    <nav className="flex items-center gap-1 rounded-full bg-panel-2 p-1" aria-label="Course tools">
+      {VIEWS.map(([key, label, icon]) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => onChange(key)}
+          aria-current={view === key ? "page" : undefined}
+          className={`flex items-center gap-1.5 h-8 px-3.5 rounded-full text-sm font-medium transition-colors ${
+            view === key ? "bg-panel text-ink shadow-sm" : "text-ink-2 hover:text-ink"
+          }`}
+        >
+          <Icon name={icon} size={18} filled={view === key} />
+          {label}
+          {badges[key] > 0 && <span className="min-w-5 h-5 px-1.5 rounded-full bg-accent text-accent-fg text-[11px] font-semibold leading-5 tabular-nums">{badges[key]}</span>}
+        </button>
+      ))}
+    </nav>
+  );
+}
 
 const POLL_MS = 2000;
 const OVERVIEW_WAIT_MS = 45_000;
@@ -52,7 +81,9 @@ export default function NotebookPage({ notebookId }) {
   const [viewer, setViewer] = useState(null); // { sourceId, citation? }
   const [streaming, setStreaming] = useState(null); // { question, text, citations }
   const [collapsed, setCollapsed] = useState({ sources: false });
-  const [tab, setTab] = useState("chat");
+  const [tab, setTab] = useState("chat"); // mobile: "sources" | "chat" (the main area)
+  const [view, setView] = useState("chat"); // main area: chat | study
+  const [studyCounts, setStudyCounts] = useState({ due: 0, new: 0 });
   const isWide = useMediaQuery("(min-width: 1024px)");
 
   const overviewUntil = useRef(0);
@@ -69,6 +100,10 @@ export default function NotebookPage({ notebookId }) {
         setSources(srcs);
         setMessages(msgs);
         setUnits(unitList);
+        api.listDecks(notebookId).then(
+          (r) => !cancelled && setStudyCounts({ due: r.dueCount, new: r.newCount }),
+          () => {}
+        );
         if (srcs.length === 0 || window.location.hash.includes("new=1")) setAddOpen(true);
         history.replaceState(null, "", `#/notebook/${notebookId}`);
         if (srcs.some((s) => s.status === "ready") && !nb.summary) {
@@ -252,6 +287,7 @@ export default function NotebookPage({ notebookId }) {
         return;
       }
       setTab("chat");
+      setView("chat");
       const controller = new AbortController();
       abortRef.current = controller;
       setStreaming({ question: content, text: "", citations: [] });
@@ -338,6 +374,12 @@ export default function NotebookPage({ notebookId }) {
     />
   );
 
+  const studyPanel = (
+    <section className="panel w-full">
+      <StudyPanel notebook={notebook} units={units} sources={sources} onOpenCitation={openCitation} onCounts={setStudyCounts} />
+    </section>
+  );
+
   const chatPanel = (
     <ChatPanel
       notebook={notebook}
@@ -362,6 +404,7 @@ export default function NotebookPage({ notebookId }) {
         <Logo compact />
         <span className="text-2xl leading-none">{notebook.emoji}</span>
         <EditableTitle notebook={notebook} onRename={(title) => updateNotebook({ title })} />
+        {isWide && <ViewTabs view={view} onChange={setView} badges={{ study: studyCounts.due + studyCounts.new }} />}
         <div className="ml-auto flex items-center gap-1">
           <ThemeToggle />
           <AccountMenu />
@@ -371,26 +414,34 @@ export default function NotebookPage({ notebookId }) {
       {isWide ? (
         <div className="flex-1 min-h-0 flex gap-3 px-3 pb-3">
           <div className={`${collapsed.sources ? "w-14" : "w-[clamp(260px,24vw,360px)]"} shrink-0 flex transition-[width]`}>{sourcesPanel}</div>
-          <div className="flex-1 min-w-0 flex">{chatPanel}</div>
+          <div className="flex-1 min-w-0 flex">{view === "study" ? studyPanel : chatPanel}</div>
         </div>
       ) : (
         <>
-          <div className="flex-1 min-h-0 flex px-2">{tab === "sources" ? sourcesPanel : chatPanel}</div>
-          <nav className="shrink-0 grid grid-cols-2 h-14 border-t border-line/60">
-            {[
-              ["sources", "Sources", "folder_open"],
-              ["chat", "Chat", "chat"],
-            ].map(([key, label, icon]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setTab(key)}
-                className={`flex flex-col items-center justify-center gap-0.5 text-xs font-medium ${tab === key ? "text-accent" : "text-ink-3"}`}
-              >
-                <Icon name={icon} filled={tab === key} size={22} />
-                {label}
-              </button>
-            ))}
+          <div className="flex-1 min-h-0 flex px-2">{tab === "sources" ? sourcesPanel : view === "study" ? studyPanel : chatPanel}</div>
+          <nav className="shrink-0 grid grid-cols-3 h-14 border-t border-line/60">
+            {[["sources", "Sources", "folder_open"], ...VIEWS].map(([key, label, icon]) => {
+              const active = key === "sources" ? tab === "sources" : tab !== "sources" && view === key;
+              const badge = key === "study" ? studyCounts.due + studyCounts.new : 0;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => {
+                    if (key === "sources") return setTab("sources");
+                    setTab("chat");
+                    setView(key);
+                  }}
+                  className={`relative flex flex-col items-center justify-center gap-0.5 text-xs font-medium ${active ? "text-accent" : "text-ink-3"}`}
+                >
+                  <Icon name={icon} filled={active} size={22} />
+                  {label}
+                  {badge > 0 && (
+                    <span className="absolute top-1.5 left-1/2 ml-2 min-w-4 h-4 px-1 rounded-full bg-accent text-accent-fg text-[10px] font-semibold leading-4 tabular-nums">{badge}</span>
+                  )}
+                </button>
+              );
+            })}
           </nav>
         </>
       )}

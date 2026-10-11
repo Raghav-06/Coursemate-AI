@@ -17,6 +17,11 @@ suggested questions.
   viewer (which shows page/slide markers). Original uploads are kept so any source can be
   **re-processed**; sources added before this feature gain page numbers that way (links are
   re-fetched; older slide decks recover their slides from the stored text).
+- **Flashcards with spaced repetition** — generate decks of 10/20/30 cards (easy/medium/hard)
+  from chosen units or the whole course; every card cites the page it came from. Add, edit and
+  delete cards by hand. The *Study* area shows an "N due" badge and reviews cards with **SM-2**
+  (Again / Hard / Good / Easy, each button showing the next interval; keys 1–4 and Space). Review
+  progress is personal, and new cards are capped per day (`NEW_CARDS_PER_DAY`, default 20).
 
 | Layer     | Tech |
 |-----------|------|
@@ -138,6 +143,9 @@ React (5173) ──/auth, /api──▶ Express (3000) ──▶ PostgreSQL
   Together, DeepSeek, xAI, Hugging Face, Ollama, LM Studio…). Embeddings use `OpenAIEmbeddings`
   (any OpenAI-compatible embeddings API) or `HuggingFaceInferenceEmbeddings`, picked by
   `EMBEDDING_PROVIDER`. Chat and embeddings can use different providers and keys.
+- **Spaced repetition:** decks and cards belong to the course; each user's SM-2 state lives in
+  `card_reviews` (ease 2.5, interval, repetitions, due date, lapses) and every rating in
+  `review_log`. The browser sends its timezone (`X-Timezone`) so "today" is the user's day.
 - **Changing models:** each source records which embedding model it used; if you change
   `EMBEDDING_MODEL` (or its provider), existing sources are re-embedded automatically the next time you chat.
 
@@ -168,6 +176,13 @@ React (5173) ──/auth, /api──▶ Express (3000) ──▶ PostgreSQL
 | GET/DELETE | `/api/notebooks/:id/messages` | Chat history / clear |
 | POST | `/api/notebooks/:id/chat` | Ask a question (SSE stream) `{ content, sourceIds?, unitIds? }` |
 | GET | `/api/arxiv?query=` | Discover arXiv papers |
+| GET/POST | `/api/notebooks/:id/decks` | List decks with due/new counts / create an empty deck `{ title, unitId? }` |
+| POST | `/api/notebooks/:id/decks/generate` | Generate a deck `{ count: 10\|20\|30, difficulty, unitIds?, sourceIds?, title? }` |
+| GET | `/api/notebooks/:id/review?deckId=` | Cards to review now (due first, then today's new cards), with next-interval previews |
+| GET/PATCH/DELETE | `/api/decks/:deckId` | Deck with its cards / rename, set unit / delete |
+| POST | `/api/decks/:deckId/cards` | Add a card `{ front, back, topic? }` |
+| PATCH/DELETE | `/api/cards/:cardId` | Edit / delete a card |
+| POST | `/api/cards/:cardId/review` | Rate a card `{ rating: again\|hard\|good\|easy }` → new SM-2 state |
 
 ## Deploying to production
 

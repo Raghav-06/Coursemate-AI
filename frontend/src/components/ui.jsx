@@ -245,3 +245,23 @@ export function timeAgo(iso) {
   if (seconds < 86400) return `${Math.floor(seconds / 3600)} h ago`;
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
+
+/** Row of mutually exclusive options: options = [[value, label], …]. */
+export function Segmented({ value, options, onChange, label }) {
+  return (
+    <div role="radiogroup" aria-label={label} className="inline-flex rounded-full border border-line p-0.5 bg-panel">
+      {options.map(([v, text]) => (
+        <button
+          key={v}
+          type="button"
+          role="radio"
+          aria-checked={value === v}
+          onClick={() => onChange(v)}
+          className={`h-8 px-3.5 rounded-full text-sm font-medium transition-colors ${value === v ? "bg-accent text-accent-fg" : "text-ink-2 hover:bg-panel-2"}`}
+        >
+          {text}
+        </button>
+      ))}
+    </div>
+  );
+}

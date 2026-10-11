@@ -552,3 +552,21 @@ export async function clearMessages(notebookId) {
   await query("DELETE FROM messages WHERE notebook_id = $1", [notebookId]);
 }
 
+
+/** Chunk texts (no vectors) of some sources, in reading order — for building study prompts. */
+export async function listChunkTexts(sourceIds) {
+  if (sourceIds.length === 0) return [];
+  const { rows } = await query(
+    `SELECT source_id, chunk_index, content, start_offset, end_offset, location
+       FROM chunks WHERE source_id = ANY($1::uuid[]) ORDER BY source_id, chunk_index`,
+    [sourceIds]
+  );
+  return rows.map((r) => ({
+    sourceId: r.source_id,
+    chunk: r.chunk_index,
+    text: r.content,
+    start: r.start_offset,
+    end: r.end_offset,
+    location: r.location,
+  }));
+}
