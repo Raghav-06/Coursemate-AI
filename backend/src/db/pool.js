@@ -4,6 +4,10 @@ import { config } from "../config/index.js";
 
 const { db } = config;
 
+// DATE columns (exam dates, plan days, activity days) stay "YYYY-MM-DD"
+// strings: parsing them as JS Dates would shift them by the server's timezone.
+pg.types.setTypeParser(pg.types.builtins.DATE, (value) => value);
+
 // DATABASE_URL wins; otherwise the individual PG* settings are used.
 export const pool = new pg.Pool({
   ...(db.url

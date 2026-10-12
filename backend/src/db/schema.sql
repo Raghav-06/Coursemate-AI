@@ -324,3 +324,52 @@ CREATE TABLE IF NOT EXISTS past_paper_questions (
 );
 CREATE INDEX IF NOT EXISTS past_paper_questions_notebook_idx ON past_paper_questions (notebook_id, source_id, position);
 CREATE INDEX IF NOT EXISTS past_paper_questions_topic_idx ON past_paper_questions (topic_id);
+
+-- ---- Exams, revision plans, daily goal and streaks ------------------------------
+
+-- An exam a user is preparing for (personal): course, name, date and the
+-- units it covers ([] = the whole course).
+CREATE TABLE IF NOT EXISTS exams (
+  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  notebook_id        UUID NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
+  user_id            UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name               TEXT NOT NULL,
+  exam_date          DATE NOT NULL,
+  unit_ids           JSONB NOT NULL DEFAULT '[]',
+  plan_generated_at  TIMESTAMPTZ,
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS exams_user_idx ON exams (user_id, exam_date);
+CREATE INDEX IF NOT EXISTS exams_notebook_idx ON exams (notebook_id, user_id);
+
+-- One task of a day-by-day revision plan.
+CREATE TABLE IF NOT EXISTS exam_plan_items (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  exam_id       UUID NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+  plan_date     DATE NOT NULL,
+  position      INTEGER NOT NULL DEFAULT 0,
+  task_type     TEXT NOT NULL,           -- read | flashcards | quiz | answer | past_paper
+  unit_id       UUID REFERENCES units(id) ON DELETE SET NULL,
+  topic_id      UUID REFERENCES topics(id) ON DELETE SET NULL,
+  title         TEXT NOT NULL,
+  details       TEXT,
+  target_count  INTEGER,                 -- cards / questions / marks, when it has one
+  done          BOOLEAN NOT NULL DEFAULT FALSE,
+  done_at       TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS exam_plan_items_exam_idx ON exam_plan_items (exam_id, plan_date, position);
+
+-- Study actions per user per day (in their timezone): cards reviewed, quiz
+-- answers, graded answers, chats… Feeds the daily goal and streaks.
+CREATE TABLE IF NOT EXISTS user_activity (
+  user_id  UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  day      DATE NOT NULL,
+  kind     TEXT NOT NULL,                -- card | quiz | answer | chat | explain
+  count    INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (user_id, day, kind)
+);
+
+-- Study actions per day that count as meeting the goal.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_goal INTEGER NOT NULL DEFAULT 20;

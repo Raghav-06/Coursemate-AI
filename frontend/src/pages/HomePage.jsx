@@ -5,6 +5,7 @@ import { Logo, ThemeToggle } from "../components/TopBar";
 import AccountMenu from "../components/AccountMenu";
 import { useAuth } from "../auth";
 import { ConfirmDialog, Icon, IconButton, Menu, Modal, Spinner, timeAgo, toast } from "../components/ui";
+import TodayPanel from "../components/today/TodayPanel";
 
 // Soft card tints, picked deterministically per notebook like NotebookLM's.
 const TINTS = [
@@ -130,10 +131,13 @@ export default function HomePage() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 sm:px-8 pb-16">
-        <h1 className="font-display text-3xl sm:text-[42px] leading-tight font-semibold tracking-tight mt-6 sm:mt-10 mb-8 bg-linear-to-r/srgb from-blue-600 via-violet-500 to-rose-500 bg-clip-text text-transparent dark:from-blue-300 dark:via-violet-300 dark:to-rose-300">
+        <h1 className="font-display text-3xl sm:text-[42px] leading-tight font-semibold tracking-tight mt-6 sm:mt-10 mb-6 bg-linear-to-r/srgb from-blue-600 via-violet-500 to-rose-500 bg-clip-text text-transparent dark:from-blue-300 dark:via-violet-300 dark:to-rose-300">
           {user?.givenName ? `Welcome, ${user.givenName}` : "Welcome to CourseMate AI"}
         </h1>
 
+        <TodayPanel />
+
+        <h2 className="font-display text-xl font-semibold mb-4">Your courses</h2>
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <button type="button" className="btn-primary h-10 px-5" onClick={create} disabled={creating}>
             {creating ? <Spinner /> : <Icon name="add" size={20} />}

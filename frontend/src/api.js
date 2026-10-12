@@ -113,6 +113,19 @@ export const api = {
   listAnswers: (id) => request(`/api/notebooks/${id}/answers`),
   deleteAnswer: (answerId) => request(`/api/answers/${answerId}`, { method: "DELETE" }),
 
+  // Exams and revision plans (personal), daily goal, streaks
+  today: () => request("/api/today"),
+  getSettings: () => request("/api/settings"),
+  updateSettings: (patch) => request("/api/settings", { method: "PATCH", body: patch }),
+  listExams: (id) => request(`/api/notebooks/${id}/exams`),
+  createExam: (id, body) => request(`/api/notebooks/${id}/exams`, { method: "POST", body }),
+  getExam: (examId) => request(`/api/exams/${examId}`),
+  updateExam: (examId, patch) => request(`/api/exams/${examId}`, { method: "PATCH", body: patch }),
+  deleteExam: (examId) => request(`/api/exams/${examId}`, { method: "DELETE" }),
+  generatePlan: (examId) => request(`/api/exams/${examId}/plan`, { method: "POST" }),
+  replanExam: (examId) => request(`/api/exams/${examId}/replan`, { method: "POST" }),
+  setTaskDone: (itemId, done) => request(`/api/plan-items/${itemId}`, { method: "PATCH", body: { done } }),
+
   // Past papers (exam insights)
   examInsights: (id) => request(`/api/notebooks/${id}/exam-insights`),
   pastPaperQuestions: (id, filters = {}) => {

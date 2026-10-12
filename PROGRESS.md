@@ -11,8 +11,8 @@ resuming the work in a new conversation.
 | 3 | Spaced-repetition flashcards | ✅ done |
 | 4 | Quizzes, graded answers, weak topics | ✅ done |
 | 5 | Past-paper analysis | ✅ done |
-| 6 | Exam mode, revision plans, daily goal, streaks | ⏳ next |
-| 7 | Explain-it-back and Indian languages | — |
+| 6 | Exam mode, revision plans, daily goal, streaks | ✅ done |
+| 7 | Explain-it-back and Indian languages | ⏳ next |
 | 8 | Image OCR and lecture transcription | — |
 | 9 | Shared courses and quiz battles | — |
 | 10 | New visual identity, privacy settings, license | — |
@@ -178,3 +178,36 @@ local test harness (kept outside the repo, in the session scratchpad — rebuild
   topic → 400, unknown question → 404; second user → 404 on insights, questions, patch, analyse,
   kind change. Fresh database migrates (twice). UI: insights (light/dark/mobile), topic filter,
   practise → Answer writing prefilled, scope menu, Add sources past-paper fields, source badges.
+
+### 6. Exam mode, revision plans, daily goal, streaks ✅
+- DB: `exams` (notebook, user, name, exam_date DATE, unit_ids, plan_generated_at),
+  `exam_plan_items` (date, position, task_type read|flashcards|quiz|answer|past_paper, unit, topic,
+  title, details, target_count, done, done_at), `user_activity` (user, day, kind, count),
+  `users.daily_goal` (default 20). DATE columns are returned as strings (type parser in `pool.js`).
+  Queries in `db/exams.js`.
+- `services/examPlan.js`: `planDays`, `prioritise`, pure `layoutPlan` (see README), model ordering
+  + tips with validation/fallback, `generatePlan` (keeps done tasks), `replanMissed` (missed tasks
+  → least busy remaining days; stale flashcard sessions dropped). `services/today.js`: streaks
+  (current/best) and the Today summary. Routes in `routes/exams.routes.js`.
+- Activity is recorded on card review, quiz answer, graded answer and chat question.
+- UI: Home opens on "Today" (goal ring + change goal dialog, streak, last 7 days, next exam with
+  countdown and tickable tasks, flashcards due per course → opens the course's Study); course tab
+  "Exams" = Revision plan (add/edit/delete exam, countdown, progress, missed banner + re-plan,
+  regenerate, days grouped with Today highlighted, Start buttons: read → ask chat, flashcards →
+  Study, quiz → quiz on the topic (or mixed quiz on the exam units), answer → Answer writing,
+  past paper → Past papers filtered to the topic) | Past papers (Stage 5 insights).
+  `#/notebook/<id>?view=study|exams|…` opens a tool directly.
+- Fixes during verification: an exam today put 17 topic tasks on one day → cap of 8 per day and
+  quizzes-only cram mode for ≤ 2 days; Today's 7-day bars had no height (percentage inside an
+  auto-height flex child).
+- Tested (curl + unit checks of the pure planner): exam validation (no name, past date, 30 Feb,
+  > 2 years, foreign unit → 400); 10-day plan: days today..day before exam, flashcards daily,
+  model order with invalid/duplicate numbers ignored and tips applied, final mixed quiz; tick
+  (bad body → 400); plan shifted 2 days back → 8 missed → re-plan moved 8 to the lightest days,
+  stale flashcards removed, done task kept; regenerate keeps done tasks; exam today → one-day plan
+  with unit-B topics only; edit/delete; layouts for 1/2/3/30 days (≤ 8 tasks/day, all topics covered
+  for 30), 90-day cap for far exams; Today: streak current 3 / best 4 from seeded history (today
+  not met), real actions counted by kind (12 cards, 5 quiz, 1 answer, 1 chat), goal 10 → today
+  met → streak 4; goal 0 / 2.5 → 400; second user → 404 on exam, plan, item, course exams, and an
+  empty Today. Fresh database migrates (twice). UI: Home Today (light, mobile dark), plan view,
+  Start quiz from the plan, Past papers tab.

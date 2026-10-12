@@ -26,6 +26,7 @@ import { courseProgress, courseTopics, refreshUnitTopics } from "../services/top
 import { QUIZ_COUNTS, QUIZ_DIFFICULTIES, generateQuizQuestions } from "../services/quizzes.js";
 import { MARKS, generateWrittenQuestions, gradeAnswer } from "../services/grading.js";
 import { assertApiKey } from "../services/llm.js";
+import { recordActivity } from "../db/exams.js";
 
 const MAX_QUESTION = 1000;
 const MAX_ANSWER = 12_000;
@@ -189,6 +190,7 @@ export function coursePracticeRoutes(router) {
         origin,
       });
       if (topic) await addTopicEvents(req.user.id, [{ topicId: topic.id, kind: "answer", score: graded.score / marks, weight: ANSWER_WEIGHT[marks] }]);
+      await recordActivity(req.user.id, req.tz, "answer");
       res.status(201).json({ ...attempt, topic: topic?.name ?? null });
     })
   );
@@ -269,6 +271,7 @@ practiceRouter.post(
       throw httpError(409, "You've already answered this question.");
     }
     if (question.topicId) await addTopicEvents(req.user.id, [{ topicId: question.topicId, kind: "quiz", score: correct ? 1 : 0, weight: 1 }]);
+    await recordActivity(req.user.id, req.tz, "quiz");
     res.json({ questionId, correct, answerIndex: question.answerIndex, explanation: question.explanation, citation: citationOf(question) });
   })
 );

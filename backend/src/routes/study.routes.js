@@ -26,6 +26,7 @@ import { assertApiKey } from "../services/llm.js";
 import { matchTopic, refreshUnitTopics } from "../services/topics.js";
 import { addTopicEvents, getTopicsByIds, listTopics } from "../db/practice.js";
 import { listUnits } from "../db/store.js";
+import { recordActivity } from "../db/exams.js";
 
 // How much a flashcard rating says about knowing its topic (0-1).
 const RATING_SCORE = { again: 0, hard: 0.6, good: 0.85, easy: 1 };
@@ -238,6 +239,7 @@ studyRouter.post(
     if (!RATINGS.includes(rating)) throw httpError(400, `rating must be one of ${RATINGS.join(", ")}.`);
     const state = schedule(req.card.review, rating);
     await saveReview({ cardId: req.card.id, userId: req.user.id, notebookId: req.card.notebookId, rating, wasNew: !req.card.review, state });
+    await recordActivity(req.user.id, req.tz, "card");
     // The rating is (light) evidence of how well the user knows the card's topic.
     const topicId =
       req.card.topicId ?? (req.card.topic ? matchTopic(await listTopics(req.card.notebookId), req.card.topic, req.card.deckUnitId)?.id : null);

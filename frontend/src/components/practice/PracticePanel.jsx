@@ -17,8 +17,8 @@ function ScorePill({ quiz }) {
 
 /**
  * Practice: multiple-choice quizzes and answer-writing. `intent` starts
- * something right away: { kind: "quiz", topicIds } makes and plays a quiz on
- * those topics; { kind: "answer", question, marks, … } opens answer writing.
+ * something right away: { kind: "quiz", topicIds, unitIds?, count? } makes and
+ * plays a quiz on those topics (or units); { kind: "answer", question, marks, … } opens answer writing.
  */
 export default function PracticePanel({ notebook, units, sources, onOpenCitation, intent, onIntentUsed, onActivity }) {
   const [tab, setTab] = useState("quiz");
@@ -61,7 +61,7 @@ export default function PracticePanel({ notebook, units, sources, onOpenCitation
       setTab("quiz");
       setMaking(true);
       api
-        .createQuiz(notebook.id, { topicIds: intent.topicIds, count: intent.count ?? 5, difficulty: "medium" })
+        .createQuiz(notebook.id, { topicIds: intent.topicIds, unitIds: intent.unitIds, count: intent.count ?? 5, difficulty: "medium" })
         .then(
           (quiz) => {
             setPlaying(quiz);
@@ -143,7 +143,7 @@ export default function PracticePanel({ notebook, units, sources, onOpenCitation
             </div>
             {making && (
               <p className="flex items-center gap-2 text-sm text-ink-2">
-                <Spinner /> Making a quiz on your weak topics…
+                <Spinner /> Making your quiz…
               </p>
             )}
             {error && <p className="text-sm text-danger">{error}</p>}

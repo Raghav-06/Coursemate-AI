@@ -4,7 +4,7 @@
  */
 export default function UnitChecklist({ units, sources, value, onChange }) {
   const unitIds = new Set(units.map((u) => u.id));
-  const ready = sources.filter((s) => s.status === "ready");
+  const ready = sources.filter((s) => s.status === "ready" && s.kind !== "past_paper"); // past papers aren't study material
   const countFor = (id) => ready.filter((s) => (id === "general" ? !s.unitId || !unitIds.has(s.unitId) : s.unitId === id)).length;
   const options = [...units.map((u) => [u.id, u.title]), ...(countFor("general") > 0 ? [["general", "General"]] : [])];
 

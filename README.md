@@ -39,6 +39,14 @@ suggested questions.
   citations to the answer and *Practise this question*, which opens Answer writing. Past papers
   are left out of chat answers (switch on *Include past papers* in the scope menu), quizzes,
   flashcards and topics.
+- **Exam mode, revision plans, daily goal and streaks** — add your exam (date + units) in a
+  course's *Exams* tab and get a **day-by-day revision plan** to the exam: read, quiz, answer-writing
+  and past-paper tasks per topic plus daily flashcards, prioritised by your weak topics, how often
+  past papers ask about them and the cards you have due. Tick tasks off, start them in one click,
+  **re-plan missed days** or regenerate the plan. Every study action (flashcard review, quiz answer,
+  graded answer, chat question) counts toward a **daily goal** (default 20, changeable); meeting it
+  on consecutive days builds a **streak**. The home page opens on **Today**: goal ring, streak, the
+  last 7 days, the next exam's countdown with today's tasks, and flashcards due across courses.
 
 | Layer     | Tech |
 |-----------|------|
@@ -175,6 +183,17 @@ React (5173) ──/auth, /api──▶ Express (3000) ──▶ PostgreSQL
   chunks — the best 3 become its citations and vote for a unit — then up to 5 candidate topics
   (by similarity, favouring that unit) go to the model to pick one (or none). Results live in
   `past_paper_questions`; a wrong topic can be fixed by hand.
+- **Revision plans:** `exams` and `exam_plan_items` are personal. The days (today → the day
+  before the exam, at most the last 90), phases and counts are computed in code: each topic gets a
+  priority of 0.6 × weakness (1 − mastery; 0.7 if unpractised) + 0.4 × past-paper weight; the first
+  ~65% of days cover every topic (read → quiz the next day → a 5/10-mark answer for weak or examined
+  topics), the rest review the weakest topics and practise past-paper questions, ending with a mixed
+  quiz; flashcards are scheduled daily from the due/new cards; at most 8 other tasks a day (with ≤ 2
+  days left it's quizzes only). The model only orders the topics (prerequisites first) and writes a
+  one-line tip for each. Re-planning moves missed tasks to the least busy remaining days.
+- **Daily goal and streaks:** each study action increments `user_activity` (user, day in the
+  user's timezone, kind). The streak counts consecutive days meeting the current goal
+  (`users.daily_goal`) — today only once it's met, so an unfinished today doesn't break it.
 - **Changing models:** each source records which embedding model it used; if you change
   `EMBEDDING_MODEL` (or its provider), existing sources are re-embedded automatically the next time you chat.
 
@@ -228,6 +247,13 @@ React (5173) ──/auth, /api──▶ Express (3000) ──▶ PostgreSQL
 | GET | `/api/notebooks/:id/past-paper-questions?unitId=&topicId=&year=&sourceId=` | Past-paper questions with citations to the answer |
 | PATCH | `/api/notebooks/:id/past-paper-questions/:questionId` | Fix a question's topic or unit `{ topicId?, unitId? }` |
 | POST | `/api/sources/:id/analyse` | Extract and map a past paper's questions again (202) |
+| GET/POST | `/api/notebooks/:id/exams` | Your exams in a course / add one `{ name, examDate: "YYYY-MM-DD", unitIds? }` |
+| GET/PATCH/DELETE | `/api/exams/:examId` | Exam with its plan (`items`, `today`, `missedCount`) / edit / delete |
+| POST | `/api/exams/:examId/plan` | Generate or regenerate the plan (tasks already done are kept) |
+| POST | `/api/exams/:examId/replan` | Move missed tasks onto the remaining days |
+| PATCH | `/api/plan-items/:itemId` | Tick a task `{ done }` |
+| GET | `/api/today` | Goal, today's count, streak, last 7 days, next exam with today's tasks, cards due across courses |
+| GET/PATCH | `/api/settings` | Your settings `{ dailyGoal: 1-500 }` |
 
 ## Deploying to production
 

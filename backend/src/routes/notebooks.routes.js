@@ -32,6 +32,8 @@ import { assertApiKey } from "../services/llm.js";
 import { courseStudyRoutes } from "./study.routes.js";
 import { coursePracticeRoutes } from "./practice.routes.js";
 import { coursePastPaperRoutes } from "./pastPapers.routes.js";
+import { courseExamRoutes } from "./exams.routes.js";
+import { recordActivity } from "../db/exams.js";
 import { scheduleTopicRefresh } from "../services/topics.js";
 import { deleteUnitTopics } from "../db/practice.js";
 
@@ -327,6 +329,7 @@ notebooksRouter.post(
     const send = (event) => res.write(`data: ${JSON.stringify(event)}\n\n`);
 
     const userMessage = await addMessage(req.params.id, { role: "user", content });
+    await recordActivity(req.user.id, req.tz, "chat");
     send({ type: "user", message: userMessage });
 
     let answer = "";
@@ -365,3 +368,7 @@ coursePracticeRoutes(notebooksRouter);
 // ---- Past papers (exam insights) ------------------------------------------------------
 
 coursePastPaperRoutes(notebooksRouter);
+
+// ---- Exams and revision plans (personal) ------------------------------------------------
+
+courseExamRoutes(notebooksRouter);

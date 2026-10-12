@@ -122,10 +122,10 @@ function QuestionCard({ question, unitTitle, onOpenCitation, onPractise, onChang
  * frequency, marks and years; every question with where its answer is in the
  * course material, filterable by unit / topic / year.
  */
-export default function ExamInsightsPanel({ notebook, units, onOpenCitation, onPractise, onAddPaper, sourcesKey }) {
+export default function ExamInsightsPanel({ notebook, units, onOpenCitation, onPractise, onAddPaper, sourcesKey, initialTopicId = "" }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
-  const [filters, setFilters] = useState({ unitId: "", topicId: "", year: "" });
+  const [filters, setFilters] = useState({ unitId: "", topicId: initialTopicId ?? "", year: "" });
   const [questions, setQuestions] = useState(null);
   const [topics, setTopics] = useState([]);
   const [editing, setEditing] = useState(null);
@@ -197,7 +197,7 @@ export default function ExamInsightsPanel({ notebook, units, onOpenCitation, onP
     <div className="h-full overflow-y-auto scroll-thin">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 flex flex-col gap-5">
         <div className="flex flex-wrap items-center gap-3">
-          <h2 className="font-display text-xl font-semibold mr-auto">Exam insights</h2>
+          <h2 className="font-display text-xl font-semibold mr-auto">Past-paper insights</h2>
           <button type="button" className="btn-outline h-9 px-4 text-sm" onClick={onAddPaper}>
             <Icon name="add" size={18} /> Add past paper
           </button>

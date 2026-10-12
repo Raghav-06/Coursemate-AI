@@ -10,7 +10,7 @@ import ChatPanel from "../components/chat/ChatPanel";
 import StudyPanel from "../components/study/StudyPanel";
 import PracticePanel from "../components/practice/PracticePanel";
 import ProgressPanel from "../components/progress/ProgressPanel";
-import ExamInsightsPanel from "../components/insights/ExamInsightsPanel";
+import ExamsPanel from "../components/exams/ExamsPanel";
 
 // Main-area tools of a course.
 const VIEWS = [
@@ -18,8 +18,14 @@ const VIEWS = [
   ["study", "Study", "style"],
   ["practice", "Practice", "quiz"],
   ["progress", "Progress", "insights"],
-  ["insights", "Exam insights", "history_edu", "Exams"],
+  ["exams", "Exams", "event_upcoming"],
 ];
+
+// "#/notebook/<id>?view=study" opens a tool directly (e.g. from Home).
+function initialView() {
+  const view = window.location.hash.match(/[?&]view=(\w+)/)?.[1];
+  return VIEWS.some(([key]) => key === view) ? view : "chat";
+}
 
 function ViewTabs({ view, onChange, badges }) {
   return (
@@ -90,7 +96,9 @@ export default function NotebookPage({ notebookId }) {
   const [streaming, setStreaming] = useState(null); // { question, text, citations }
   const [collapsed, setCollapsed] = useState({ sources: false });
   const [tab, setTab] = useState("chat"); // mobile: "sources" | "chat" (the main area)
-  const [view, setView] = useState("chat"); // main area: chat | study | practice | progress
+  const [view, setView] = useState(initialView); // main area: chat | study | practice | progress | exams
+  const [examsTab, setExamsTab] = useState("plan"); // plan | papers
+  const [insightsTopic, setInsightsTopic] = useState(""); // past-paper questions filtered to a topic
   const [studyIntent, setStudyIntent] = useState(null); // e.g. flashcards on weak topics
   const [practiceIntent, setPracticeIntent] = useState(null); // quiz on topics, or a question to answer
   const [progressKey, setProgressKey] = useState(0); // bumps after practice so Progress reloads
@@ -116,7 +124,7 @@ export default function NotebookPage({ notebookId }) {
           () => {}
         );
         if (srcs.length === 0 || window.location.hash.includes("new=1")) setAddOpen(true);
-        history.replaceState(null, "", `#/notebook/${notebookId}`);
+        history.replaceState(null, "", `#/notebook/${notebookId}`); // drop ?new=1 / ?view= once used
         if (srcs.some((s) => s.status === "ready") && !nb.summary) {
           overviewUntil.current = Date.now() + OVERVIEW_WAIT_MS;
           api.refreshOverview(notebookId).catch(() => {});
@@ -379,6 +387,31 @@ export default function NotebookPage({ notebookId }) {
   const clearPracticeIntent = useCallback(() => setPracticeIntent(null), []);
   const bumpProgress = useCallback(() => setProgressKey((k) => k + 1), []);
   // Past-paper question → Answer writing (marks rounded to the nearest 2/5/10).
+  // Starting a task of the revision plan opens the matching tool.
+  const startTask = (task, exam) => {
+    const unitTitle = units.find((u) => u.id === task.unitId)?.title;
+    if (task.type === "read") return askAboutTopic({ name: task.topic ?? task.title, unitTitle });
+    if (task.type === "flashcards") return showView("study");
+    if (task.type === "quiz") {
+      setPracticeIntent(
+        task.topicId
+          ? { kind: "quiz", topicIds: [task.topicId], count: 5 }
+          : { kind: "quiz", topicIds: [], unitIds: exam?.unitIds ?? [], count: 15 }
+      );
+      return showView("practice");
+    }
+    if (task.type === "answer") {
+      const marks = [2, 5, 10].includes(task.targetCount) ? task.targetCount : 5;
+      setPracticeIntent({ kind: "answer", question: "", marks, topicId: task.topicId, unitIds: task.unitId ? [task.unitId] : [], origin: "typed" });
+      return showView("practice");
+    }
+    if (task.type === "past_paper") {
+      setInsightsTopic(task.topicId ?? "");
+      setExamsTab("papers");
+      return showView("exams");
+    }
+  };
+
   const practiseQuestion = (q) => {
     const marks = q.marks === null ? 5 : q.marks <= 3 ? 2 : q.marks <= 7 ? 5 : 10;
     setPracticeIntent({ kind: "answer", question: q.text.slice(0, 1000), marks, topicId: q.topicId, unitIds: q.unitId ? [q.unitId] : [], origin: "past_paper" });
@@ -466,15 +499,22 @@ export default function NotebookPage({ notebookId }) {
     </section>
   );
 
-  const insightsPanel = (
+  const examsPanel = (
     <section className="panel w-full">
-      <ExamInsightsPanel
+      <ExamsPanel
+        tab={examsTab}
+        onTabChange={setExamsTab}
         notebook={notebook}
         units={units}
-        onOpenCitation={openCitation}
-        onPractise={practiseQuestion}
-        onAddPaper={() => openAdd(null, "past_paper")}
-        sourcesKey={sources.map((s) => `${s.id}:${s.status}:${s.kind}:${s.paperStatus}`).join("|")}
+        sources={sources}
+        onStartTask={startTask}
+        insightsProps={{
+          initialTopicId: insightsTopic,
+          onOpenCitation: openCitation,
+          onPractise: practiseQuestion,
+          onAddPaper: () => openAdd(null, "past_paper"),
+          sourcesKey: sources.map((s) => `${s.id}:${s.status}:${s.kind}:${s.paperStatus}`).join("|"),
+        }}
       />
     </section>
   );
@@ -499,7 +539,7 @@ export default function NotebookPage({ notebookId }) {
     />
   );
 
-  const mainPanel = { study: studyPanel, practice: practicePanel, progress: progressPanel, insights: insightsPanel }[view] ?? chatPanel;
+  const mainPanel = { study: studyPanel, practice: practicePanel, progress: progressPanel, exams: examsPanel }[view] ?? chatPanel;
 
   return (
     <div className="h-full flex flex-col">
