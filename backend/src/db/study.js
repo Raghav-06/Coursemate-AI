@@ -43,12 +43,13 @@ function toCard(r) {
     front: r.front,
     back: r.back,
     topic: r.topic ?? null,
+    topicId: r.topic_id ?? null,
     sourceId: r.source_id ?? null,
     sourceTitle: r.source_title ?? null,
     location: r.location ?? null,
     quote: r.quote ?? null,
     position: r.position,
-    ...(r.notebook_id ? { notebookId: r.notebook_id } : {}),
+    ...(r.notebook_id ? { notebookId: r.notebook_id, deckUnitId: r.deck_unit_id ?? null } : {}),
     review: toReview(r),
     createdAt: iso(r.created_at),
   };
@@ -114,7 +115,7 @@ export async function countDecks(notebookId) {
 
 // ---- Cards ---------------------------------------------------------------------
 
-const CARD_SELECT = `SELECT c.*, s.title AS source_title, d.notebook_id,
+const CARD_SELECT = `SELECT c.*, s.title AS source_title, d.notebook_id, d.unit_id AS deck_unit_id,
          r.ease, r.interval_days, r.repetitions, r.due_at, r.last_reviewed_at, r.lapses
     FROM cards c
     JOIN decks d ON d.id = c.deck_id
@@ -140,7 +141,7 @@ export async function countCards(deckId) {
   return rows[0].count;
 }
 
-/** Appends cards ({ front, back, topic?, sourceId?, location?, quote? }) to a deck. */
+/** Appends cards ({ front, back, topic?, topicId?, sourceId?, location?, quote? }) to a deck. */
 export async function addCards(deckId, cards) {
   if (cards.length === 0) return [];
   return withTransaction(async (client) => {
@@ -150,9 +151,9 @@ export async function addCards(deckId, cards) {
     for (const card of cards) {
       position += 1;
       const { rows } = await client.query(
-        `INSERT INTO cards (deck_id, front, back, topic, source_id, location, quote, position)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-        [deckId, card.front, card.back, card.topic ?? null, card.sourceId ?? null, card.location ?? null, card.quote ?? null, position]
+        `INSERT INTO cards (deck_id, front, back, topic, topic_id, source_id, location, quote, position)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+        [deckId, card.front, card.back, card.topic ?? null, card.topicId ?? null, card.sourceId ?? null, card.location ?? null, card.quote ?? null, position]
       );
       ids.push(rows[0].id);
     }
@@ -164,7 +165,8 @@ export async function addCards(deckId, cards) {
 export async function updateCard(id, { front, back, topic }) {
   await query(
     `UPDATE cards SET front = COALESCE($2, front), back = COALESCE($3, back),
-                      topic = CASE WHEN $4 THEN $5 ELSE topic END, updated_at = NOW()
+                      topic = CASE WHEN $4 THEN $5 ELSE topic END,
+                      topic_id = CASE WHEN $4 AND $5 IS DISTINCT FROM topic THEN NULL ELSE topic_id END, updated_at = NOW()
       WHERE id = $1`,
     [id, front ?? null, back ?? null, topic !== undefined, topic ?? null]
   );

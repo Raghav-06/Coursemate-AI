@@ -9,8 +9,8 @@ resuming the work in a new conversation.
 | 1 | Courses with units | ✅ done |
 | 2 | Page and slide citations | ✅ done |
 | 3 | Spaced-repetition flashcards | ✅ done |
-| 4 | Quizzes, graded answers, weak topics | ⏳ next |
-| 5 | Past-paper analysis | — |
+| 4 | Quizzes, graded answers, weak topics | ✅ done |
+| 5 | Past-paper analysis | ⏳ next |
 | 6 | Exam mode, revision plans, daily goal, streaks | — |
 | 7 | Explain-it-back and Indian languages | — |
 | 8 | Image OCR and lecture transcription | — |
@@ -19,10 +19,11 @@ resuming the work in a new conversation.
 
 ## How verification is done
 
-No real AI provider or PostgreSQL service was available on the build machine, so every stage is
-verified against a local test harness (kept outside the repo):
+No real AI provider was available on the build machine, so every stage is verified against a
+local test harness (kept outside the repo, in the session scratchpad — rebuild it if it's gone):
 
-- **Database:** a throwaway PostgreSQL 17 (`embedded-postgres`, UTF-8) — the real server, so
+- **Database:** a throwaway PostgreSQL cluster (`embedded-postgres` 17 for stages 1–3; from stage 4
+  a scratch `initdb` of the machine's PostgreSQL 16 on port 55432, UTF-8) — the real server, so
   `schema.sql` migrations run exactly as they would for you, including upgrading a database that
   already holds data from earlier stages.
 - **AI:** a small mock of an OpenAI-compatible API (chat, streaming, embeddings) returning canned
@@ -30,8 +31,13 @@ verified against a local test harness (kept outside the repo):
   but **not the quality of real model output** — run `npm run check-api` and try each feature with
   your own provider.
 - Backend started with `npm run dev` (boots + migrates), `npm run check-api` against the mock,
-  `node --check` on changed files; frontend `npm run build` and `npx oxlint src` (0 errors; the 15
-  warnings are pre-existing patterns); UI checked in a headless browser.
+  `node --check` on changed files; frontend `npm run build` and `npx oxlint src` (0 errors; the
+  warnings are the existing `set-state-in-effect` / ref patterns); UI checked in headless Chromium
+  (Playwright) in light, dark and mobile.
+- WSL notes: `frontend/node_modules` was installed from Windows (no Linux rolldown/oxlint
+  bindings), so the frontend is built and linted from a Linux copy (`npm ci` in the scratchpad).
+  `node --watch` doesn't see edits on `/mnt/d`, so the backend is restarted by hand. The working
+  tree had CRLF line endings while commits are LF; files were normalised to LF (no content change).
 
 ## Stage notes
 
@@ -105,3 +111,38 @@ verified against a local test harness (kept outside the repo):
   forced-due card returns first with previews; deck from another course → 404; second user → 404 on
   deck/card/review/edit/delete. UI: badge, review via Space + "3" (18 → 17 left), editor, generate
   dialog, mobile dark layout.
+
+### 4. Quizzes, graded answers, weak topics ✅
+- DB: `topics` (per unit; `unit_id` NULL = General) + `topic_sets` (source fingerprint, status) —
+  re-extracted when a unit's sources change (ingest, move, delete, unit delete), names that survive
+  keep their id. `quizzes`, `quiz_questions` (4 options, answer, explanation, topic, source +
+  location + quote), `quiz_attempts`, `quiz_answers` (correct, time_ms), `answer_attempts`
+  (marks, score, feedback JSON, citations, topic, origin), `topic_events` (user, topic, kind, score,
+  weight); `cards.topic_id`. Queries in `backend/src/db/practice.js`.
+- Services: `topics.js` (extraction 5–15/unit, debounced refresh, `matchTopic` preferring the
+  passage's unit, mastery = recency-weighted average), `quizzes.js` (validated MCQs, options
+  shuffled, answer as index/letter/text), `grading.js` (written questions per 2/5/10 marks; grading
+  with MMR retrieval → score clamped to half marks, points with valid passage numbers only, model
+  answer with invalid `[n]` stripped). Routes in `routes/practice.routes.js`.
+- Mastery evidence: quiz answer weight 1, flashcard rating 0.5 (again 0 / hard .6 / good .85 /
+  easy 1), graded answer weight 1/2/3 for 2/5/10 marks (score = marks awarded / marks).
+- UI: course tabs Chat / Study / Practice / Progress (mobile bottom nav has all five). Practice:
+  quiz list, new-quiz dialog (units, 5/10/15/20, difficulty), quiz player (one question at a time,
+  instant feedback with explanation + citation, results by topic, retake), Answer writing (marks,
+  units, suggest questions, word count, graded result with cited points and model answer, past
+  answers). Progress: units with mastery bars, topics weakest first, "Revise these today" with Quiz
+  me / Flashcards / Ask in chat (and "Quiz me on all").
+- Fix during verification: flashcard ratings were matched to a topic by name across the whole
+  course, so units sharing a topic name could credit the wrong unit → cards now store `topic_id`
+  (and quiz/grade/card topic matching prefers the unit of the cited passage).
+- Tested (curl, on a database created with the Stage 3 schema): topics extracted for 2 units +
+  General automatically after ingestion (model duplicate dropped); quiz bad count/difficulty/unit →
+  400; unit-scoped quiz cites only that unit's source, no answers leaked before answering, malformed
+  model question dropped; answer → correct/explanation/citation, duplicate answer 409, chosenIndex 4
+  → 400, review before finish 409, finish → score 1/5 + per-topic results + total time, answer after
+  finish 409; written questions (bad marks/count → 400) tagged with topics; grading: empty/missing/
+  12k+ answer → 400, score 3.2 → 3 (half marks), invalid passage numbers [42]/99 stripped; deck on a
+  topic → all cards tagged; flashcard rating credited to the deck unit's topic (also after editing
+  the card's topic); progress mastery 0.42 = (2×0.6 + 0.85×1×0)/(2.85) as expected; second user →
+  404 on quiz, attempt, finish, answers, topics, progress, quiz creation. `check-api` OK. UI:
+  Practice, quiz player, Answer writing, Progress (light, dark, mobile), no page errors.

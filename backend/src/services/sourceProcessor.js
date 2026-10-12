@@ -4,6 +4,7 @@ import { saveSourceText } from "./sourceText.js";
 import { completeJson } from "./llm.js";
 import { embeddingModelId } from "./embeddings.js";
 import { refreshNotebookOverview } from "./notebookOverview.js";
+import { scheduleTopicRefresh } from "./topics.js";
 import { getSource, updateSource } from "../db/store.js";
 
 const GUIDE_SAMPLE_CHARS = 24_000;
@@ -79,7 +80,10 @@ export async function processSource(sourceId, load, { reprocess = false } = {}) 
     }
 
     const source = await getSource(sourceId);
-    if (source) refreshNotebookOverview(source.notebookId);
+    if (source) {
+      refreshNotebookOverview(source.notebookId);
+      scheduleTopicRefresh(source.notebookId, source.unitId);
+    }
   } catch (err) {
     await updateSource(
       sourceId,

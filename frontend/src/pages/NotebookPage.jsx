@@ -8,11 +8,15 @@ import SourcesPanel from "../components/sources/SourcesPanel";
 import AddSourcesDialog from "../components/sources/AddSourcesDialog";
 import ChatPanel from "../components/chat/ChatPanel";
 import StudyPanel from "../components/study/StudyPanel";
+import PracticePanel from "../components/practice/PracticePanel";
+import ProgressPanel from "../components/progress/ProgressPanel";
 
 // Main-area tools of a course.
 const VIEWS = [
   ["chat", "Chat", "chat"],
   ["study", "Study", "style"],
+  ["practice", "Practice", "quiz"],
+  ["progress", "Progress", "insights"],
 ];
 
 function ViewTabs({ view, onChange, badges }) {
@@ -82,7 +86,10 @@ export default function NotebookPage({ notebookId }) {
   const [streaming, setStreaming] = useState(null); // { question, text, citations }
   const [collapsed, setCollapsed] = useState({ sources: false });
   const [tab, setTab] = useState("chat"); // mobile: "sources" | "chat" (the main area)
-  const [view, setView] = useState("chat"); // main area: chat | study
+  const [view, setView] = useState("chat"); // main area: chat | study | practice | progress
+  const [studyIntent, setStudyIntent] = useState(null); // e.g. flashcards on weak topics
+  const [practiceIntent, setPracticeIntent] = useState(null); // quiz on topics, or a question to answer
+  const [progressKey, setProgressKey] = useState(0); // bumps after practice so Progress reloads
   const [studyCounts, setStudyCounts] = useState({ due: 0, new: 0 });
   const isWide = useMediaQuery("(min-width: 1024px)");
 
@@ -329,6 +336,25 @@ export default function NotebookPage({ notebookId }) {
     }
   };
 
+  // ---- Progress → practice --------------------------------------------------------
+
+  const showView = (next) => {
+    setTab("chat");
+    setView(next);
+  };
+  const quizOnTopics = (topics) => {
+    setPracticeIntent({ kind: "quiz", topicIds: topics.slice(0, 5).map((t) => t.id), count: topics.length > 1 ? 10 : 5 });
+    showView("practice");
+  };
+  const flashcardsOnTopics = (topics) => {
+    setStudyIntent({ kind: "generate", topicIds: topics.slice(0, 5).map((t) => t.id) });
+    showView("study");
+  };
+  const askAboutTopic = (topic) => sendMessage(`Explain "${topic.name}" from ${topic.unitTitle ?? "this course"} simply, with the key points I need for the exam.`);
+  const clearStudyIntent = useCallback(() => setStudyIntent(null), []);
+  const clearPracticeIntent = useCallback(() => setPracticeIntent(null), []);
+  const bumpProgress = useCallback(() => setProgressKey((k) => k + 1), []);
+
   // ---- Render -------------------------------------------------------------------
 
   if (loadError) {
@@ -376,7 +402,35 @@ export default function NotebookPage({ notebookId }) {
 
   const studyPanel = (
     <section className="panel w-full">
-      <StudyPanel notebook={notebook} units={units} sources={sources} onOpenCitation={openCitation} onCounts={setStudyCounts} />
+      <StudyPanel
+        notebook={notebook}
+        units={units}
+        sources={sources}
+        onOpenCitation={openCitation}
+        onCounts={setStudyCounts}
+        intent={studyIntent}
+        onIntentUsed={clearStudyIntent}
+      />
+    </section>
+  );
+
+  const practicePanel = (
+    <section className="panel w-full">
+      <PracticePanel
+        notebook={notebook}
+        units={units}
+        sources={sources}
+        onOpenCitation={openCitation}
+        intent={practiceIntent}
+        onIntentUsed={clearPracticeIntent}
+        onActivity={bumpProgress}
+      />
+    </section>
+  );
+
+  const progressPanel = (
+    <section className="panel w-full">
+      <ProgressPanel notebook={notebook} refreshKey={progressKey} onQuiz={quizOnTopics} onFlashcards={flashcardsOnTopics} onAsk={askAboutTopic} />
     </section>
   );
 
@@ -398,6 +452,8 @@ export default function NotebookPage({ notebookId }) {
     />
   );
 
+  const mainPanel = { study: studyPanel, practice: practicePanel, progress: progressPanel }[view] ?? chatPanel;
+
   return (
     <div className="h-full flex flex-col">
       <header className="flex items-center gap-3 h-16 px-3 sm:px-4 shrink-0">
@@ -414,12 +470,12 @@ export default function NotebookPage({ notebookId }) {
       {isWide ? (
         <div className="flex-1 min-h-0 flex gap-3 px-3 pb-3">
           <div className={`${collapsed.sources ? "w-14" : "w-[clamp(260px,24vw,360px)]"} shrink-0 flex transition-[width]`}>{sourcesPanel}</div>
-          <div className="flex-1 min-w-0 flex">{view === "study" ? studyPanel : chatPanel}</div>
+          <div className="flex-1 min-w-0 flex">{mainPanel}</div>
         </div>
       ) : (
         <>
-          <div className="flex-1 min-h-0 flex px-2">{tab === "sources" ? sourcesPanel : view === "study" ? studyPanel : chatPanel}</div>
-          <nav className="shrink-0 grid grid-cols-3 h-14 border-t border-line/60">
+          <div className="flex-1 min-h-0 flex px-2">{tab === "sources" ? sourcesPanel : mainPanel}</div>
+          <nav className="shrink-0 grid grid-cols-5 h-14 border-t border-line/60">
             {[["sources", "Sources", "folder_open"], ...VIEWS].map(([key, label, icon]) => {
               const active = key === "sources" ? tab === "sources" : tab !== "sources" && view === key;
               const badge = key === "study" ? studyCounts.due + studyCounts.new : 0;
@@ -429,8 +485,7 @@ export default function NotebookPage({ notebookId }) {
                   type="button"
                   onClick={() => {
                     if (key === "sources") return setTab("sources");
-                    setTab("chat");
-                    setView(key);
+                    showView(key);
                   }}
                   className={`relative flex flex-col items-center justify-center gap-0.5 text-xs font-medium ${active ? "text-accent" : "text-ink-3"}`}
                 >

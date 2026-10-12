@@ -1,4 +1,5 @@
 import { listChunkTexts } from "../db/store.js";
+import { ensureCurrentEmbeddings, loadMergedStore, mmrSearch } from "./vectorStore.js";
 
 // Numbered source passages for generation prompts (flashcards, quizzes,
 // topics…). The model refers to passages by number; we turn the number back
@@ -73,3 +74,37 @@ export function cleanText(value, max) {
   if (typeof value !== "string" && typeof value !== "number") return "";
   return String(value).replace(/\r\n?/g, "\n").trim().slice(0, max);
 }
+
+/**
+ * The passages most relevant to `queryText` across the sources (MMR, as chat
+ * uses), numbered from 1 — for grading and topic-focused generation.
+ */
+export async function retrievePassages(sources, queryText, { k = 8, fetchK = 30 } = {}) {
+  const titles = new Map(sources.map((s) => [s.id, s.title]));
+  await ensureCurrentEmbeddings(sources);
+  const store = await loadMergedStore(sources.map((s) => s.id));
+  const docs = await mmrSearch(store, queryText, { k, fetchK });
+  return docs.map((doc, i) => ({
+    number: i + 1,
+    sourceId: doc.metadata.sourceId,
+    sourceTitle: titles.get(doc.metadata.sourceId) ?? doc.metadata.source,
+    chunk: doc.metadata.chunk,
+    start: doc.metadata.start ?? null,
+    end: doc.metadata.end ?? null,
+    location: doc.metadata.location ?? null,
+    text: doc.pageContent,
+  }));
+}
+
+/** Passages as chat-style citations ({ number, sourceId, sourceTitle, chunk, start, end, location, text }). */
+export const asCitations = (passages) =>
+  passages.map((p) => ({
+    number: p.number,
+    sourceId: p.sourceId,
+    sourceTitle: p.sourceTitle,
+    chunk: p.chunk ?? null,
+    start: p.start ?? null,
+    end: p.end ?? null,
+    location: p.location ?? null,
+    text: p.text,
+  }));

@@ -22,6 +22,15 @@ suggested questions.
   delete cards by hand. The *Study* area shows an "N due" badge and reviews cards with **SM-2**
   (Again / Hard / Good / Easy, each button showing the next interval; keys 1–4 and Space). Review
   progress is personal, and new cards are capped per day (`NEW_CARDS_PER_DAY`, default 20).
+- **Quizzes, answer writing and weak topics** — the model extracts 5–15 **topics** per unit from
+  its sources (refreshed automatically when the unit's sources change). *Practice* makes
+  multiple-choice quizzes (5/10/15/20 questions, easy/medium/hard, chosen units) with explanations
+  and the page each answer comes from, and **answer-writing** practice: generate (or type) a 2-, 5-
+  or 10-mark question, write your answer, and get it **graded against your sources** — marks,
+  correct points, missing points, mistakes and a cited model answer. *Progress* shows your
+  **mastery** of every topic (weighted recent accuracy from quizzes, graded answers and flashcard
+  ratings), weakest first, with "Revise these today" and one-click *Quiz me*, *Flashcards* and
+  *Ask in chat*.
 
 | Layer     | Tech |
 |-----------|------|
@@ -146,6 +155,12 @@ React (5173) ──/auth, /api──▶ Express (3000) ──▶ PostgreSQL
 - **Spaced repetition:** decks and cards belong to the course; each user's SM-2 state lives in
   `card_reviews` (ease 2.5, interval, repetitions, due date, lapses) and every rating in
   `review_log`. The browser sends its timezone (`X-Timezone`) so "today" is the user's day.
+- **Topics and mastery:** each unit's topics (`topics`, with a source fingerprint in `topic_sets`)
+  are extracted from a sample of its passages and re-extracted when its sources change; topics that
+  keep their name keep their id, so history survives. Quiz questions, graded answers and cards are
+  tagged with a topic, and every answer adds a `topic_events` row (score 0–1, weight: quiz 1,
+  flashcard 0.5, 2/5/10-mark answer 1/2/3). Mastery = weighted average of a topic's last 25 events,
+  each older event counting 15% less. Quizzes, attempts, graded answers and mastery are personal.
 - **Changing models:** each source records which embedding model it used; if you change
   `EMBEDDING_MODEL` (or its provider), existing sources are re-embedded automatically the next time you chat.
 
@@ -177,12 +192,24 @@ React (5173) ──/auth, /api──▶ Express (3000) ──▶ PostgreSQL
 | POST | `/api/notebooks/:id/chat` | Ask a question (SSE stream) `{ content, sourceIds?, unitIds? }` |
 | GET | `/api/arxiv?query=` | Discover arXiv papers |
 | GET/POST | `/api/notebooks/:id/decks` | List decks with due/new counts / create an empty deck `{ title, unitId? }` |
-| POST | `/api/notebooks/:id/decks/generate` | Generate a deck `{ count: 10\|20\|30, difficulty, unitIds?, sourceIds?, title? }` |
+| POST | `/api/notebooks/:id/decks/generate` | Generate a deck `{ count: 10\|20\|30, difficulty, unitIds?, sourceIds?, topicIds?, title? }` |
 | GET | `/api/notebooks/:id/review?deckId=` | Cards to review now (due first, then today's new cards), with next-interval previews |
 | GET/PATCH/DELETE | `/api/decks/:deckId` | Deck with its cards / rename, set unit / delete |
 | POST | `/api/decks/:deckId/cards` | Add a card `{ front, back, topic? }` |
 | PATCH/DELETE | `/api/cards/:cardId` | Edit / delete a card |
 | POST | `/api/cards/:cardId/review` | Rate a card `{ rating: again\|hard\|good\|easy }` → new SM-2 state |
+| GET | `/api/notebooks/:id/topics` | Topics per unit with status (ready / pending / error / empty) |
+| POST | `/api/notebooks/:id/topics/refresh` | Re-extract topics `{ unitId? }` (202) |
+| GET | `/api/notebooks/:id/progress` | Your mastery per unit and topic, weakest first, plus "revise these today" |
+| GET/POST | `/api/notebooks/:id/quizzes` | Your quizzes / make one `{ count: 5\|10\|15\|20, difficulty, unitIds?, topicIds?, title? }` |
+| GET/DELETE | `/api/quizzes/:quizId` | Quiz with its questions (no answers) / delete |
+| POST | `/api/quizzes/:quizId/attempts` | Start an attempt |
+| POST | `/api/quiz-attempts/:attemptId/answers` | Answer `{ questionId, chosenIndex, timeMs }` → correct, explanation, citation |
+| POST | `/api/quiz-attempts/:attemptId/finish` | Finish → score, per-topic results, every answer |
+| GET | `/api/quiz-attempts/:attemptId` | Review of a finished attempt |
+| POST | `/api/notebooks/:id/written-questions` | Exam-style questions `{ marks: 2\|5\|10, count: 1-5, unitIds?, topicIds? }` |
+| GET/POST | `/api/notebooks/:id/answers` | Your graded answers / grade one `{ question, marks, answer, unitIds?, topicId? }` |
+| GET/DELETE | `/api/answers/:answerId` | A graded answer / delete it |
 
 ## Deploying to production
 

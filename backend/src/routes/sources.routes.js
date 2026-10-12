@@ -2,6 +2,7 @@ import { Router } from "express";
 import { asyncHandler, isUuid } from "../utils/asyncHandler.js";
 import { getSource, updateSource } from "../db/store.js";
 import { resolveUnitId } from "./helpers.js";
+import { scheduleTopicRefresh } from "../services/topics.js";
 import { readSourceLocations, readSourceText } from "../services/sourceText.js";
 import { removeSource, reprocessSource } from "../services/sources.js";
 
@@ -51,7 +52,13 @@ sourcesRouter.patch(
     if (typeof selected === "boolean") patch.selected = selected;
     const unit = await resolveUnitId(req.source.notebookId, unitId);
     if (unit !== undefined) patch.unitId = unit;
-    res.json(await updateSource(req.params.id, patch));
+    const updated = await updateSource(req.params.id, patch);
+    // Moving a source changes both units' topics.
+    if (unit !== undefined && unit !== req.source.unitId) {
+      scheduleTopicRefresh(req.source.notebookId, req.source.unitId);
+      scheduleTopicRefresh(req.source.notebookId, unit);
+    }
+    res.json(updated);
   })
 );
 

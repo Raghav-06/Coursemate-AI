@@ -185,3 +185,112 @@ CREATE TABLE IF NOT EXISTS review_log (
   reviewed_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS review_log_user_idx ON review_log (user_id, reviewed_at);
+
+-- ---- Practice: topics, quizzes, written answers, mastery -------------------
+
+-- Topics of each unit (unit_id NULL = the course's "General" sources),
+-- extracted by the model from that unit's sources.
+CREATE TABLE IF NOT EXISTS topics (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  notebook_id  UUID NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
+  unit_id      UUID REFERENCES units(id) ON DELETE CASCADE,
+  name         TEXT NOT NULL,
+  description  TEXT,
+  position     INTEGER NOT NULL DEFAULT 0,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS topics_notebook_idx ON topics (notebook_id, unit_id, position);
+-- The course topic a flashcard is about (its free-text `topic` stays as written).
+ALTER TABLE cards ADD COLUMN IF NOT EXISTS topic_id UUID REFERENCES topics(id) ON DELETE SET NULL;
+
+-- When each unit's topics were last extracted, and from which sources
+-- (signature), so they refresh when the unit's sources change.
+CREATE TABLE IF NOT EXISTS topic_sets (
+  notebook_id  UUID NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
+  unit_key     TEXT NOT NULL,                  -- unit id, or 'general'
+  signature    TEXT,
+  status       TEXT NOT NULL DEFAULT 'pending', -- pending | ready | error
+  error        TEXT,
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (notebook_id, unit_key)
+);
+
+-- Multiple-choice quizzes are personal (made by and for one user).
+CREATE TABLE IF NOT EXISTS quizzes (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  notebook_id  UUID NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
+  user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title        TEXT NOT NULL,
+  difficulty   TEXT NOT NULL,
+  unit_ids     JSONB NOT NULL DEFAULT '[]',
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS quizzes_user_idx ON quizzes (notebook_id, user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS quiz_questions (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  quiz_id       UUID NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
+  position      INTEGER NOT NULL,
+  question      TEXT NOT NULL,
+  options       JSONB NOT NULL,                -- exactly 4 strings
+  answer_index  INTEGER NOT NULL,
+  explanation   TEXT,
+  topic_id      UUID REFERENCES topics(id) ON DELETE SET NULL,
+  topic         TEXT,
+  source_id     UUID REFERENCES sources(id) ON DELETE SET NULL,
+  location      TEXT,
+  quote         TEXT
+);
+CREATE INDEX IF NOT EXISTS quiz_questions_quiz_idx ON quiz_questions (quiz_id, position);
+
+CREATE TABLE IF NOT EXISTS quiz_attempts (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  quiz_id      UUID NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
+  user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  started_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  finished_at  TIMESTAMPTZ,
+  score        INTEGER,
+  total        INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS quiz_attempts_quiz_idx ON quiz_attempts (quiz_id, user_id, started_at DESC);
+
+CREATE TABLE IF NOT EXISTS quiz_answers (
+  attempt_id    UUID NOT NULL REFERENCES quiz_attempts(id) ON DELETE CASCADE,
+  question_id   UUID NOT NULL REFERENCES quiz_questions(id) ON DELETE CASCADE,
+  chosen_index  INTEGER NOT NULL,
+  correct       BOOLEAN NOT NULL,
+  time_ms       INTEGER,
+  answered_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (attempt_id, question_id)
+);
+
+-- Written answers graded by the model (personal).
+CREATE TABLE IF NOT EXISTS answer_attempts (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  notebook_id  UUID NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
+  user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  question     TEXT NOT NULL,
+  marks        INTEGER NOT NULL,
+  answer       TEXT NOT NULL,
+  score        REAL NOT NULL,
+  feedback     JSONB NOT NULL,          -- { correctPoints, missingPoints, mistakes, modelAnswer }
+  citations    JSONB NOT NULL DEFAULT '[]',
+  topic_id     UUID REFERENCES topics(id) ON DELETE SET NULL,
+  unit_ids     JSONB NOT NULL DEFAULT '[]',
+  origin       TEXT NOT NULL DEFAULT 'typed', -- typed | generated | past_paper
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS answer_attempts_user_idx ON answer_attempts (notebook_id, user_id, created_at DESC);
+
+-- Evidence of how well a user knows a topic (quiz answers, graded answers,
+-- flashcard ratings…): score 0-1 with a weight. Mastery = weighted recent accuracy.
+CREATE TABLE IF NOT EXISTS topic_events (
+  id          BIGSERIAL PRIMARY KEY,
+  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  topic_id    UUID NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
+  kind        TEXT NOT NULL,          -- quiz | answer | flashcard
+  score       REAL NOT NULL,
+  weight      REAL NOT NULL DEFAULT 1,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS topic_events_user_idx ON topic_events (user_id, topic_id, created_at DESC);

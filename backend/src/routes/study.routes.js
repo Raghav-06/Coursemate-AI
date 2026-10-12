@@ -23,6 +23,12 @@ import {
 import { CARD_COUNTS, DIFFICULTIES, generateCards } from "../services/flashcards.js";
 import { RATINGS, previewIntervals, schedule } from "../services/srs.js";
 import { assertApiKey } from "../services/llm.js";
+import { matchTopic, refreshUnitTopics } from "../services/topics.js";
+import { addTopicEvents, getTopicsByIds, listTopics } from "../db/practice.js";
+import { listUnits } from "../db/store.js";
+
+// How much a flashcard rating says about knowing its topic (0-1).
+const RATING_SCORE = { again: 0, hard: 0.6, good: 0.85, easy: 1 };
 
 const MAX_DECK_TITLE = 120;
 const MAX_DECKS_PER_COURSE = 100;
@@ -76,7 +82,7 @@ export function courseStudyRoutes(router) {
     })
   );
 
-  // body: { title?, unitIds?, sourceIds?, count: 10|20|30, difficulty: easy|medium|hard }
+  // body: { title?, unitIds?, sourceIds?, topicIds?, count: 10|20|30, difficulty: easy|medium|hard }
   router.post(
     "/:id/decks/generate",
     asyncHandler(async (req, res) => {
@@ -84,7 +90,12 @@ export function courseStudyRoutes(router) {
       if (!CARD_COUNTS.includes(count)) throw httpError(400, `count must be one of ${CARD_COUNTS.join(", ")}.`);
       const difficulty = req.body?.difficulty ?? "medium";
       if (!DIFFICULTIES.includes(difficulty)) throw httpError(400, `difficulty must be one of ${DIFFICULTIES.join(", ")}.`);
-      const unitIds = idList(req.body?.unitIds, { allow: ["general"], name: "unitIds" });
+      const topicIds = idList(req.body?.topicIds, { name: "topicIds" }) ?? [];
+      const focusTopics = await getTopicsByIds(req.notebook.id, topicIds);
+      if (focusTopics.length !== topicIds.length) throw httpError(400, "Some of those topics don't belong to this course.");
+      const unitIds = focusTopics.length
+        ? [...new Set(focusTopics.map((t) => t.unitId ?? "general"))]
+        : idList(req.body?.unitIds, { allow: ["general"], name: "unitIds" });
       const sourceIds = idList(req.body?.sourceIds, { name: "sourceIds" });
       if ((await countDecks(req.notebook.id)) >= MAX_DECKS_PER_COURSE) throw httpError(409, `A course can have up to ${MAX_DECKS_PER_COURSE} decks.`);
 
@@ -93,8 +104,14 @@ export function courseStudyRoutes(router) {
       assertApiKey();
 
       const singleUnit = unitIds?.length === 1 && unitIds[0] !== "general" ? await getUnit(unitIds[0], req.notebook.id) : null;
-      const title = cleanString(req.body?.title, MAX_DECK_TITLE) || `${singleUnit?.title ?? req.notebook.title} — flashcards`;
-      const cards = await generateCards({ sources, count, difficulty, focus: singleUnit?.title });
+      const title =
+        cleanString(req.body?.title, MAX_DECK_TITLE) ||
+        `${focusTopics.length ? focusTopics.map((t) => t.name).join(", ") : singleUnit?.title ?? req.notebook.title} — flashcards`.slice(0, MAX_DECK_TITLE);
+      // Tag cards with the course topics (extracting any that are missing first).
+      const scope = unitIds?.length ? unitIds.map((u) => (u === "general" ? null : u)) : [...(await listUnits(req.notebook.id)).map((u) => u.id), null];
+      await Promise.all(scope.map((u) => refreshUnitTopics(req.notebook.id, u).catch(() => {})));
+      const topics = (await listTopics(req.notebook.id)).filter((t) => scope.includes(t.unitId));
+      const cards = await generateCards({ sources, count, difficulty, focus: singleUnit?.title, topics, focusTopics });
 
       const deck = await createDeck({ notebookId: req.notebook.id, unitId: singleUnit?.id ?? null, title, createdBy: req.user.id });
       await addCards(deck.id, cards);
@@ -221,6 +238,10 @@ studyRouter.post(
     if (!RATINGS.includes(rating)) throw httpError(400, `rating must be one of ${RATINGS.join(", ")}.`);
     const state = schedule(req.card.review, rating);
     await saveReview({ cardId: req.card.id, userId: req.user.id, notebookId: req.card.notebookId, rating, wasNew: !req.card.review, state });
+    // The rating is (light) evidence of how well the user knows the card's topic.
+    const topicId =
+      req.card.topicId ?? (req.card.topic ? matchTopic(await listTopics(req.card.notebookId), req.card.topic, req.card.deckUnitId)?.id : null);
+    if (topicId) await addTopicEvents(req.user.id, [{ topicId, kind: "flashcard", score: RATING_SCORE[rating], weight: 0.5 }]);
     res.json({ cardId: req.card.id, rating, review: state, intervals: previewIntervals(state) });
   })
 );

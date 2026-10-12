@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import { NameDialog } from "../sources/SourcesPanel";
-import { ConfirmDialog, Icon, Menu, toast } from "../ui";
+import { ConfirmDialog, Icon, Menu, Spinner, toast } from "../ui";
 import DeckEditor from "./DeckEditor";
 import GenerateDeckDialog from "./GenerateDeckDialog";
 import ReviewSession from "./ReviewSession";
@@ -21,7 +21,7 @@ function DueBadge({ due, fresh }) {
  * decks, and spaced-repetition review. `onCounts({ due, new })` keeps the
  * "N due" badge outside in sync.
  */
-export default function StudyPanel({ notebook, units, sources, onOpenCitation, onCounts }) {
+export default function StudyPanel({ notebook, units, sources, onOpenCitation, onCounts, intent, onIntentUsed }) {
   const [data, setData] = useState(null); // { decks, dueCount, newCount, newLimit, newToday }
   const [error, setError] = useState(null);
   const [mode, setMode] = useState({ name: "list" }); // list | review { deck? } | edit { deckId }
@@ -50,6 +50,27 @@ export default function StudyPanel({ notebook, units, sources, onOpenCitation, o
       cancelled = true;
     };
   }, [notebook.id, apply]);
+
+  // { kind: "generate", topicIds }: make a short deck on those topics and study it.
+  const [making, setMaking] = useState(false);
+  const handledIntent = useRef(null); // StrictMode runs effects twice
+  useEffect(() => {
+    if (intent?.kind !== "generate" || handledIntent.current === intent) return;
+    handledIntent.current = intent;
+    onIntentUsed?.();
+    setMaking(true);
+    api
+      .generateDeck(notebook.id, { topicIds: intent.topicIds, count: 10, difficulty: "medium" })
+      .then(
+        (deck) => {
+          toast(`Created "${deck.title}" with ${deck.cards.length} cards`);
+          load();
+          setMode({ name: "review", deck });
+        },
+        (err) => toast(err.message, "error")
+      )
+      .finally(() => setMaking(false));
+  }, [intent, onIntentUsed, notebook.id, load]);
 
   const unitTitle = (id) => units.find((u) => u.id === id)?.title;
 
@@ -137,6 +158,11 @@ export default function StudyPanel({ notebook, units, sources, onOpenCitation, o
           </button>
         </div>
 
+        {making && (
+          <p className="flex items-center gap-2 text-sm text-ink-2">
+            <Spinner /> Making flashcards on your weak topics…
+          </p>
+        )}
         {error && <p className="text-sm text-danger">{error}</p>}
         {!data && !error && (
           <div className="flex flex-col gap-2">

@@ -30,6 +30,9 @@ import { answerQuestion } from "../services/ragService.js";
 import { refreshNotebookOverview } from "../services/notebookOverview.js";
 import { assertApiKey } from "../services/llm.js";
 import { courseStudyRoutes } from "./study.routes.js";
+import { coursePracticeRoutes } from "./practice.routes.js";
+import { scheduleTopicRefresh } from "../services/topics.js";
+import { deleteUnitTopics } from "../db/practice.js";
 
 export const notebooksRouter = Router();
 
@@ -158,11 +161,13 @@ notebooksRouter.patch(
   })
 );
 
-// Its sources move to General.
+// Its sources move to General (and its topics go with it).
 notebooksRouter.delete(
   "/:id/units/:unitId",
   asyncHandler(async (req, res) => {
+    await deleteUnitTopics(req.notebook.id, req.unit.id);
     await deleteUnit(req.unit.id);
+    scheduleTopicRefresh(req.notebook.id, null);
     res.status(204).end();
   })
 );
@@ -345,3 +350,7 @@ notebooksRouter.post(
 // ---- Study (flashcard decks) ------------------------------------------------
 
 courseStudyRoutes(notebooksRouter);
+
+// ---- Practice (topics, quizzes, written answers, progress) ----------------------
+
+coursePracticeRoutes(notebooksRouter);

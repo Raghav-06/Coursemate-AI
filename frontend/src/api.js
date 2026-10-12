@@ -94,6 +94,22 @@ export const api = {
   reviewQueue: (id, deckId) => request(`/api/notebooks/${id}/review${deckId ? `?deckId=${deckId}` : ""}`),
   reviewCard: (cardId, rating) => request(`/api/cards/${cardId}/review`, { method: "POST", body: { rating } }),
 
+  // Practice: topics, quizzes, written answers, progress (personal)
+  getTopics: (id) => request(`/api/notebooks/${id}/topics`),
+  refreshTopics: (id, unitId) => request(`/api/notebooks/${id}/topics/refresh`, { method: "POST", body: unitId === undefined ? {} : { unitId } }),
+  getProgress: (id) => request(`/api/notebooks/${id}/progress`),
+  listQuizzes: (id) => request(`/api/notebooks/${id}/quizzes`),
+  createQuiz: (id, body) => request(`/api/notebooks/${id}/quizzes`, { method: "POST", body }),
+  getQuiz: (quizId) => request(`/api/quizzes/${quizId}`),
+  deleteQuiz: (quizId) => request(`/api/quizzes/${quizId}`, { method: "DELETE" }),
+  startQuizAttempt: (quizId) => request(`/api/quizzes/${quizId}/attempts`, { method: "POST" }),
+  answerQuizQuestion: (attemptId, body) => request(`/api/quiz-attempts/${attemptId}/answers`, { method: "POST", body }),
+  finishQuizAttempt: (attemptId) => request(`/api/quiz-attempts/${attemptId}/finish`, { method: "POST" }),
+  writtenQuestions: (id, body) => request(`/api/notebooks/${id}/written-questions`, { method: "POST", body }),
+  gradeAnswer: (id, body) => request(`/api/notebooks/${id}/answers`, { method: "POST", body }),
+  listAnswers: (id) => request(`/api/notebooks/${id}/answers`),
+  deleteAnswer: (answerId) => request(`/api/answers/${answerId}`, { method: "DELETE" }),
+
   listMessages: (id) => request(`/api/notebooks/${id}/messages`),
   clearMessages: (id) => request(`/api/notebooks/${id}/messages`, { method: "DELETE" }),
 
