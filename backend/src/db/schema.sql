@@ -294,3 +294,33 @@ CREATE TABLE IF NOT EXISTS topic_events (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS topic_events_user_idx ON topic_events (user_id, topic_id, created_at DESC);
+
+-- ---- Past papers ------------------------------------------------------------------
+
+-- A source is course material (default) or a past exam paper. Past papers
+-- are left out of chat (unless asked for), quizzes, flashcards and topics;
+-- their questions are extracted and mapped to the course's units and topics.
+ALTER TABLE sources ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'material';  -- material | past_paper
+ALTER TABLE sources ADD COLUMN IF NOT EXISTS exam_name TEXT;
+ALTER TABLE sources ADD COLUMN IF NOT EXISTS exam_year INTEGER;
+ALTER TABLE sources ADD COLUMN IF NOT EXISTS paper_status TEXT;   -- NULL | pending | ready | error
+ALTER TABLE sources ADD COLUMN IF NOT EXISTS paper_error TEXT;
+
+CREATE TABLE IF NOT EXISTS past_paper_questions (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  notebook_id  UUID NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
+  source_id    UUID NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+  position     INTEGER NOT NULL DEFAULT 0,
+  number       TEXT,                     -- as printed: "3", "2(b)", "Q4"
+  text         TEXT NOT NULL,
+  marks        REAL,
+  year         INTEGER,
+  section      TEXT,
+  unit_id      UUID REFERENCES units(id) ON DELETE SET NULL,
+  topic_id     UUID REFERENCES topics(id) ON DELETE SET NULL,
+  similarity   REAL,                     -- best match against the course material (0-1)
+  citations    JSONB NOT NULL DEFAULT '[]',  -- where the answer is in the course material
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS past_paper_questions_notebook_idx ON past_paper_questions (notebook_id, source_id, position);
+CREATE INDEX IF NOT EXISTS past_paper_questions_topic_idx ON past_paper_questions (topic_id);

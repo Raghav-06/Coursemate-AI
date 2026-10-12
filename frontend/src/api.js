@@ -65,16 +65,19 @@ export const api = {
   deleteUnit: (id, unitId) => request(`/api/notebooks/${id}/units/${unitId}`, { method: "DELETE" }),
 
   // `unitId` (optional) files new sources under a unit; null = General.
+  // `kind` ({ kind: "material" | "past_paper", examName?, examYear? }) marks past exam papers.
   listSources: (id) => request(`/api/notebooks/${id}/sources`),
-  uploadFiles: (id, files, unitId) => {
+  uploadFiles: (id, files, unitId, kind = {}) => {
     const form = new FormData();
     if (unitId) form.append("unitId", unitId);
+    for (const [key, value] of Object.entries(kind)) if (value !== undefined && value !== null && value !== "") form.append(key, String(value));
     for (const file of files) form.append("files", file);
     return request(`/api/notebooks/${id}/sources/files`, { method: "POST", form });
   },
-  addUrls: (id, urls, unitId) => request(`/api/notebooks/${id}/sources/url`, { method: "POST", body: { urls, unitId } }),
+  addUrls: (id, urls, unitId, kind = {}) => request(`/api/notebooks/${id}/sources/url`, { method: "POST", body: { urls, unitId, ...kind } }),
   addUrl: (id, url, title, unitId) => request(`/api/notebooks/${id}/sources/url`, { method: "POST", body: { url, title, unitId } }),
-  addText: (id, title, text, unitId) => request(`/api/notebooks/${id}/sources/text`, { method: "POST", body: { title, text, unitId } }),
+  addText: (id, title, text, unitId, kind = {}) => request(`/api/notebooks/${id}/sources/text`, { method: "POST", body: { title, text, unitId, ...kind } }),
+  analysePaper: (sourceId) => request(`/api/sources/${sourceId}/analyse`, { method: "POST" }),
   getSourceContent: (sourceId) => request(`/api/sources/${sourceId}/content`),
   updateSource: (sourceId, patch) => request(`/api/sources/${sourceId}`, { method: "PATCH", body: patch }),
   deleteSource: (sourceId) => request(`/api/sources/${sourceId}`, { method: "DELETE" }),
@@ -109,6 +112,14 @@ export const api = {
   gradeAnswer: (id, body) => request(`/api/notebooks/${id}/answers`, { method: "POST", body }),
   listAnswers: (id) => request(`/api/notebooks/${id}/answers`),
   deleteAnswer: (answerId) => request(`/api/answers/${answerId}`, { method: "DELETE" }),
+
+  // Past papers (exam insights)
+  examInsights: (id) => request(`/api/notebooks/${id}/exam-insights`),
+  pastPaperQuestions: (id, filters = {}) => {
+    const qs = new URLSearchParams(Object.entries(filters).filter(([, v]) => v !== undefined && v !== null && v !== "")).toString();
+    return request(`/api/notebooks/${id}/past-paper-questions${qs ? `?${qs}` : ""}`);
+  },
+  updatePastPaperQuestion: (id, questionId, patch) => request(`/api/notebooks/${id}/past-paper-questions/${questionId}`, { method: "PATCH", body: patch }),
 
   listMessages: (id) => request(`/api/notebooks/${id}/messages`),
   clearMessages: (id) => request(`/api/notebooks/${id}/messages`, { method: "DELETE" }),

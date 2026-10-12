@@ -11,7 +11,8 @@ async function generateOverview(notebookId) {
   const notebook = await getNotebook(notebookId);
   if (!notebook) return;
 
-  const sources = (await listSources(notebookId)).filter((s) => s.status === "ready");
+  // Course material only: past papers are summarised in Exam insights.
+  const sources = (await listSources(notebookId)).filter((s) => s.status === "ready" && s.kind !== "past_paper");
   if (sources.length === 0) {
     await updateNotebook(notebookId, { summary: null, suggestedQuestions: [] });
     return;

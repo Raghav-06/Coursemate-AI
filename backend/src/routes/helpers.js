@@ -32,14 +32,42 @@ export async function resolveUnitId(notebookId, value) {
   return value;
 }
 
+const SOURCE_KINDS = ["material", "past_paper"];
+const MAX_EXAM_NAME = 120;
+
+/**
+ * Past-paper fields of a request ({ kind?, examName?, examYear? }; multipart
+ * bodies send strings). Absent fields stay undefined; anything odd is a 400.
+ */
+export function sourceKindFields(body) {
+  const fields = {};
+  if (body?.kind !== undefined && body.kind !== "") {
+    if (!SOURCE_KINDS.includes(body.kind)) throw httpError(400, `kind must be one of ${SOURCE_KINDS.join(", ")}.`);
+    fields.kind = body.kind;
+  }
+  if (body?.examName !== undefined) {
+    if (body.examName !== null && typeof body.examName !== "string") throw httpError(400, "examName must be text.");
+    fields.examName = cleanString(body.examName ?? "", MAX_EXAM_NAME) || null;
+  }
+  if (body?.examYear !== undefined) {
+    if (body.examYear === null || body.examYear === "") fields.examYear = null;
+    else {
+      const year = Number(body.examYear);
+      if (!Number.isInteger(year) || year < 1950 || year > new Date().getFullYear() + 1) throw httpError(400, "examYear must be a year (1950 or later).");
+      fields.examYear = year;
+    }
+  }
+  return fields;
+}
+
 /**
  * Sources a request should use: explicit ids if given, else the ones ticked
  * in the sources panel (or every source, with selectedOnly: false),
  * optionally limited to some units ("general" = no unit). Only ingested
- * sources can be used.
+ * sources can be used, and past papers only with includePastPapers.
  */
-export async function resolveSources(notebookId, { sourceIds, unitIds, selectedOnly = true } = {}) {
-  const all = await listSources(notebookId);
+export async function resolveSources(notebookId, { sourceIds, unitIds, selectedOnly = true, includePastPapers = false } = {}) {
+  const all = (await listSources(notebookId)).filter((s) => includePastPapers || s.kind !== "past_paper");
   let wanted = sourceIds ? all.filter((s) => sourceIds.includes(s.id)) : all.filter((s) => s.selected || !selectedOnly);
   if (unitIds?.length) {
     const units = new Set(unitIds.map((u) => (u === "general" ? null : u)));

@@ -4,8 +4,9 @@ import { Icon } from "../ui";
 /**
  * "Whole course" or a set of units the chat retrieves from. `scope` is an
  * array of unit ids ("general" = sources without a unit); empty = whole course.
+ * Past papers are left out unless `includePapers` is switched on.
  */
-export default function ScopeSelector({ units, sources, scope, onChange }) {
+export default function ScopeSelector({ units, sources, scope, onChange, includePapers = false, onIncludePapersChange }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -24,11 +25,14 @@ export default function ScopeSelector({ units, sources, scope, onChange }) {
   const unitIds = new Set(units.map((u) => u.id));
   const hasGeneral = sources.some((s) => !s.unitId || !unitIds.has(s.unitId));
   const options = [...units.map((u) => ({ id: u.id, title: u.title })), ...(hasGeneral ? [{ id: "general", title: "General" }] : [])];
-  const countFor = (id) => sources.filter((s) => s.status === "ready" && (id === "general" ? !s.unitId || !unitIds.has(s.unitId) : s.unitId === id)).length;
+  const paperCount = sources.filter((s) => s.kind === "past_paper" && s.status === "ready").length;
+  const usable = (s) => s.status === "ready" && (includePapers || s.kind !== "past_paper");
+  const countFor = (id) => sources.filter((s) => usable(s) && (id === "general" ? !s.unitId || !unitIds.has(s.unitId) : s.unitId === id)).length;
 
   const active = scope.filter((id) => options.some((o) => o.id === id));
   const label =
-    active.length === 0 ? "Whole course" : active.length === 1 ? options.find((o) => o.id === active[0]).title : `${active.length} units`;
+    (active.length === 0 ? (units.length ? "Whole course" : "Course material") : active.length === 1 ? options.find((o) => o.id === active[0]).title : `${active.length} units`) +
+    (includePapers && paperCount ? " + past papers" : "");
 
   const toggle = (id) => onChange(active.includes(id) ? active.filter((x) => x !== id) : [...active, id]);
 
@@ -40,7 +44,7 @@ export default function ScopeSelector({ units, sources, scope, onChange }) {
         aria-expanded={open}
         aria-haspopup="true"
         className={`inline-flex items-center gap-1.5 h-8 max-w-[260px] pl-2.5 pr-2 rounded-full border text-xs font-medium transition-colors ${
-          active.length ? "border-accent bg-accent-soft text-accent-soft-fg" : "border-line text-ink-2 hover:bg-panel-2"
+          active.length || (includePapers && paperCount) ? "border-accent bg-accent-soft text-accent-soft-fg" : "border-line text-ink-2 hover:bg-panel-2"
         }`}
         title="Choose which units the answer comes from"
       >
@@ -72,6 +76,16 @@ export default function ScopeSelector({ units, sources, scope, onChange }) {
               <span className="text-xs text-ink-3">{countFor(o.id)}</span>
             </label>
           ))}
+          {paperCount > 0 && onIncludePapersChange && (
+            <>
+              <div className="my-1 border-t border-line/60" />
+              <label className="flex items-center gap-3 px-4 h-10 text-sm cursor-pointer hover:bg-panel-3">
+                <input type="checkbox" checked={includePapers} onChange={(e) => onIncludePapersChange(e.target.checked)} className="w-4 h-4 accent-[rgb(var(--accent))]" />
+                <span className="flex-1 truncate">Include past papers</span>
+                <span className="text-xs text-ink-3">{paperCount}</span>
+              </label>
+            </>
+          )}
         </div>
       )}
     </div>

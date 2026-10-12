@@ -69,6 +69,11 @@ function toSource(r) {
     wordCount: r.word_count ?? undefined,
     error: r.error ?? undefined,
     embeddingModel: r.embedding_model ?? undefined,
+    kind: r.kind ?? "material",
+    examName: r.exam_name ?? null,
+    examYear: r.exam_year ?? null,
+    paperStatus: r.paper_status ?? null,
+    paperError: r.paper_error ?? null,
     createdAt: iso(r.created_at),
   };
 }
@@ -326,7 +331,8 @@ export async function deleteNotebook(id) {
 
 // Everything except the (potentially huge) full text.
 const SOURCE_FIELDS = `id, notebook_id, unit_id, type, title, title_is_placeholder, url, file_name, file_type, status,
-  progress, selected, guide, chunk_count, char_count, word_count, error, embedding_model, created_at`;
+  progress, selected, guide, chunk_count, char_count, word_count, error, embedding_model, created_at,
+  kind, exam_name, exam_year, paper_status, paper_error`;
 
 export async function listSources(notebookId) {
   const { rows } = await query(
@@ -355,8 +361,9 @@ export async function countSources(notebookId) {
 
 export async function addSource(source) {
   const { rows } = await query(
-    `INSERT INTO sources (id, notebook_id, type, title, title_is_placeholder, url, file_name, file_type, status, progress, selected, unit_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+    `INSERT INTO sources (id, notebook_id, type, title, title_is_placeholder, url, file_name, file_type, status, progress, selected, unit_id,
+                          kind, exam_name, exam_year, paper_status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
      RETURNING ${SOURCE_FIELDS}`,
     [
       source.id,
@@ -371,6 +378,10 @@ export async function addSource(source) {
       source.progress ?? 0,
       source.selected ?? true,
       source.unitId ?? null,
+      source.kind ?? "material",
+      source.examName ?? null,
+      source.examYear ?? null,
+      source.kind === "past_paper" ? "pending" : null,
     ]
   );
   await touch(source.notebookId);
@@ -390,6 +401,11 @@ const SOURCE_COLUMNS = {
   wordCount: "word_count",
   error: "error",
   embeddingModel: "embedding_model",
+  kind: "kind",
+  examName: "exam_name",
+  examYear: "exam_year",
+  paperStatus: "paper_status",
+  paperError: "paper_error",
 };
 
 export async function updateSource(id, patch) {

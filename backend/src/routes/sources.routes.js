@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { asyncHandler, isUuid } from "../utils/asyncHandler.js";
 import { getSource, updateSource } from "../db/store.js";
-import { resolveUnitId } from "./helpers.js";
+import { resolveUnitId, sourceKindFields } from "./helpers.js";
+import { analysePaper, isAnalysing, setSourceKind } from "../services/pastPapers.js";
 import { scheduleTopicRefresh } from "../services/topics.js";
 import { readSourceLocations, readSourceText } from "../services/sourceText.js";
 import { removeSource, reprocessSource } from "../services/sources.js";
@@ -41,7 +42,21 @@ sourcesRouter.post(
   })
 );
 
-// body: { title?, selected?, unitId? } — unitId moves the source to a unit (null/"general" = General)
+// Extracts and maps a past paper's questions again (e.g. after adding course
+// material or changing units). 202; 409 unless it's a ready past paper.
+sourcesRouter.post(
+  "/:id/analyse",
+  asyncHandler(async (req, res) => {
+    if (req.source.kind !== "past_paper") return res.status(409).json({ message: "Only past papers can be analysed." });
+    if (req.source.status !== "ready") return res.status(409).json({ message: "Wait for the paper to finish processing." });
+    if (isAnalysing(req.source.id)) return res.status(409).json({ message: "This paper is already being analysed." });
+    analysePaper(req.source.id);
+    res.status(202).json({ ...req.source, paperStatus: "pending", paperError: null });
+  })
+);
+
+// body: { title?, selected?, unitId?, kind?, examName?, examYear? } — unitId moves the source to a unit
+// (null/"general" = General); kind switches between course material and past paper.
 sourcesRouter.patch(
   "/:id",
   asyncHandler(async (req, res) => {
@@ -52,7 +67,9 @@ sourcesRouter.patch(
     if (typeof selected === "boolean") patch.selected = selected;
     const unit = await resolveUnitId(req.source.notebookId, unitId);
     if (unit !== undefined) patch.unitId = unit;
-    const updated = await updateSource(req.params.id, patch);
+    const kindFields = sourceKindFields(req.body);
+    let updated = await updateSource(req.params.id, patch);
+    if (Object.keys(kindFields).length) updated = await setSourceKind({ ...req.source, ...patch }, kindFields);
     // Moving a source changes both units' topics.
     if (unit !== undefined && unit !== req.source.unitId) {
       scheduleTopicRefresh(req.source.notebookId, req.source.unitId);

@@ -156,6 +156,8 @@ export default function ChatPanel({
   units = [],
   scope = [],
   onScopeChange,
+  includePapers = false,
+  onIncludePapersChange,
   selectedCount,
   messages,
   streaming,
@@ -236,7 +238,11 @@ export default function ChatPanel({
         selectedCount={selectedCount}
         placeholder={placeholder}
         suggestions={readyCount > 0 ? notebook.suggestedQuestions : []}
-        toolbar={units.length > 0 && onScopeChange ? <ScopeSelector units={units} sources={sources} scope={scope} onChange={onScopeChange} /> : null}
+        toolbar={
+          (units.length > 0 || sources.some((s) => s.kind === "past_paper")) && onScopeChange ? (
+            <ScopeSelector units={units} sources={sources} scope={scope} onChange={onScopeChange} includePapers={includePapers} onIncludePapersChange={onIncludePapersChange} />
+          ) : null
+        }
         onSend={onSend}
         onStop={onStop}
       />

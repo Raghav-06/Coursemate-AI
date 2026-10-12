@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../api";
-import { Icon, IconButton, Modal, Spinner, toast } from "../ui";
+import { Icon, IconButton, Modal, Segmented, Spinner, toast } from "../ui";
 
 const ACCEPTED = [".pdf", ".docx", ".pptx", ".txt", ".md", ".csv"];
 const MAX_BYTES = 200 * 1024 * 1024;
@@ -213,18 +213,79 @@ function UnitPicker({ units, value, onChange }) {
   );
 }
 
-export default function AddSourcesDialog({ open, onClose, notebookId, sourceCount, units = [], defaultUnitId = null, onAdded }) {
+const THIS_YEAR = new Date().getFullYear();
+
+/** Course material or a past exam paper (with optional exam name and year). */
+function KindPicker({ value, onChange }) {
+  const paper = value.kind === "past_paper";
+  return (
+    <div className="flex flex-col gap-2 mb-4">
+      <div className="flex flex-wrap items-center gap-3 text-sm text-ink-2">
+        <Icon name="category" size={20} className="text-ink-3" />
+        <span>These are</span>
+        <Segmented
+          label="Kind of source"
+          value={value.kind}
+          onChange={(kind) => onChange({ ...value, kind })}
+          options={[
+            ["material", "Course material"],
+            ["past_paper", "Past exam papers"],
+          ]}
+        />
+      </div>
+      {paper && (
+        <div className="flex flex-wrap items-center gap-2 pl-8">
+          <input
+            className="input flex-1 min-w-[160px] py-1.5!"
+            placeholder="Exam name (optional), e.g. End-semester"
+            maxLength={120}
+            value={value.examName}
+            onChange={(e) => onChange({ ...value, examName: e.target.value })}
+            aria-label="Exam name"
+          />
+          <input
+            className="input w-28! py-1.5!"
+            type="number"
+            inputMode="numeric"
+            min={1950}
+            max={THIS_YEAR + 1}
+            placeholder="Year"
+            value={value.examYear}
+            onChange={(e) => onChange({ ...value, examYear: e.target.value })}
+            aria-label="Exam year"
+          />
+          <p className="basis-full text-xs text-ink-3">
+            Past papers are kept out of chat answers by default. CourseMate pulls out their questions and maps them to your units and topics in Exam insights.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const NO_KIND = { kind: "material", examName: "", examYear: "" };
+
+export default function AddSourcesDialog({ open, onClose, notebookId, sourceCount, units = [], defaultUnitId = null, defaultKind = "material", onAdded }) {
   const [mode, setMode] = useState("home");
   const [busy, setBusy] = useState(false);
   const [unitId, setUnitId] = useState(defaultUnitId);
+  const [kind, setKind] = useState(NO_KIND);
   const remaining = MAX_SOURCES - sourceCount;
 
   useEffect(() => {
     if (open) {
       setMode("home");
       setUnitId(defaultUnitId);
+      setKind({ ...NO_KIND, kind: defaultKind });
     }
-  }, [open, defaultUnitId]);
+  }, [open, defaultUnitId, defaultKind]);
+
+  // Fields sent with new sources; a year outside 1950..next year is dropped.
+  const year = Number(kind.examYear);
+  const kindFields =
+    kind.kind === "past_paper"
+      ? { kind: "past_paper", examName: kind.examName.trim() || undefined, examYear: Number.isInteger(year) && year >= 1950 && year <= THIS_YEAR + 1 ? year : undefined }
+      : {};
 
   const run = async (fn) => {
     setBusy(true);
@@ -250,7 +311,7 @@ export default function AddSourcesDialog({ open, onClose, notebookId, sourceCoun
       toast(`You can add ${remaining} more source${remaining === 1 ? "" : "s"} to this course.`, "error");
       return;
     }
-    run(() => api.uploadFiles(notebookId, valid, unitId));
+    run(() => api.uploadFiles(notebookId, valid, unitId, kindFields));
   };
 
   return (
@@ -283,12 +344,13 @@ export default function AddSourcesDialog({ open, onClose, notebookId, sourceCoun
       ) : (
         <>
           {units.length > 0 && <UnitPicker units={units} value={unitId} onChange={setUnitId} />}
+          {mode !== "discover" && <KindPicker value={kind} onChange={setKind} />}
           {mode === "home" ? (
             <UploadHome onFiles={uploadFiles} uploading={busy} setMode={setMode} />
           ) : mode === "link" ? (
-            <LinkForm busy={busy} onSubmit={(urls) => run(() => api.addUrls(notebookId, urls, unitId))} />
+            <LinkForm busy={busy} onSubmit={(urls) => run(() => api.addUrls(notebookId, urls, unitId, kindFields))} />
           ) : mode === "text" ? (
-            <TextForm busy={busy} onSubmit={(title, text) => run(() => api.addText(notebookId, title, text, unitId))} />
+            <TextForm busy={busy} onSubmit={(title, text) => run(() => api.addText(notebookId, title, text, unitId, kindFields))} />
           ) : (
             <Discover
               busy={busy}

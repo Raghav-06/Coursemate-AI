@@ -60,10 +60,26 @@ function MoveSourceDialog({ source, units, onClose, onMove }) {
   );
 }
 
-function SourceRow({ source, hasUnits, onOpen, onToggle, onRename, onMove, onReprocess, onRemove }) {
+function PaperBadge({ source }) {
+  const label = ["Past paper", source.examName, source.examYear].filter(Boolean).join(" · ");
+  return (
+    <p className="flex items-center gap-1 text-[11px] leading-4 text-ink-3 truncate">
+      <span className="shrink-0 px-1.5 rounded bg-amber-400/20 text-amber-700 dark:text-amber-300 font-semibold">{label}</span>
+      {source.paperStatus === "pending" && (
+        <>
+          <Spinner className="w-3 h-3" /> finding questions…
+        </>
+      )}
+      {source.paperStatus === "error" && <span className="text-danger truncate">{source.paperError ?? "analysis failed"}</span>}
+    </p>
+  );
+}
+
+function SourceRow({ source, hasUnits, onOpen, onToggle, onRename, onMove, onReprocess, onRemove, onSetKind, onAnalyse }) {
   const [icon, color] = sourceIcon(source);
   const processing = source.status === "processing";
   const failed = source.status === "error";
+  const paper = source.kind === "past_paper";
 
   return (
     <div
@@ -89,6 +105,7 @@ function SourceRow({ source, hasUnits, onOpen, onToggle, onRename, onMove, onRep
           </div>
         )}
         {failed && <p className="text-xs text-danger/80 truncate">{source.error}</p>}
+        {paper && !processing && !failed && <PaperBadge source={source} />}
       </div>
       <Menu
         buttonClassName="w-8! h-8! opacity-0 group-hover:opacity-100 focus:opacity-100 max-lg:opacity-100"
@@ -97,6 +114,10 @@ function SourceRow({ source, hasUnits, onOpen, onToggle, onRename, onMove, onRep
           hasUnits && { label: "Move to unit", icon: "drive_file_move", onClick: () => onMove(source) },
           source.url && { label: "Open original link", icon: "open_in_new", onClick: () => window.open(source.url, "_blank", "noopener") },
           !processing && { label: "Re-process", icon: "refresh", onClick: () => onReprocess(source.id) },
+          onSetKind && !failed && (paper
+            ? { label: "Mark as course material", icon: "menu_book", onClick: () => onSetKind(source.id, "material") }
+            : { label: "Mark as past paper", icon: "history_edu", onClick: () => onSetKind(source.id, "past_paper") }),
+          paper && source.status === "ready" && source.paperStatus !== "pending" && onAnalyse && { label: "Find questions again", icon: "manage_search", onClick: () => onAnalyse(source.id) },
           { label: "Remove source", icon: "delete", danger: true, onClick: () => onRemove(source) },
         ]}
       />
@@ -147,6 +168,8 @@ export default function SourcesPanel({
   onRename,
   onMove,
   onReprocess,
+  onSetKind,
+  onAnalyse,
   onRemove,
   onCreateUnit,
   onRenameUnit,
@@ -184,7 +207,7 @@ export default function SourcesPanel({
       return next;
     });
 
-  const rowProps = { hasUnits: units.length > 0, onOpen, onToggle, onRename: setRenaming, onMove: setMoving, onReprocess, onRemove: setRemoving };
+  const rowProps = { hasUnits: units.length > 0, onOpen, onToggle, onRename: setRenaming, onMove: setMoving, onReprocess, onRemove: setRemoving, onSetKind, onAnalyse };
 
   if (collapsed) {
     return (

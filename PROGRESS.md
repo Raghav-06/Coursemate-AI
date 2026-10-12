@@ -10,8 +10,8 @@ resuming the work in a new conversation.
 | 2 | Page and slide citations | ✅ done |
 | 3 | Spaced-repetition flashcards | ✅ done |
 | 4 | Quizzes, graded answers, weak topics | ✅ done |
-| 5 | Past-paper analysis | ⏳ next |
-| 6 | Exam mode, revision plans, daily goal, streaks | — |
+| 5 | Past-paper analysis | ✅ done |
+| 6 | Exam mode, revision plans, daily goal, streaks | ⏳ next |
 | 7 | Explain-it-back and Indian languages | — |
 | 8 | Image OCR and lecture transcription | — |
 | 9 | Shared courses and quiz battles | — |
@@ -146,3 +146,35 @@ local test harness (kept outside the repo, in the session scratchpad — rebuild
   the card's topic); progress mastery 0.42 = (2×0.6 + 0.85×1×0)/(2.85) as expected; second user →
   404 on quiz, attempt, finish, answers, topics, progress, quiz creation. `check-api` OK. UI:
   Practice, quiz player, Answer writing, Progress (light, dark, mobile), no page errors.
+
+### 5. Past-paper analysis ✅
+- DB: `sources.kind` (material | past_paper, default material), `exam_name`, `exam_year`,
+  `paper_status` (pending | ready | error), `paper_error`; `past_paper_questions` (number, text,
+  marks, year, section, unit, topic, similarity, citations JSONB). Queries in `db/pastPapers.js`.
+- Service `services/pastPapers.js`: extraction (`completeJson` per ~14k-char window; text ≥ 8
+  chars, deduped, marks/year validated, ≤ 200 questions; year from the paper if the user gave
+  none), mapping (question embeddings vs. material chunks → top 3 citations + similarity-weighted
+  unit vote; topic candidates = top 5 by embedding similarity +0.1 for the voted unit → model picks
+  a letter or null in batches of 15; invalid/missing answers fall back to the best candidate;
+  below 0.2 similarity and no topic → unplaced), one run per source, insights aggregation, and
+  `topicExamWeight()` for Stage 6 plans. Routes `routes/pastPapers.routes.js` + `/sources/:id/analyse`.
+- Past papers are excluded from chat (unless `includePastPapers`), quizzes, decks, grading,
+  topics and the course overview; analysed automatically after ingest, re-process, or being
+  marked as a past paper; marking as material deletes its questions.
+- UI: Add sources has "Course material / Past exam papers" + exam name + year; past-paper badge
+  and analysis status on sources, "Mark as past paper / course material", "Find questions again";
+  scope menu "Include past papers"; new "Exam insights" view (papers, most examined topics, by
+  unit, filterable questions with "Answer in" citations, Change topic, Practise this question →
+  Answer writing with marks rounded to 2/5/10 and origin past_paper).
+- Tested (curl, on the Stage 4 database): bad kind / year / exam name → 400; text paper (unit 1)
+  and multipart file paper (kind, examYear, examName fields) → analysed to ready; 4 + 2 questions
+  (model duplicate and too-short item dropped), marks/sections/years kept, year 2023 detected from
+  the paper text and saved; topic confirmation: model null → unmapped, invalid letter → best
+  candidate; each question has 3 citations; insights ranking (Carnot 2 questions/7 marks first);
+  filters by year/unit/topic/general, bad filters → 400; chat without the flag cited only material,
+  with `includePastPapers` cited the papers too; adding papers didn't re-extract topics; analyse a
+  material source → 409, analyse twice at once → 202 then 409; paper → material deleted its
+  questions, back to past paper (year 2021) re-analysed; manual topic fix sets the topic's unit, bad
+  topic → 400, unknown question → 404; second user → 404 on insights, questions, patch, analyse,
+  kind change. Fresh database migrates (twice). UI: insights (light/dark/mobile), topic filter,
+  practise → Answer writing prefilled, scope menu, Add sources past-paper fields, source badges.

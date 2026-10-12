@@ -5,6 +5,7 @@ import { completeJson } from "./llm.js";
 import { embeddingModelId } from "./embeddings.js";
 import { refreshNotebookOverview } from "./notebookOverview.js";
 import { scheduleTopicRefresh } from "./topics.js";
+import { analysePaper } from "./pastPapers.js";
 import { getSource, updateSource } from "../db/store.js";
 
 const GUIDE_SAMPLE_CHARS = 24_000;
@@ -83,6 +84,7 @@ export async function processSource(sourceId, load, { reprocess = false } = {}) 
     if (source) {
       refreshNotebookOverview(source.notebookId);
       scheduleTopicRefresh(source.notebookId, source.unitId);
+      if (source.kind === "past_paper") analysePaper(sourceId);
     }
   } catch (err) {
     await updateSource(

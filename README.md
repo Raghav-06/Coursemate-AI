@@ -31,6 +31,14 @@ suggested questions.
   **mastery** of every topic (weighted recent accuracy from quizzes, graded answers and flashcard
   ratings), weakest first, with "Revise these today" and one-click *Quiz me*, *Flashcards* and
   *Ask in chat*.
+- **Past-paper analysis** — mark sources as *past exam papers* (with exam name and year) when
+  adding them or later. CourseMate extracts every question (number, text, marks, section, year),
+  finds where its answer is in your course material, and maps it to a unit and topic (embedding
+  similarity, confirmed by the model). **Exam insights** ranks topics and units by how often they're
+  examined, total marks and years, and lists the questions (filter by unit, topic or year) with
+  citations to the answer and *Practise this question*, which opens Answer writing. Past papers
+  are left out of chat answers (switch on *Include past papers* in the scope menu), quizzes,
+  flashcards and topics.
 
 | Layer     | Tech |
 |-----------|------|
@@ -161,6 +169,12 @@ React (5173) ──/auth, /api──▶ Express (3000) ──▶ PostgreSQL
   tagged with a topic, and every answer adds a `topic_events` row (score 0–1, weight: quiz 1,
   flashcard 0.5, 2/5/10-mark answer 1/2/3). Mastery = weighted average of a topic's last 25 events,
   each older event counting 15% less. Quizzes, attempts, graded answers and mastery are personal.
+- **Past papers:** `sources.kind` is `material` or `past_paper` (+ `exam_name`, `exam_year`,
+  `paper_status`). After a paper is ingested, the model extracts its questions (long papers in
+  ~14k-character windows); each question is embedded and compared with the course material's
+  chunks — the best 3 become its citations and vote for a unit — then up to 5 candidate topics
+  (by similarity, favouring that unit) go to the model to pick one (or none). Results live in
+  `past_paper_questions`; a wrong topic can be fixed by hand.
 - **Changing models:** each source records which embedding model it used; if you change
   `EMBEDDING_MODEL` (or its provider), existing sources are re-embedded automatically the next time you chat.
 
@@ -182,14 +196,14 @@ React (5173) ──/auth, /api──▶ Express (3000) ──▶ PostgreSQL
 | PATCH/DELETE | `/api/notebooks/:id/units/:unitId` | Rename / delete a unit (its sources move to General) |
 | PUT | `/api/notebooks/:id/units/order` | Reorder units `{ unitIds: [] }` |
 | GET | `/api/notebooks/:id/sources` | List sources |
-| POST | `/api/notebooks/:id/sources/files` | Upload files (multipart `files`, optional `unitId`) |
-| POST | `/api/notebooks/:id/sources/url` | Add links `{ urls: [], unitId? }` |
-| POST | `/api/notebooks/:id/sources/text` | Add pasted text `{ title?, text, unitId? }` |
-| GET/PATCH/DELETE | `/api/sources/:id` | Source details / rename, select, move `{ unitId }` / delete |
+| POST | `/api/notebooks/:id/sources/files` | Upload files (multipart `files`, optional `unitId`, `kind`, `examName`, `examYear`) |
+| POST | `/api/notebooks/:id/sources/url` | Add links `{ urls: [], unitId?, kind?, examName?, examYear? }` |
+| POST | `/api/notebooks/:id/sources/text` | Add pasted text `{ title?, text, unitId?, kind?, examName?, examYear? }` |
+| GET/PATCH/DELETE | `/api/sources/:id` | Source details / rename, select, move `{ unitId }`, `{ kind: material\|past_paper, examName, examYear }` / delete |
 | GET | `/api/sources/:id/content` | Full source text + page/slide `locations` `[{ label, start, end }]` |
 | POST | `/api/sources/:id/reprocess` | Extract, chunk and embed a source again (202; 409 while processing) |
 | GET/DELETE | `/api/notebooks/:id/messages` | Chat history / clear |
-| POST | `/api/notebooks/:id/chat` | Ask a question (SSE stream) `{ content, sourceIds?, unitIds? }` |
+| POST | `/api/notebooks/:id/chat` | Ask a question (SSE stream) `{ content, sourceIds?, unitIds?, includePastPapers? }` |
 | GET | `/api/arxiv?query=` | Discover arXiv papers |
 | GET/POST | `/api/notebooks/:id/decks` | List decks with due/new counts / create an empty deck `{ title, unitId? }` |
 | POST | `/api/notebooks/:id/decks/generate` | Generate a deck `{ count: 10\|20\|30, difficulty, unitIds?, sourceIds?, topicIds?, title? }` |
@@ -210,6 +224,10 @@ React (5173) ──/auth, /api──▶ Express (3000) ──▶ PostgreSQL
 | POST | `/api/notebooks/:id/written-questions` | Exam-style questions `{ marks: 2\|5\|10, count: 1-5, unitIds?, topicIds? }` |
 | GET/POST | `/api/notebooks/:id/answers` | Your graded answers / grade one `{ question, marks, answer, unitIds?, topicId? }` |
 | GET/DELETE | `/api/answers/:answerId` | A graded answer / delete it |
+| GET | `/api/notebooks/:id/exam-insights` | Past papers, and topics / units ranked by frequency, marks and years |
+| GET | `/api/notebooks/:id/past-paper-questions?unitId=&topicId=&year=&sourceId=` | Past-paper questions with citations to the answer |
+| PATCH | `/api/notebooks/:id/past-paper-questions/:questionId` | Fix a question's topic or unit `{ topicId?, unitId? }` |
+| POST | `/api/sources/:id/analyse` | Extract and map a past paper's questions again (202) |
 
 ## Deploying to production
 

@@ -21,7 +21,7 @@ import {
   updateNotebook,
 } from "../db/store.js";
 import { config } from "../config/index.js";
-import { httpError, idList, resolveSources, resolveUnitId } from "./helpers.js";
+import { httpError, idList, resolveSources, resolveUnitId, sourceKindFields } from "./helpers.js";
 import { extractDocument } from "../services/ingestion.js";
 import { keepOriginal } from "../services/originals.js";
 import { loadUrl } from "../services/urlLoader.js";
@@ -31,6 +31,7 @@ import { refreshNotebookOverview } from "../services/notebookOverview.js";
 import { assertApiKey } from "../services/llm.js";
 import { courseStudyRoutes } from "./study.routes.js";
 import { coursePracticeRoutes } from "./practice.routes.js";
+import { coursePastPaperRoutes } from "./pastPapers.routes.js";
 import { scheduleTopicRefresh } from "../services/topics.js";
 import { deleteUnitTopics } from "../db/practice.js";
 
@@ -189,8 +190,10 @@ notebooksRouter.post(
     const files = req.files ?? [];
     if (files.length === 0) throw httpError(400, "No files uploaded.");
     let unitId;
+    let kindFields;
     try {
       unitId = await resolveUnitId(req.params.id, req.body?.unitId);
+      kindFields = sourceKindFields(req.body);
       await assertCapacity(req.params.id, files.length);
     } catch (err) {
       await Promise.all(files.map((f) => unlinkQuietly(f.path)));
@@ -203,7 +206,7 @@ notebooksRouter.post(
       created.push(
         await createSource(
           req.params.id,
-          { type: "file", unitId, title: file.originalname, fileName: file.originalname, fileType },
+          { type: "file", unitId, ...kindFields, title: file.originalname, fileName: file.originalname, fileType },
           async (sourceId) => {
             // The original is kept so the source can be re-processed later.
             try {
@@ -238,6 +241,7 @@ notebooksRouter.post(
       }
     }
     const unitId = await resolveUnitId(req.params.id, req.body?.unitId);
+    const kindFields = sourceKindFields(req.body);
     await assertCapacity(req.params.id, urls.length);
 
     const created = [];
@@ -245,7 +249,7 @@ notebooksRouter.post(
       created.push(
         await createSource(
           req.params.id,
-          { type: "url", unitId, url: u, title: title || u.slice(0, MAX_TITLE_CHARS), titleIsPlaceholder: !title },
+          { type: "url", unitId, ...kindFields, url: u, title: title || u.slice(0, MAX_TITLE_CHARS), titleIsPlaceholder: !title },
           () => loadUrl(u)
         )
       );
@@ -262,10 +266,11 @@ notebooksRouter.post(
     if (!text.trim()) throw httpError(400, "Paste some text to add as a source.");
     if (text.length > 2_000_000) throw httpError(413, "Pasted text is limited to 2 million characters.");
     const unitId = await resolveUnitId(req.params.id, req.body?.unitId);
+    const kindFields = sourceKindFields(req.body);
     await assertCapacity(req.params.id, 1);
 
     const title = cleanTitle(req.body?.title) || "Pasted text";
-    const source = await createSource(req.params.id, { type: "text", unitId, title }, async () => ({ text }));
+    const source = await createSource(req.params.id, { type: "text", unitId, ...kindFields, title }, async () => ({ text }));
     res.status(202).json(source);
   })
 );
@@ -304,7 +309,9 @@ notebooksRouter.post(
     if (content.length > MAX_MESSAGE_CHARS) throw httpError(413, "Messages are limited to 8,000 characters.");
 
     const unitIds = idList(req.body?.unitIds, { allow: ["general"], name: "unitIds" });
-    const sources = await resolveSources(req.params.id, { sourceIds: idList(req.body?.sourceIds, { name: "sourceIds" }), unitIds });
+    // Past papers are left out unless the user asks to include them.
+    const includePastPapers = req.body?.includePastPapers === true;
+    const sources = await resolveSources(req.params.id, { sourceIds: idList(req.body?.sourceIds, { name: "sourceIds" }), unitIds, includePastPapers });
     if (sources.length === 0) {
       throw httpError(409, unitIds?.length ? "No selected, ready sources in the chosen units." : "Select at least one ready source to chat with.");
     }
@@ -354,3 +361,7 @@ courseStudyRoutes(notebooksRouter);
 // ---- Practice (topics, quizzes, written answers, progress) ----------------------
 
 coursePracticeRoutes(notebooksRouter);
+
+// ---- Past papers (exam insights) ------------------------------------------------------
+
+coursePastPaperRoutes(notebooksRouter);

@@ -2,7 +2,7 @@ import { config } from "../config/index.js";
 import { embeddingModelId, getEmbeddings } from "./embeddings.js";
 import { loadChunks, replaceChunks, updateSource } from "../db/store.js";
 
-function cosineSimilarity(a, b) {
+export function cosineSimilarity(a, b) {
   let dot = 0;
   let normA = 0;
   let normB = 0;

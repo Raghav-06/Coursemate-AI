@@ -10,6 +10,7 @@ import ChatPanel from "../components/chat/ChatPanel";
 import StudyPanel from "../components/study/StudyPanel";
 import PracticePanel from "../components/practice/PracticePanel";
 import ProgressPanel from "../components/progress/ProgressPanel";
+import ExamInsightsPanel from "../components/insights/ExamInsightsPanel";
 
 // Main-area tools of a course.
 const VIEWS = [
@@ -17,6 +18,7 @@ const VIEWS = [
   ["study", "Study", "style"],
   ["practice", "Practice", "quiz"],
   ["progress", "Progress", "insights"],
+  ["insights", "Exam insights", "history_edu", "Exams"],
 ];
 
 function ViewTabs({ view, onChange, badges }) {
@@ -81,6 +83,8 @@ export default function NotebookPage({ notebookId }) {
 
   const [addOpen, setAddOpen] = useState(false);
   const [addUnitId, setAddUnitId] = useState(null); // unit preselected in Add sources
+  const [addKind, setAddKind] = useState("material"); // material | past_paper preselected in Add sources
+  const [includePapers, setIncludePapers] = useState(false); // chat also retrieves from past papers
   const [scope, setScope] = useState([]); // chat scope: unit ids ("general" = no unit); [] = whole course
   const [viewer, setViewer] = useState(null); // { sourceId, citation? }
   const [streaming, setStreaming] = useState(null); // { question, text, citations }
@@ -126,7 +130,7 @@ export default function NotebookPage({ notebookId }) {
   }, [notebookId]);
 
   const loaded = Boolean(notebook);
-  const busy = sources.some((s) => s.status === "processing") || overviewUntil.current > Date.now();
+  const busy = sources.some((s) => s.status === "processing" || s.paperStatus === "pending") || overviewUntil.current > Date.now();
 
   useEffect(() => {
     if (!loaded || !busy) return;
@@ -174,9 +178,29 @@ export default function NotebookPage({ notebookId }) {
     setAddOpen(false);
   };
 
-  const openAdd = (unitId = null) => {
+  const openAdd = (unitId = null, kind = "material") => {
     setAddUnitId(unitId);
+    setAddKind(kind);
     setAddOpen(true);
+  };
+
+  const setSourceKind = async (id, kind) => {
+    try {
+      const updated = await api.updateSource(id, { kind });
+      setSources((list) => list.map((s) => (s.id === id ? updated : s)));
+      toast(kind === "past_paper" ? "Marked as a past paper — finding its questions…" : "Marked as course material");
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
+
+  const analysePaper = async (id) => {
+    try {
+      const updated = await api.analysePaper(id);
+      setSources((list) => list.map((s) => (s.id === id ? updated : s)));
+    } catch (err) {
+      toast(err.message, "error");
+    }
   };
 
   const reprocessSource = async (id) => {
@@ -284,7 +308,7 @@ export default function NotebookPage({ notebookId }) {
   const unitIdSet = new Set(units.map((u) => u.id));
   const scopeIds = scope.filter((id) => id === "general" || unitIdSet.has(id));
   const inScope = (s) => scopeIds.length === 0 || scopeIds.includes(s.unitId && unitIdSet.has(s.unitId) ? s.unitId : "general");
-  const selectedReady = sources.filter((s) => s.selected && s.status === "ready" && inScope(s));
+  const selectedReady = sources.filter((s) => s.selected && s.status === "ready" && inScope(s) && (includePapers || s.kind !== "past_paper"));
 
   const sendMessage = useCallback(
     async (content) => {
@@ -302,7 +326,7 @@ export default function NotebookPage({ notebookId }) {
       try {
         await api.chat(
           notebookId,
-          { content, sourceIds: selectedReady.map((s) => s.id), ...(scopeIds.length ? { unitIds: scopeIds } : {}) },
+          { content, sourceIds: selectedReady.map((s) => s.id), ...(scopeIds.length ? { unitIds: scopeIds } : {}), ...(includePapers ? { includePastPapers: true } : {}) },
           (event) => {
             if (event.type === "user") setMessages((list) => [...list, event.message]);
             if (event.type === "citations") setStreaming((s) => s && { ...s, citations: event.citations });
@@ -322,7 +346,7 @@ export default function NotebookPage({ notebookId }) {
         abortRef.current = null;
       }
     },
-    [notebookId, selectedReady, scopeIds, streaming]
+    [notebookId, selectedReady, scopeIds, includePapers, streaming]
   );
 
   const stopStreaming = () => abortRef.current?.abort();
@@ -354,6 +378,12 @@ export default function NotebookPage({ notebookId }) {
   const clearStudyIntent = useCallback(() => setStudyIntent(null), []);
   const clearPracticeIntent = useCallback(() => setPracticeIntent(null), []);
   const bumpProgress = useCallback(() => setProgressKey((k) => k + 1), []);
+  // Past-paper question → Answer writing (marks rounded to the nearest 2/5/10).
+  const practiseQuestion = (q) => {
+    const marks = q.marks === null ? 5 : q.marks <= 3 ? 2 : q.marks <= 7 ? 5 : 10;
+    setPracticeIntent({ kind: "answer", question: q.text.slice(0, 1000), marks, topicId: q.topicId, unitIds: q.unitId ? [q.unitId] : [], origin: "past_paper" });
+    showView("practice");
+  };
 
   // ---- Render -------------------------------------------------------------------
 
@@ -388,6 +418,8 @@ export default function NotebookPage({ notebookId }) {
       onRename={renameSource}
       onMove={moveSource}
       onReprocess={reprocessSource}
+      onSetKind={setSourceKind}
+      onAnalyse={analysePaper}
       onRemove={removeSource}
       onCreateUnit={createUnit}
       onRenameUnit={renameUnit}
@@ -434,6 +466,19 @@ export default function NotebookPage({ notebookId }) {
     </section>
   );
 
+  const insightsPanel = (
+    <section className="panel w-full">
+      <ExamInsightsPanel
+        notebook={notebook}
+        units={units}
+        onOpenCitation={openCitation}
+        onPractise={practiseQuestion}
+        onAddPaper={() => openAdd(null, "past_paper")}
+        sourcesKey={sources.map((s) => `${s.id}:${s.status}:${s.kind}:${s.paperStatus}`).join("|")}
+      />
+    </section>
+  );
+
   const chatPanel = (
     <ChatPanel
       notebook={notebook}
@@ -441,6 +486,8 @@ export default function NotebookPage({ notebookId }) {
       units={units}
       scope={scopeIds}
       onScopeChange={setScope}
+      includePapers={includePapers}
+      onIncludePapersChange={setIncludePapers}
       selectedCount={selectedReady.length}
       messages={messages}
       streaming={streaming}
@@ -452,7 +499,7 @@ export default function NotebookPage({ notebookId }) {
     />
   );
 
-  const mainPanel = { study: studyPanel, practice: practicePanel, progress: progressPanel }[view] ?? chatPanel;
+  const mainPanel = { study: studyPanel, practice: practicePanel, progress: progressPanel, insights: insightsPanel }[view] ?? chatPanel;
 
   return (
     <div className="h-full flex flex-col">
@@ -475,8 +522,8 @@ export default function NotebookPage({ notebookId }) {
       ) : (
         <>
           <div className="flex-1 min-h-0 flex px-2">{tab === "sources" ? sourcesPanel : mainPanel}</div>
-          <nav className="shrink-0 grid grid-cols-5 h-14 border-t border-line/60">
-            {[["sources", "Sources", "folder_open"], ...VIEWS].map(([key, label, icon]) => {
+          <nav className="shrink-0 grid grid-cols-6 h-14 border-t border-line/60">
+            {[["sources", "Sources", "folder_open"], ...VIEWS].map(([key, label, icon, shortLabel]) => {
               const active = key === "sources" ? tab === "sources" : tab !== "sources" && view === key;
               const badge = key === "study" ? studyCounts.due + studyCounts.new : 0;
               return (
@@ -490,7 +537,7 @@ export default function NotebookPage({ notebookId }) {
                   className={`relative flex flex-col items-center justify-center gap-0.5 text-xs font-medium ${active ? "text-accent" : "text-ink-3"}`}
                 >
                   <Icon name={icon} filled={active} size={22} />
-                  {label}
+                  {shortLabel ?? label}
                   {badge > 0 && (
                     <span className="absolute top-1.5 left-1/2 ml-2 min-w-4 h-4 px-1 rounded-full bg-accent text-accent-fg text-[10px] font-semibold leading-4 tabular-nums">{badge}</span>
                   )}
@@ -508,6 +555,7 @@ export default function NotebookPage({ notebookId }) {
         sourceCount={sources.length}
         units={units}
         defaultUnitId={addUnitId}
+        defaultKind={addKind}
         onAdded={addedSources}
       />
     </div>
