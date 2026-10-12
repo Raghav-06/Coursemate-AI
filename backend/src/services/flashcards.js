@@ -24,7 +24,7 @@ const SYSTEM_PROMPT = [
  * passage it came from. `topics` (course topics) tag the cards; `focusTopics`
  * limits them to those topics.
  */
-export async function generateCards({ sources, count, difficulty, focus, topics = [], focusTopics = [] }) {
+export async function generateCards({ sources, count, difficulty, focus, topics = [], focusTopics = [], language }) {
   const passages = focusTopics.length
     ? await retrievePassages(sources, focusTopics.map((t) => `${t.name}. ${t.description ?? ""}`).join("\n"), { k: Math.min(30, count + 8), fetchK: 60 })
     : await samplePassages(sources, { max: Math.min(40, count + 10) });
@@ -36,7 +36,8 @@ export async function generateCards({ sources, count, difficulty, focus, topics 
     `Source passages:\n\n${formatPassages(passages)}\n\n` +
       (topicList ? `Course topics:\n${topicList}\n\n` : "") +
       `Write exactly ${count} flashcards${focus ? ` for "${focus}"` : ""}.\n${DIFFICULTY_GUIDE[difficulty]}\n\n` +
-      'Return JSON: {"cards": [{"front": string, "back": string, "topic": string, "passage": number}]}'
+      'Return JSON: {"cards": [{"front": string, "back": string, "topic": string, "passage": number}]}',
+    { language }
   );
 
   const raw = Array.isArray(out?.cards) ? out.cards : Array.isArray(out) ? out : [];

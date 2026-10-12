@@ -2,6 +2,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import { AIMessage, HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { jsonrepair } from "jsonrepair";
 import { config } from "../config/index.js";
+import { languageInstruction } from "./language.js";
 
 // Chat goes through LangChain's ChatOpenAI, which works with any provider that
 // exposes an OpenAI-compatible chat completions API (CHAT_BASE_URL), e.g.
@@ -62,10 +63,19 @@ function explain(err) {
   return httpError(502, `Chat request to ${config.ai.provider} failed${status ? ` (${status})` : ""}: ${detail}${hint}`);
 }
 
-/** One-shot completion: system + user prompt → text. */
-export async function complete(system, user) {
+/**
+ * Adds the response-language instruction (see language.js) to a system
+ * prompt. Every AI feature passes the user's language through here.
+ */
+export function withLanguage(system, language) {
+  const instruction = languageInstruction(language);
+  return instruction ? `${system}\n\n${instruction}` : system;
+}
+
+/** One-shot completion: system + user prompt → text. `language`: the response language. */
+export async function complete(system, user, { language } = {}) {
   try {
-    const result = await getChatModel().invoke(toMessages([["system", system], ["human", user]]));
+    const result = await getChatModel().invoke(toMessages([["system", withLanguage(system, language)], ["human", user]]));
     return textOf(result.content).trim();
   } catch (err) {
     if (err.code === MISSING_KEY) throw err;
@@ -73,11 +83,12 @@ export async function complete(system, user) {
   }
 }
 
-/** Streams text deltas for a list of [role, content] messages. */
-export async function* streamCompletion(messages) {
+/** Streams text deltas for a list of [role, content] messages (the language applies to the system message). */
+export async function* streamCompletion(messages, { language } = {}) {
   let stream;
   try {
-    stream = await getChatModel().stream(toMessages(messages));
+    const localized = messages.map(([role, content], i) => (i === 0 && role === "system" ? [role, withLanguage(content, language)] : [role, content]));
+    stream = await getChatModel().stream(toMessages(localized));
   } catch (err) {
     if (err.code === MISSING_KEY) throw err;
     throw explain(err);
@@ -130,12 +141,12 @@ function parseJsonLoose(text) {
 // Asks for a JSON object and parses it, retrying because smaller models
 // occasionally emit a truncated or malformed object.
 const JSON_ATTEMPTS = 3;
-export async function completeJson(system, user) {
+export async function completeJson(system, user, { language } = {}) {
   let lastError;
   for (let attempt = 0; attempt < JSON_ATTEMPTS; attempt++) {
     try {
       const text = await complete(
-        `${system}
+        `${withLanguage(system, language)}
 
 Respond with a single valid JSON object and nothing else — no prose, no markdown code fences.`,
         user

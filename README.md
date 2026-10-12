@@ -47,6 +47,16 @@ suggested questions.
   graded answer, chat question) counts toward a **daily goal** (default 20, changeable); meeting it
   on consecutive days builds a **streak**. The home page opens on **Today**: goal ring, streak, the
   last 7 days, the next exam's countdown with today's tasks, and flashcards due across courses.
+- **Explain it back** — pick a topic (or type a question) and explain it in your own words; the
+  model compares it with your sources and lists what's right, the gaps and any misconceptions
+  (each cited), scores clarity and accuracy out of 10, and asks one follow-up question you can
+  explain next. It counts toward topic mastery and your daily goal.
+- **Answers in Indian languages** — *Settings* (account menu) sets the response language:
+  English, Hindi, Bengali, Marathi, Tamil, Telugu, Gujarati, Kannada, Malayalam, Punjabi, Odia or
+  Urdu, optionally **bilingual** (explanations in your language, technical terms in English). A
+  course can override it (the 文A button in its header). It applies to every AI feature — chat,
+  source guides, course overview, flashcards, quizzes, written questions, grading,
+  explain-it-back and revision-plan tips — keeping formulas, symbols and `[n]` citations intact.
 
 | Layer     | Tech |
 |-----------|------|
@@ -194,6 +204,12 @@ React (5173) ──/auth, /api──▶ Express (3000) ──▶ PostgreSQL
 - **Daily goal and streaks:** each study action increments `user_activity` (user, day in the
   user's timezone, kind). The streak counts consecutive days meeting the current goal
   (`users.daily_goal`) — today only once it's met, so an unfinished today doesn't break it.
+- **Response language:** `users.preferences` (`{ language, bilingual }`) and per-user,
+  per-course overrides in `course_preferences`. Every AI call passes the resolved language to
+  `llm.js`, which appends one instruction (`withLanguage`) to the system prompt. Shared,
+  course-level output (source guides, the course overview) uses the language of whoever added or
+  refreshed it. Topic names and extracted past-paper questions stay in the language of the
+  sources — they are matched against the material and copied verbatim.
 - **Changing models:** each source records which embedding model it used; if you change
   `EMBEDDING_MODEL` (or its provider), existing sources are re-embedded automatically the next time you chat.
 
@@ -253,7 +269,10 @@ React (5173) ──/auth, /api──▶ Express (3000) ──▶ PostgreSQL
 | POST | `/api/exams/:examId/replan` | Move missed tasks onto the remaining days |
 | PATCH | `/api/plan-items/:itemId` | Tick a task `{ done }` |
 | GET | `/api/today` | Goal, today's count, streak, last 7 days, next exam with today's tasks, cards due across courses |
-| GET/PATCH | `/api/settings` | Your settings `{ dailyGoal: 1-500 }` |
+| GET/PATCH | `/api/settings` | Your settings `{ dailyGoal: 1-500, language: en\|hi\|bn\|mr\|ta\|te\|gu\|kn\|ml\|pa\|or\|ur, bilingual }` (GET also lists the languages) |
+| GET/PATCH | `/api/notebooks/:id/preferences` | Your settings for a course `{ language: code \| null (= your default), bilingual }` + the effective language |
+| GET/POST | `/api/notebooks/:id/explanations` | Your explanations / check one `{ topicId?, prompt?, explanation, unitIds? }` |
+| GET/DELETE | `/api/explanations/:explanationId` | An explanation with its feedback / delete it |
 
 ## Deploying to production
 

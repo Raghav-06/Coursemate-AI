@@ -3,7 +3,7 @@ import { api } from "../api";
 import { navigate, useMediaQuery } from "../hooks";
 import { Logo, ThemeToggle } from "../components/TopBar";
 import AccountMenu from "../components/AccountMenu";
-import { Icon, Spinner, toast } from "../components/ui";
+import { Icon, IconButton, Spinner, toast } from "../components/ui";
 import SourcesPanel from "../components/sources/SourcesPanel";
 import AddSourcesDialog from "../components/sources/AddSourcesDialog";
 import ChatPanel from "../components/chat/ChatPanel";
@@ -11,6 +11,7 @@ import StudyPanel from "../components/study/StudyPanel";
 import PracticePanel from "../components/practice/PracticePanel";
 import ProgressPanel from "../components/progress/ProgressPanel";
 import ExamsPanel from "../components/exams/ExamsPanel";
+import CourseLanguageDialog from "../components/CourseLanguageDialog";
 
 // Main-area tools of a course.
 const VIEWS = [
@@ -103,6 +104,7 @@ export default function NotebookPage({ notebookId }) {
   const [practiceIntent, setPracticeIntent] = useState(null); // quiz on topics, or a question to answer
   const [progressKey, setProgressKey] = useState(0); // bumps after practice so Progress reloads
   const [studyCounts, setStudyCounts] = useState({ due: 0, new: 0 });
+  const [languageOpen, setLanguageOpen] = useState(false);
   const isWide = useMediaQuery("(min-width: 1024px)");
 
   const overviewUntil = useRef(0);
@@ -383,6 +385,10 @@ export default function NotebookPage({ notebookId }) {
     showView("study");
   };
   const askAboutTopic = (topic) => sendMessage(`Explain "${topic.name}" from ${topic.unitTitle ?? "this course"} simply, with the key points I need for the exam.`);
+  const explainTopic = (topic) => {
+    setPracticeIntent({ kind: "explain", topicId: topic.id });
+    showView("practice");
+  };
   const clearStudyIntent = useCallback(() => setStudyIntent(null), []);
   const clearPracticeIntent = useCallback(() => setPracticeIntent(null), []);
   const bumpProgress = useCallback(() => setProgressKey((k) => k + 1), []);
@@ -495,7 +501,7 @@ export default function NotebookPage({ notebookId }) {
 
   const progressPanel = (
     <section className="panel w-full">
-      <ProgressPanel notebook={notebook} refreshKey={progressKey} onQuiz={quizOnTopics} onFlashcards={flashcardsOnTopics} onAsk={askAboutTopic} />
+      <ProgressPanel notebook={notebook} refreshKey={progressKey} onQuiz={quizOnTopics} onFlashcards={flashcardsOnTopics} onAsk={askAboutTopic} onExplain={explainTopic} />
     </section>
   );
 
@@ -549,6 +555,7 @@ export default function NotebookPage({ notebookId }) {
         <EditableTitle notebook={notebook} onRename={(title) => updateNotebook({ title })} />
         {isWide && <ViewTabs view={view} onChange={setView} badges={{ study: studyCounts.due + studyCounts.new }} />}
         <div className="ml-auto flex items-center gap-1">
+          <IconButton icon="translate" label="Language for this course" onClick={() => setLanguageOpen(true)} />
           <ThemeToggle />
           <AccountMenu />
         </div>
@@ -588,6 +595,7 @@ export default function NotebookPage({ notebookId }) {
         </>
       )}
 
+      <CourseLanguageDialog notebookId={notebookId} open={languageOpen} onClose={() => setLanguageOpen(false)} />
       <AddSourcesDialog
         open={addOpen}
         onClose={() => setAddOpen(false)}

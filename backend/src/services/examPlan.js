@@ -1,5 +1,5 @@
 import { completeJson } from "./llm.js";
-import { cleanText } from "./studyContext.js";
+import { cleanText, firstNumber } from "./studyContext.js";
 import { courseProgress, refreshUnitTopics } from "./topics.js";
 import { topicExamWeight } from "./pastPapers.js";
 import { listUnits } from "../db/store.js";
@@ -62,7 +62,7 @@ const ORDER_PROMPT = [
 ].join("\n");
 
 /** Topic order and tips from the model; falls back to priority order without tips. */
-async function orderTopics(exam, ranked) {
+async function orderTopics(exam, ranked, language) {
   if (ranked.length === 0) return { order: [], tips: new Map() };
   const listing = ranked
     .map(
@@ -74,12 +74,13 @@ async function orderTopics(exam, ranked) {
   try {
     const out = await completeJson(
       ORDER_PROMPT,
-      `Exam: ${exam.name}\n\nTopics:\n${listing}\n\nReturn JSON: {"order": [topic numbers], "tips": [{"topic": number, "tip": string}]}`
+      `Exam: ${exam.name}\n\nTopics:\n${listing}\n\nReturn JSON: {"order": [topic numbers], "tips": [{"topic": number, "tip": string}]}`,
+      { language }
     );
     const seen = new Set();
     const order = [];
     for (const n of Array.isArray(out?.order) ? out.order : []) {
-      const i = Number.parseInt(String(n).replace(/[^\d]/g, ""), 10) - 1;
+      const i = firstNumber(n) - 1;
       if (ranked[i] && !seen.has(i)) {
         seen.add(i);
         order.push(ranked[i]);
@@ -88,7 +89,7 @@ async function orderTopics(exam, ranked) {
     for (const [i, t] of ranked.entries()) if (!seen.has(i)) order.push(t); // anything the model left out
     const tips = new Map();
     for (const item of Array.isArray(out?.tips) ? out.tips : []) {
-      const t = ranked[Number.parseInt(String(item?.topic ?? "").replace(/[^\d]/g, ""), 10) - 1];
+      const t = ranked[firstNumber(item?.topic) - 1];
       const tip = cleanText(item?.tip, 200);
       if (t && tip) tips.set(t.id, tip);
     }
@@ -183,8 +184,8 @@ export function layoutPlan({ days, topics, tips = new Map(), cards = { due: 0, f
   );
 }
 
-/** Generates (or regenerates) an exam's plan from `today`, keeping tasks already done. */
-export async function generatePlan(exam, userId, today) {
+/** Generates (or regenerates) an exam's plan from `today`, keeping tasks already done. `language`: for the tips. */
+export async function generatePlan(exam, userId, today, { language } = {}) {
   const units = await listUnits(exam.notebookId);
   const unitIds = new Set(units.map((u) => u.id));
   const chosen = exam.unitIds.map((u) => (u === "general" ? null : u)).filter((u) => u === null || unitIds.has(u));
@@ -208,7 +209,7 @@ export async function generatePlan(exam, userId, today) {
     mastery,
     weights
   );
-  const { order, tips } = await orderTopics(exam, ranked);
+  const { order, tips } = await orderTopics(exam, ranked, language);
   const items = layoutPlan({ days: planDays(today, exam.examDate), topics: order, tips, cards, hasPapers: weights.size > 0 });
   await replacePlan(exam.id, items);
   return items.length;

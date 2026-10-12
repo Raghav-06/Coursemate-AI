@@ -55,7 +55,7 @@ const words = (s) => new Set(String(s).toLowerCase().match(/[\p{L}\p{N}]{3,}/gu)
  * else the passage sharing the most words with `text`.
  */
 export function resolvePassage(passages, number, text) {
-  const n = Number.parseInt(String(number ?? "").replace(/[^\d]/g, ""), 10);
+  const n = firstNumber(number);
   const exact = passages.find((p) => p.number === n);
   if (exact) return exact;
   const target = words(text);
@@ -67,6 +67,15 @@ export function resolvePassage(passages, number, text) {
     if (score > bestScore) [best, bestScore] = [p, score];
   }
   return best;
+}
+
+/**
+ * The first number in a model value: 3, "3", "[3]", "Passage 3", "3/5" → 3;
+ * NaN when there is none. (Stripping non-digits would turn "3/5" into 35.)
+ */
+export function firstNumber(value) {
+  const match = String(value ?? "").match(/\d+(?:\.\d+)?/);
+  return match ? Number(match[0]) : Number.NaN;
 }
 
 /** Trimmed single string, at most `max` characters ("" for anything else). */

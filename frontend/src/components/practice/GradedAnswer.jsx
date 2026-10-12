@@ -4,7 +4,7 @@ import { Icon } from "../ui";
 // A feedback point with its supporting passages as citation chips.
 const pointText = (p) => `${p.text}${p.citations.length ? " " + p.citations.map((n) => `[${n}]`).join("") : ""}`;
 
-function PointList({ title, icon, tone, points, citations, onOpenCitation }) {
+export function PointList({ title, icon, tone, points, citations, onOpenCitation }) {
   if (!points?.length) return null;
   return (
     <div className="rounded-2xl border border-line p-4">

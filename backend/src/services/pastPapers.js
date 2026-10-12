@@ -2,7 +2,7 @@ import { completeJson } from "./llm.js";
 import { getEmbeddings } from "./embeddings.js";
 import { cosineSimilarity, ensureCurrentEmbeddings, loadMergedStore } from "./vectorStore.js";
 import { readSourceText } from "./sourceText.js";
-import { cleanText } from "./studyContext.js";
+import { cleanText, firstNumber } from "./studyContext.js";
 import { refreshUnitTopics, scheduleTopicRefresh } from "./topics.js";
 import { getSource, listSources, listUnits, updateSource } from "../db/store.js";
 import { listTopics } from "../db/practice.js";
@@ -55,11 +55,11 @@ export function textWindows(text, size = WINDOW_CHARS) {
 
 const thisYear = () => new Date().getFullYear();
 function cleanYear(value) {
-  const year = Number.parseInt(String(value ?? "").replace(/[^\d]/g, ""), 10);
+  const year = firstNumber(value);
   return Number.isInteger(year) && year >= 1950 && year <= thisYear() + 1 ? year : null;
 }
 function cleanMarks(value) {
-  const marks = Number.parseFloat(String(value ?? "").replace(/[^\d.]/g, ""));
+  const marks = firstNumber(value);
   return Number.isFinite(marks) && marks > 0 && marks <= 200 ? Math.round(marks * 2) / 2 : null;
 }
 const normQuestion = (s) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
@@ -117,7 +117,7 @@ async function confirmTopics(items) {
         `${listing}\n\nReturn JSON: {"answers": [{"question": number, "topic": "A" | "B" | … | null}]}`
       );
       for (const answer of Array.isArray(out?.answers) ? out.answers : []) {
-        const index = Number.parseInt(String(answer?.question ?? "").replace(/[^\d]/g, ""), 10) - 1;
+        const index = firstNumber(answer?.question) - 1;
         const item = batch[index];
         if (!item || picks[start + index] !== undefined) continue;
         const choice = String(answer?.topic ?? "").trim().toUpperCase();

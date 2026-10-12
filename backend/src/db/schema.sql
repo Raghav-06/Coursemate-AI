@@ -373,3 +373,35 @@ CREATE TABLE IF NOT EXISTS user_activity (
 
 -- Study actions per day that count as meeting the goal.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_goal INTEGER NOT NULL DEFAULT 20;
+
+-- ---- Explain-it-back and response language -------------------------------------------
+
+-- A student's own explanation of a topic, compared with the sources by the
+-- model (personal).
+CREATE TABLE IF NOT EXISTS explanations (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  notebook_id   UUID NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
+  user_id       UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  topic_id      UUID REFERENCES topics(id) ON DELETE SET NULL,
+  prompt        TEXT NOT NULL,                 -- the topic or question explained
+  explanation   TEXT NOT NULL,
+  clarity       INTEGER NOT NULL,              -- 0-10
+  accuracy      INTEGER NOT NULL,              -- 0-10, how well it matches the sources
+  feedback      JSONB NOT NULL,                -- { correctPoints, gaps, misconceptions, followUp, summary }
+  citations     JSONB NOT NULL DEFAULT '[]',
+  unit_ids      JSONB NOT NULL DEFAULT '[]',
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS explanations_user_idx ON explanations (notebook_id, user_id, created_at DESC);
+
+-- Per-user settings, e.g. { "language": "hi", "bilingual": true }.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences JSONB NOT NULL DEFAULT '{}';
+
+-- A user's settings for one course (e.g. its response language), overriding theirs.
+CREATE TABLE IF NOT EXISTS course_preferences (
+  user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  notebook_id  UUID NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
+  preferences  JSONB NOT NULL DEFAULT '{}',
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, notebook_id)
+);

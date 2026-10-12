@@ -21,11 +21,13 @@ export function useTheme() {
   return [theme, toggle];
 }
 
-// Minimal hash router: "#/" is the notebook list, "#/notebook/<id>" a notebook.
+// Minimal hash router: "#/" is the course list, "#/notebook/<id>" a course,
+// "#/settings" the settings page.
 export function useRoute() {
   const parse = () => {
     const match = window.location.hash.match(/^#\/notebook\/([^/?#]+)/);
-    return match ? { page: "notebook", id: decodeURIComponent(match[1]) } : { page: "home" };
+    if (match) return { page: "notebook", id: decodeURIComponent(match[1]) };
+    return /^#\/settings\b/.test(window.location.hash) ? { page: "settings" } : { page: "home" };
   };
   const [route, setRoute] = useState(parse);
 

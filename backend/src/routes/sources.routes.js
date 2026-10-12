@@ -3,6 +3,7 @@ import { asyncHandler, isUuid } from "../utils/asyncHandler.js";
 import { getSource, updateSource } from "../db/store.js";
 import { resolveUnitId, sourceKindFields } from "./helpers.js";
 import { analysePaper, isAnalysing, setSourceKind } from "../services/pastPapers.js";
+import { responseLanguage } from "../services/language.js";
 import { scheduleTopicRefresh } from "../services/topics.js";
 import { readSourceLocations, readSourceText } from "../services/sourceText.js";
 import { removeSource, reprocessSource } from "../services/sources.js";
@@ -38,7 +39,7 @@ sourcesRouter.get(
 sourcesRouter.post(
   "/:id/reprocess",
   asyncHandler(async (req, res) => {
-    res.status(202).json(await reprocessSource(req.source));
+    res.status(202).json(await reprocessSource(req.source, { language: await responseLanguage(req.user.id, req.source.notebookId) }));
   })
 );
 

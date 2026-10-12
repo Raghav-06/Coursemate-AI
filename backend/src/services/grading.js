@@ -1,5 +1,5 @@
 import { completeJson } from "./llm.js";
-import { asCitations, cleanText, formatPassages, retrievePassages, samplePassages } from "./studyContext.js";
+import { asCitations, cleanText, firstNumber, formatPassages, retrievePassages, samplePassages } from "./studyContext.js";
 import { matchTopic } from "./topics.js";
 
 // Answer-writing practice: exam-style questions worth 2, 5 or 10 marks, and
@@ -14,7 +14,7 @@ const MARK_GUIDE = {
 };
 
 /** Exam-style written questions for practice: [{ question, marks, topicId, topic }]. */
-export async function generateWrittenQuestions({ sources, topics, focusTopics = [], marks, count }) {
+export async function generateWrittenQuestions({ sources, topics, focusTopics = [], marks, count, language }) {
   const passages = focusTopics.length
     ? await retrievePassages(sources, focusTopics.map((t) => t.name).join("\n"), { k: 16, fetchK: 50 })
     : await samplePassages(sources, { max: 24 });
@@ -30,7 +30,8 @@ export async function generateWrittenQuestions({ sources, topics, focusTopics = 
     `Source passages:\n\n${formatPassages(passages)}\n\n` +
       (topicList ? `Course topics:\n${topicList}\n\n` : "") +
       `Write ${count} different questions worth ${marks} marks each.\n${MARK_GUIDE[marks]}\n\n` +
-      'Return JSON: {"questions": [{"question": string, "topic": string}]}'
+      'Return JSON: {"questions": [{"question": string, "topic": string}]}',
+    { language }
   );
   const raw = Array.isArray(out?.questions) ? out.questions : Array.isArray(out) ? out : [];
   const seen = new Set();
@@ -61,7 +62,7 @@ const toPoints = (list, valid) =>
     .map((p) => {
       const text = cleanText(typeof p === "string" ? p : p?.point ?? p?.text, 600);
       const nums = (Array.isArray(p?.passages) ? p.passages : Array.isArray(p?.citations) ? p.citations : [])
-        .map((n) => Number.parseInt(String(n).replace(/[^\d]/g, ""), 10))
+        .map(firstNumber)
         .filter((n) => valid.has(n));
       return text ? { text, citations: [...new Set(nums)].slice(0, 6) } : null;
     })
@@ -73,7 +74,7 @@ const toPoints = (list, valid) =>
  * asks the model to mark against them, and validates the result. Returns
  * { score, feedback: { correctPoints, missingPoints, mistakes, modelAnswer }, citations, topic }.
  */
-export async function gradeAnswer({ sources, question, marks, answer, topics }) {
+export async function gradeAnswer({ sources, question, marks, answer, topics, language }) {
   const passages = await retrievePassages(sources, question, { k: 8, fetchK: 40 });
   if (passages.length === 0) throw Object.assign(new Error("The chosen sources have no text to grade against."), { status: 409 });
   const topicList = topics.map((t) => `- ${t.name}`).join("\n");
@@ -83,11 +84,12 @@ export async function gradeAnswer({ sources, question, marks, answer, topics }) 
     `Source passages:\n\n${formatPassages(passages)}\n\n` +
       (topicList ? `Course topics:\n${topicList}\n\n` : "") +
       `Question (${marks} marks): ${question}\n\nStudent's answer:\n"""\n${answer}\n"""\n\n` +
-      `Return JSON: {"score": number (0-${marks}), "correctPoints": [{"point": string, "passages": number[]}], "missingPoints": [{"point": string, "passages": number[]}], "mistakes": [{"point": string, "passages": number[]}], "modelAnswer": string, "topic": string (from the course topics)}`
+      `Return JSON: {"score": number (0-${marks}), "correctPoints": [{"point": string, "passages": number[]}], "missingPoints": [{"point": string, "passages": number[]}], "mistakes": [{"point": string, "passages": number[]}], "modelAnswer": string, "topic": string (from the course topics)}`,
+    { language }
   );
 
   const valid = new Set(passages.map((p) => p.number));
-  const rawScore = Number.parseFloat(String(out?.score ?? out?.marks ?? "").replace(/[^\d.]/g, ""));
+  const rawScore = firstNumber(out?.score ?? out?.marks);
   const score = Number.isFinite(rawScore) ? Math.min(marks, Math.max(0, Math.round(rawScore * 2) / 2)) : 0;
   // Drop citations of passages that weren't provided.
   const modelAnswer = cleanText(out?.modelAnswer ?? out?.model_answer, 6000).replace(/\[(\d+)\]/g, (m, n) => (valid.has(Number(n)) ? m : ""));

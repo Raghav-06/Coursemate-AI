@@ -14,11 +14,12 @@ const GUIDE_SAMPLE_CHARS = 24_000;
  * The "source guide" NotebookLM shows when a source is opened: a short
  * summary plus key topics the user can click to ask about.
  */
-async function generateSourceGuide(title, text) {
+async function generateSourceGuide(title, text, language) {
   const sample = text.length > GUIDE_SAMPLE_CHARS ? `${text.slice(0, GUIDE_SAMPLE_CHARS)}\n[…truncated…]` : text;
   const guide = await completeJson(
     "You write concise source guides for a college course's study material. Summaries are 3-5 sentences, written in plain prose with the most important terms in **bold** markdown. Key topics are 4-8 short noun phrases (2-5 words) that appear in the source.",
-    `Source title: ${title}\n\nSource text:\n${sample}\n\nReturn JSON: {"summary": string, "topics": string[]}`
+    `Source title: ${title}\n\nSource text:\n${sample}\n\nReturn JSON: {"summary": string, "topics": string[]}`,
+    { language }
   );
   return {
     summary: String(guide.summary ?? "").trim(),
@@ -31,10 +32,10 @@ async function generateSourceGuide(title, text) {
  * { text, title? } or { segments: [{ label, text }], title? } (file
  * extraction, URL fetch, or pasted text); segments give citations their page
  * or slide. Status moves processing → ready | error while the client polls the
- * source list. With `reprocess`, a failure leaves the source usable (ready,
+ * source list. `language` is the response language of the guide (and overview). With `reprocess`, a failure leaves the source usable (ready,
  * with the old chunks) and only records the error.
  */
-export async function processSource(sourceId, load, { reprocess = false } = {}) {
+export async function processSource(sourceId, load, { reprocess = false, language } = {}) {
   try {
     await updateSource(sourceId, { progress: 10 });
 
@@ -74,7 +75,7 @@ export async function processSource(sourceId, load, { reprocess = false } = {}) 
     // The source is usable for chat already; the guide and course overview
     // are nice-to-haves that need the LLM, so their failures stay soft.
     try {
-      const guide = await generateSourceGuide(title, text);
+      const guide = await generateSourceGuide(title, text, language);
       await updateSource(sourceId, { guide });
     } catch (err) {
       console.warn(`Source guide failed for ${sourceId}: ${err.message}`);
@@ -82,7 +83,7 @@ export async function processSource(sourceId, load, { reprocess = false } = {}) 
 
     const source = await getSource(sourceId);
     if (source) {
-      refreshNotebookOverview(source.notebookId);
+      refreshNotebookOverview(source.notebookId, { language });
       scheduleTopicRefresh(source.notebookId, source.unitId);
       if (source.kind === "past_paper") analysePaper(sourceId);
     }

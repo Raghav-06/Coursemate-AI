@@ -6,6 +6,7 @@ import { Spinner, Toaster } from "./components/ui";
 import HomePage from "./pages/HomePage";
 import NotebookPage from "./pages/NotebookPage";
 import LoginPage from "./pages/LoginPage";
+import SettingsPage from "./pages/SettingsPage";
 
 function Banners({ health }) {
   if (health?.offline) {
@@ -48,6 +49,8 @@ function Routes() {
         ? "Google sign-in isn't configured yet (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET in backend/.env). You can still sign in with email."
         : null);
     page = <LoginPage serverError={serverError} />;
+  } else if (route.page === "settings") {
+    page = <SettingsPage />;
   } else if (route.page === "notebook") {
     page = <NotebookPage key={route.id} notebookId={route.id} />;
   } else {

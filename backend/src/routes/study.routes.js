@@ -27,6 +27,7 @@ import { matchTopic, refreshUnitTopics } from "../services/topics.js";
 import { addTopicEvents, getTopicsByIds, listTopics } from "../db/practice.js";
 import { listUnits } from "../db/store.js";
 import { recordActivity } from "../db/exams.js";
+import { responseLanguage } from "../services/language.js";
 
 // How much a flashcard rating says about knowing its topic (0-1).
 const RATING_SCORE = { again: 0, hard: 0.6, good: 0.85, easy: 1 };
@@ -112,7 +113,15 @@ export function courseStudyRoutes(router) {
       const scope = unitIds?.length ? unitIds.map((u) => (u === "general" ? null : u)) : [...(await listUnits(req.notebook.id)).map((u) => u.id), null];
       await Promise.all(scope.map((u) => refreshUnitTopics(req.notebook.id, u).catch(() => {})));
       const topics = (await listTopics(req.notebook.id)).filter((t) => scope.includes(t.unitId));
-      const cards = await generateCards({ sources, count, difficulty, focus: singleUnit?.title, topics, focusTopics });
+      const cards = await generateCards({
+        sources,
+        count,
+        difficulty,
+        focus: singleUnit?.title,
+        topics,
+        focusTopics,
+        language: await responseLanguage(req.user.id, req.notebook.id),
+      });
 
       const deck = await createDeck({ notebookId: req.notebook.id, unitId: singleUnit?.id ?? null, title, createdBy: req.user.id });
       await addCards(deck.id, cards);

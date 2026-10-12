@@ -21,7 +21,7 @@ import {
   updateNotebook,
 } from "../db/store.js";
 import { config } from "../config/index.js";
-import { httpError, idList, resolveSources, resolveUnitId, sourceKindFields } from "./helpers.js";
+import { httpError, idList, languagePatch, resolveSources, resolveUnitId, sourceKindFields } from "./helpers.js";
 import { extractDocument } from "../services/ingestion.js";
 import { keepOriginal } from "../services/originals.js";
 import { loadUrl } from "../services/urlLoader.js";
@@ -34,6 +34,8 @@ import { coursePracticeRoutes } from "./practice.routes.js";
 import { coursePastPaperRoutes } from "./pastPapers.routes.js";
 import { courseExamRoutes } from "./exams.routes.js";
 import { recordActivity } from "../db/exams.js";
+import { responseLanguage } from "../services/language.js";
+import { getCoursePreferences, updateCoursePreferences } from "../db/preferences.js";
 import { scheduleTopicRefresh } from "../services/topics.js";
 import { deleteUnitTopics } from "../db/practice.js";
 
@@ -117,7 +119,7 @@ notebooksRouter.delete(
 notebooksRouter.post(
   "/:id/overview",
   asyncHandler(async (req, res) => {
-    refreshNotebookOverview(req.params.id);
+    refreshNotebookOverview(req.params.id, { language: await responseLanguage(req.user.id, req.params.id) });
     res.status(202).json({ ok: true });
   })
 );
@@ -193,10 +195,12 @@ notebooksRouter.post(
     if (files.length === 0) throw httpError(400, "No files uploaded.");
     let unitId;
     let kindFields;
+    let language;
     try {
       unitId = await resolveUnitId(req.params.id, req.body?.unitId);
       kindFields = sourceKindFields(req.body);
       await assertCapacity(req.params.id, files.length);
+      language = await responseLanguage(req.user.id, req.params.id);
     } catch (err) {
       await Promise.all(files.map((f) => unlinkQuietly(f.path)));
       throw err;
@@ -216,7 +220,8 @@ notebooksRouter.post(
             } finally {
               unlinkQuietly(file.path);
             }
-          }
+          },
+          { language }
         )
       );
     }
@@ -245,6 +250,7 @@ notebooksRouter.post(
     const unitId = await resolveUnitId(req.params.id, req.body?.unitId);
     const kindFields = sourceKindFields(req.body);
     await assertCapacity(req.params.id, urls.length);
+    const language = await responseLanguage(req.user.id, req.params.id);
 
     const created = [];
     for (const u of urls) {
@@ -252,7 +258,8 @@ notebooksRouter.post(
         await createSource(
           req.params.id,
           { type: "url", unitId, ...kindFields, url: u, title: title || u.slice(0, MAX_TITLE_CHARS), titleIsPlaceholder: !title },
-          () => loadUrl(u)
+          () => loadUrl(u),
+          { language }
         )
       );
     }
@@ -270,9 +277,10 @@ notebooksRouter.post(
     const unitId = await resolveUnitId(req.params.id, req.body?.unitId);
     const kindFields = sourceKindFields(req.body);
     await assertCapacity(req.params.id, 1);
+    const language = await responseLanguage(req.user.id, req.params.id);
 
     const title = cleanTitle(req.body?.title) || "Pasted text";
-    const source = await createSource(req.params.id, { type: "text", unitId, ...kindFields, title }, async () => ({ text }));
+    const source = await createSource(req.params.id, { type: "text", unitId, ...kindFields, title }, async () => ({ text }), { language });
     res.status(202).json(source);
   })
 );
@@ -338,6 +346,7 @@ notebooksRouter.post(
         sources,
         question: content,
         history,
+        language: await responseLanguage(req.user.id, req.params.id),
       });
       send({ type: "citations", citations });
 
@@ -368,6 +377,33 @@ coursePracticeRoutes(notebooksRouter);
 // ---- Past papers (exam insights) ------------------------------------------------------
 
 coursePastPaperRoutes(notebooksRouter);
+
+// ---- Your settings for this course (personal) ----------------------------------------------
+
+// { language: code | null (= your default), bilingual, effective: { code, name, native, bilingual } }
+async function coursePreferences(userId, notebookId) {
+  const prefs = await getCoursePreferences(userId, notebookId);
+  return { language: prefs.language ?? null, bilingual: prefs.bilingual ?? false, effective: await responseLanguage(userId, notebookId) };
+}
+
+notebooksRouter.get(
+  "/:id/preferences",
+  asyncHandler(async (req, res) => {
+    res.json(await coursePreferences(req.user.id, req.notebook.id));
+  })
+);
+
+// body: { language?: code | null (use your default), bilingual?: boolean }
+notebooksRouter.patch(
+  "/:id/preferences",
+  asyncHandler(async (req, res) => {
+    const patch = languagePatch(req.body, { allowInherit: true });
+    // Going back to the default language drops the course's bilingual choice too.
+    if (patch.language === null) patch.bilingual = null;
+    if (Object.keys(patch).length) await updateCoursePreferences(req.user.id, req.notebook.id, patch);
+    res.json(await coursePreferences(req.user.id, req.notebook.id));
+  })
+);
 
 // ---- Exams and revision plans (personal) ------------------------------------------------
 

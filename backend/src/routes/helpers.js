@@ -1,5 +1,6 @@
 import { isUuid } from "../utils/asyncHandler.js";
 import { getUnit, listSources } from "../db/store.js";
+import { LANGUAGES, isLanguage } from "../services/language.js";
 
 // Shared request helpers for the API routers.
 
@@ -74,4 +75,19 @@ export async function resolveSources(notebookId, { sourceIds, unitIds, selectedO
     wanted = wanted.filter((s) => units.has(s.unitId));
   }
   return wanted.filter((s) => s.status === "ready");
+}
+
+/** Language fields of a settings request ({ language?, bilingual? }); 400 on anything odd. */
+export function languagePatch(body, { allowInherit = false } = {}) {
+  const patch = {};
+  if (body?.language !== undefined) {
+    if (body.language === null && allowInherit) patch.language = null;
+    else if (!isLanguage(body.language)) throw httpError(400, `language must be one of ${LANGUAGES.map((l) => l.code).join(", ")}.`);
+    else patch.language = body.language;
+  }
+  if (body?.bilingual !== undefined) {
+    if (typeof body.bilingual !== "boolean") throw httpError(400, "bilingual must be true or false.");
+    patch.bilingual = body.bilingual;
+  }
+  return patch;
 }

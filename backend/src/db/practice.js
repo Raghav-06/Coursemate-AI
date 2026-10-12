@@ -314,3 +314,55 @@ export async function getAnswerAttempt(id, userId) {
 export async function deleteAnswerAttempt(id) {
   await query("DELETE FROM answer_attempts WHERE id = $1", [id]);
 }
+
+// ---- Explain-it-back -----------------------------------------------------------------
+
+function toExplanation(r) {
+  return {
+    id: r.id,
+    notebookId: r.notebook_id,
+    topicId: r.topic_id ?? null,
+    topic: r.topic_name ?? null,
+    prompt: r.prompt,
+    explanation: r.explanation,
+    clarity: r.clarity,
+    accuracy: r.accuracy,
+    feedback: r.feedback,
+    citations: r.citations ?? [],
+    unitIds: r.unit_ids ?? [],
+    createdAt: iso(r.created_at),
+  };
+}
+
+export async function addExplanation(e) {
+  const { rows } = await query(
+    `INSERT INTO explanations (notebook_id, user_id, topic_id, prompt, explanation, clarity, accuracy, feedback, citations, unit_ids)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+    [e.notebookId, e.userId, e.topicId ?? null, e.prompt, e.explanation, e.clarity, e.accuracy, JSON.stringify(e.feedback), JSON.stringify(e.citations ?? []), JSON.stringify(e.unitIds ?? [])]
+  );
+  return toExplanation(rows[0]);
+}
+
+export async function listExplanations(notebookId, userId, limit = 50) {
+  const { rows } = await query(
+    `SELECT x.*, t.name AS topic_name FROM explanations x LEFT JOIN topics t ON t.id = x.topic_id
+      WHERE x.notebook_id = $1 AND x.user_id = $2 ORDER BY x.created_at DESC LIMIT $3`,
+    [notebookId, userId, limit]
+  );
+  return rows.map(toExplanation);
+}
+
+/** An explanation by this user (in a course they may open), or null. */
+export async function getExplanation(id, userId) {
+  const { rows } = await query(
+    `SELECT x.*, t.name AS topic_name FROM explanations x
+       JOIN notebooks n ON n.id = x.notebook_id LEFT JOIN topics t ON t.id = x.topic_id
+      WHERE x.id = $1 AND x.user_id = $2 AND ${canAccessNotebook("n", "$2")}`,
+    [id, userId]
+  );
+  return rows[0] ? toExplanation(rows[0]) : null;
+}
+
+export async function deleteExplanation(id) {
+  await query("DELETE FROM explanations WHERE id = $1", [id]);
+}

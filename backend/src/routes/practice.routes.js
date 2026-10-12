@@ -4,6 +4,10 @@ import { cleanString, httpError, idList, resolveSources } from "./helpers.js";
 import { listUnits } from "../db/store.js";
 import {
   addAnswerAttempt,
+  addExplanation,
+  deleteExplanation,
+  getExplanation,
+  listExplanations,
   addTopicEvents,
   createQuiz,
   deleteAnswerAttempt,
@@ -25,11 +29,16 @@ import {
 import { courseProgress, courseTopics, refreshUnitTopics } from "../services/topics.js";
 import { QUIZ_COUNTS, QUIZ_DIFFICULTIES, generateQuizQuestions } from "../services/quizzes.js";
 import { MARKS, generateWrittenQuestions, gradeAnswer } from "../services/grading.js";
+import { reviewExplanation } from "../services/explain.js";
 import { assertApiKey } from "../services/llm.js";
 import { recordActivity } from "../db/exams.js";
+import { responseLanguage } from "../services/language.js";
 
 const MAX_QUESTION = 1000;
 const MAX_ANSWER = 12_000;
+const MAX_PROMPT = 500;
+const MAX_EXPLANATION = 8000;
+const EXPLAIN_WEIGHT = 1.5; // explaining a topic well is strong evidence of knowing it
 const ANSWER_WEIGHT = { 2: 1, 5: 2, 10: 3 };
 
 /** The units a request is about, as unit keys (null = General), or every unit + General. */
@@ -63,6 +72,8 @@ const citationOf = (q) => (q.sourceId ? { sourceId: q.sourceId, sourceTitle: q.s
 
 /** Practice routes scoped to a course; added to the courses router (so :id is already checked). */
 export function coursePracticeRoutes(router) {
+  courseExplainRoutes(router);
+
   // Topics by unit: [{ unitId, title, status: ready|pending|error|empty, topics }]
   router.get(
     "/:id/topics",
@@ -114,7 +125,7 @@ export function coursePracticeRoutes(router) {
       assertApiKey();
 
       const topics = await topicsFor(req.notebook.id, unitIds);
-      const questions = await generateQuizQuestions({ sources, topics, focusTopics: focus, count, difficulty });
+      const questions = await generateQuizQuestions({ sources, topics, focusTopics: focus, count, difficulty, language: await responseLanguage(req.user.id, req.notebook.id) });
       const title =
         cleanString(req.body?.title, 120) ||
         (focus.length ? `Quiz: ${focus.map((t) => t.name).join(", ")}` : `Quiz · ${difficulty} · ${questions.length} questions`).slice(0, 120);
@@ -137,7 +148,7 @@ export function coursePracticeRoutes(router) {
       if (sources.length === 0) throw httpError(409, "There are no ready sources in what you picked.");
       assertApiKey();
       const topics = await topicsFor(req.notebook.id, unitIds);
-      res.json(await generateWrittenQuestions({ sources, topics, focusTopics: focus, marks, count }));
+      res.json(await generateWrittenQuestions({ sources, topics, focusTopics: focus, marks, count, language: await responseLanguage(req.user.id, req.notebook.id) }));
     })
   );
 
@@ -173,7 +184,7 @@ export function coursePracticeRoutes(router) {
         [topic] = await getTopicsByIds(req.notebook.id, [req.body.topicId]);
         if (!topic) throw httpError(400, "That topic doesn't belong to this course.");
       }
-      const graded = await gradeAnswer({ sources, question, marks, answer, topics });
+      const graded = await gradeAnswer({ sources, question, marks, answer, topics, language: await responseLanguage(req.user.id, req.notebook.id) });
       topic ??= graded.topic;
 
       const attempt = await addAnswerAttempt({
@@ -192,6 +203,59 @@ export function coursePracticeRoutes(router) {
       if (topic) await addTopicEvents(req.user.id, [{ topicId: topic.id, kind: "answer", score: graded.score / marks, weight: ANSWER_WEIGHT[marks] }]);
       await recordActivity(req.user.id, req.tz, "answer");
       res.status(201).json({ ...attempt, topic: topic?.name ?? null });
+    })
+  );
+}
+
+/** Explain-it-back routes, added to the courses router with the other practice routes. */
+function courseExplainRoutes(router) {
+  router.get(
+    "/:id/explanations",
+    asyncHandler(async (req, res) => {
+      res.json(await listExplanations(req.notebook.id, req.user.id));
+    })
+  );
+
+  // body: { topicId?, prompt? (a topic or question; defaults to the topic's name), explanation, unitIds? }
+  router.post(
+    "/:id/explanations",
+    asyncHandler(async (req, res) => {
+      let topic = null;
+      if (req.body?.topicId !== undefined && req.body.topicId !== null) {
+        if (!isUuid(req.body.topicId)) throw httpError(400, "topicId must be a topic id.");
+        [topic] = await getTopicsByIds(req.notebook.id, [req.body.topicId]);
+        if (!topic) throw httpError(400, "That topic doesn't belong to this course.");
+      }
+      const prompt = cleanString(req.body?.prompt, MAX_PROMPT + 1) || topic?.name || "";
+      if (!prompt) throw httpError(400, "Pick a topic or say what you're explaining.");
+      if (prompt.length > MAX_PROMPT) throw httpError(400, `The topic or question is limited to ${MAX_PROMPT} characters.`);
+      const explanation = cleanString(req.body?.explanation, MAX_EXPLANATION + 1);
+      if (explanation.length < 20) throw httpError(400, "Write a few sentences explaining it first.");
+      if (explanation.length > MAX_EXPLANATION) throw httpError(400, `Explanations are limited to ${MAX_EXPLANATION.toLocaleString()} characters.`);
+      // A topic decides the units to compare with; otherwise the request's units (or the whole course).
+      const unitIds = topic ? [topic.unitId ?? "general"] : idList(req.body?.unitIds, { allow: ["general"], name: "unitIds" });
+      const sources = await resolveSources(req.notebook.id, { unitIds, selectedOnly: false });
+      if (sources.length === 0) throw httpError(409, "There are no ready sources to compare with.");
+      assertApiKey();
+
+      const topics = topic ? [topic] : await topicsFor(req.notebook.id, unitIds);
+      const reviewed = await reviewExplanation({ sources, prompt, explanation, topics, language: await responseLanguage(req.user.id, req.notebook.id) });
+      topic ??= reviewed.topic;
+      const saved = await addExplanation({
+        notebookId: req.notebook.id,
+        userId: req.user.id,
+        topicId: topic?.id ?? null,
+        prompt,
+        explanation,
+        clarity: reviewed.clarity,
+        accuracy: reviewed.accuracy,
+        feedback: reviewed.feedback,
+        citations: reviewed.citations,
+        unitIds: unitIds ?? [],
+      });
+      if (topic) await addTopicEvents(req.user.id, [{ topicId: topic.id, kind: "explain", score: reviewed.accuracy / 10, weight: EXPLAIN_WEIGHT }]);
+      await recordActivity(req.user.id, req.tz, "explain");
+      res.status(201).json({ ...saved, topic: topic?.name ?? null });
     })
   );
 }
@@ -309,6 +373,25 @@ practiceRouter.get(
   asyncHandler(async (req, res) => {
     if (!req.attempt.finishedAt) throw httpError(409, "Finish the attempt to see the answers.");
     res.json(await attemptReview(req.attempt));
+  })
+);
+
+practiceRouter.param("explanationId", async (req, _res, next, id) => {
+  try {
+    req.explanation = isUuid(id) ? await getExplanation(id, req.user.id) : null;
+    next(req.explanation ? undefined : httpError(404, "Explanation not found."));
+  } catch (err) {
+    next(err);
+  }
+});
+
+practiceRouter.get("/explanations/:explanationId", (req, res) => res.json(req.explanation));
+
+practiceRouter.delete(
+  "/explanations/:explanationId",
+  asyncHandler(async (req, res) => {
+    await deleteExplanation(req.explanation.id);
+    res.status(204).end();
   })
 );
 

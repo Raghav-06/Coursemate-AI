@@ -33,7 +33,7 @@ function ReviseCard({ topic, onQuiz, onFlashcards, onAsk }) {
   );
 }
 
-function UnitProgress({ unit, onQuiz, onFlashcards, onAsk, onRefresh }) {
+function UnitProgress({ unit, onQuiz, onFlashcards, onAsk, onExplain, onRefresh }) {
   const [open, setOpen] = useState(true);
   return (
     <div className="rounded-2xl border border-line overflow-hidden">
@@ -75,6 +75,7 @@ function UnitProgress({ unit, onQuiz, onFlashcards, onAsk, onRefresh }) {
                   { label: "Quiz me", icon: "quiz", onClick: () => onQuiz([t]) },
                   { label: "Flashcards", icon: "style", onClick: () => onFlashcards([t]) },
                   { label: "Ask in chat", icon: "chat", onClick: () => onAsk(t) },
+                  onExplain && { label: "Explain it back", icon: "record_voice_over", onClick: () => onExplain(t) },
                 ]}
               />
             </div>
@@ -90,7 +91,7 @@ function UnitProgress({ unit, onQuiz, onFlashcards, onAsk, onRefresh }) {
  * today". Mastery is weighted recent accuracy from quizzes, graded answers
  * and flashcard ratings.
  */
-export default function ProgressPanel({ notebook, onQuiz, onFlashcards, onAsk, refreshKey }) {
+export default function ProgressPanel({ notebook, onQuiz, onFlashcards, onAsk, onExplain, refreshKey }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
 
@@ -172,7 +173,7 @@ export default function ProgressPanel({ notebook, onQuiz, onFlashcards, onAsk, r
         )}
         <div className="flex flex-col gap-3">
           {units.map((u) => (
-            <UnitProgress key={u.unitId ?? "general"} unit={u} onQuiz={onQuiz} onFlashcards={onFlashcards} onAsk={onAsk} onRefresh={refresh} />
+            <UnitProgress key={u.unitId ?? "general"} unit={u} onQuiz={onQuiz} onFlashcards={onFlashcards} onAsk={onAsk} onExplain={onExplain} onRefresh={refresh} />
           ))}
         </div>
       </div>

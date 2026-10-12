@@ -24,7 +24,7 @@ export async function assertCapacity(notebookId, adding) {
  * resolves to { text | segments, title? }; a loaded title replaces the
  * placeholder (e.g. a URL's page title replaces the raw URL).
  */
-export async function createSource(notebookId, fields, load) {
+export async function createSource(notebookId, fields, load, { language } = {}) {
   const source = {
     id: uuidv4(),
     notebookId,
@@ -37,7 +37,7 @@ export async function createSource(notebookId, fields, load) {
     ...fields,
   };
   const created = await addSource(source);
-  processSource(created.id, load);
+  processSource(created.id, load, { language });
   return created;
 }
 
@@ -62,7 +62,7 @@ const conflict = (message) => Object.assign(new Error(message), { status: 409 })
  * sources recover their slides from the stored text), links are fetched
  * again, pasted text is re-chunked. Runs in the background like a new source.
  */
-export async function reprocessSource(source) {
+export async function reprocessSource(source, { language } = {}) {
   if (source.status === "processing") throw conflict("This source is still being processed.");
 
   let load;
@@ -85,7 +85,7 @@ export async function reprocessSource(source) {
 
   const wasReady = source.status === "ready";
   if (!(await claimSourceForProcessing(source.id))) throw conflict("This source is still being processed.");
-  processSource(source.id, load, { reprocess: wasReady });
+  processSource(source.id, load, { reprocess: wasReady, language });
   return getSource(source.id);
 }
 

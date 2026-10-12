@@ -12,8 +12,8 @@ resuming the work in a new conversation.
 | 4 | Quizzes, graded answers, weak topics | ✅ done |
 | 5 | Past-paper analysis | ✅ done |
 | 6 | Exam mode, revision plans, daily goal, streaks | ✅ done |
-| 7 | Explain-it-back and Indian languages | ⏳ next |
-| 8 | Image OCR and lecture transcription | — |
+| 7 | Explain-it-back and Indian languages | ✅ done |
+| 8 | Image OCR and lecture transcription | ⏳ next |
 | 9 | Shared courses and quiz battles | — |
 | 10 | New visual identity, privacy settings, license | — |
 
@@ -211,3 +211,39 @@ local test harness (kept outside the repo, in the session scratchpad — rebuild
   met → streak 4; goal 0 / 2.5 → 400; second user → 404 on exam, plan, item, course exams, and an
   empty Today. Fresh database migrates (twice). UI: Home Today (light, mobile dark), plan view,
   Start quiz from the plan, Past papers tab.
+
+### 7. Explain-it-back and Indian languages ✅
+- DB: `explanations` (notebook, user, topic, prompt, explanation, clarity 0-10, accuracy 0-10,
+  feedback JSON {summary, correctPoints, gaps, misconceptions, followUp}, citations, unit_ids),
+  `users.preferences` JSONB, `course_preferences` (user, notebook, preferences). Queries in
+  `db/practice.js` and `db/preferences.js`.
+- `services/explain.js` (MMR retrieval on the prompt + explanation, validated points with valid
+  passage numbers only, scores 0-10, accuracy estimated from the points when missing; topic event
+  kind `explain`, weight 1.5, score accuracy/10; activity `explain`). Routes in
+  `routes/practice.routes.js`.
+- `services/language.js`: 12 languages, `languageFrom`, `responseLanguage(user, course)` (course
+  override → user setting → English), `languageInstruction` (full or bilingual; keeps formulas,
+  symbols, units, proper nouns, `[n]` citations and JSON keys). `llm.js` `withLanguage()` is applied
+  by `complete`, `completeJson` and `streamCompletion` when a `language` option is passed; every
+  route that calls the AI resolves and passes it (chat, guide + overview on add/re-process, deck,
+  quiz, written questions, grading, explanation, plan). Topic extraction and past-paper
+  extraction/mapping deliberately get none.
+- New shared helper `firstNumber()` in `studyContext.js`: model numbers like "7/10", "3/5", "1-2",
+  "Passage 3" were parsed by stripping non-digits (→ 710, 35, 12) — a "3/5" grade would have been
+  full marks. Now the first number is used everywhere (grading, explain, plan order, past-paper
+  marks/years/answers, passage numbers).
+- UI: Practice tab "Explain it back" (topic picker grouped by unit or free prompt, explanation,
+  clarity/accuracy chips, cited points, follow-up → "Explain this next", history); Progress topic
+  menu "Explain it back"; Settings page (`#/settings`, account menu → Settings) with response
+  language + bilingual and daily goal; course header 文A button → language for this course
+  ("Use my default (…)" or a language).
+- Tested (curl): explanation validation (no topic/prompt, < 20 chars, bad / foreign topic, > 8000
+  chars → 400); with a topic → clarity "7/10" → 7, accuracy 6.4 → 6, invalid passage numbers
+  dropped, follow-up, unit = the topic's unit; free prompt → topic matched; topic events (explain,
+  0.6, 1.5) and activity counted; second user → 404 on get/delete/list/create. Settings: defaults
+  (en), bad language / bilingual / null → 400; user hi + bilingual; course override ta → GET shows
+  effective Tamil; second user → 404 on course preferences. With the override, the mock's request
+  log showed the Tamil instruction on chat (stream), quiz, written questions, grading, flashcards,
+  explain, plan, source guide and course overview, and none on topic extraction; clearing the
+  override → Hindi bilingual instruction; English → no instruction. Fresh database migrates
+  (twice). UI: explain form + result, course language dialog, Settings (mobile dark).

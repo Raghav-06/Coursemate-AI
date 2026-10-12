@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { asyncHandler, isUuid } from "../utils/asyncHandler.js";
-import { cleanString, httpError, idList } from "./helpers.js";
+import { cleanString, httpError, idList, languagePatch } from "./helpers.js";
 import { listUnits } from "../db/store.js";
 import {
   countExams,
@@ -19,6 +19,8 @@ import {
 import { generatePlan, replanMissed } from "../services/examPlan.js";
 import { todaySummary } from "../services/today.js";
 import { assertApiKey } from "../services/llm.js";
+import { LANGUAGES, languageFrom, responseLanguage } from "../services/language.js";
+import { getUserPreferences, updateUserPreferences } from "../db/preferences.js";
 
 const MAX_EXAM_NAME = 120;
 const MAX_EXAMS_PER_COURSE = 20;
@@ -134,7 +136,7 @@ examsRouter.post(
   "/exams/:examId/plan",
   asyncHandler(async (req, res) => {
     assertApiKey();
-    await generatePlan(req.exam, req.user.id, await todayIn(req.tz));
+    await generatePlan(req.exam, req.user.id, await todayIn(req.tz), { language: await responseLanguage(req.user.id, req.exam.notebookId) });
     res.json(await examWithPlan(await getExam(req.exam.id, req.user.id), req.tz));
   })
 );
@@ -165,22 +167,31 @@ examsRouter.get(
   })
 );
 
+async function settingsOf(userId) {
+  const [dailyGoal, prefs] = await Promise.all([getDailyGoal(userId), getUserPreferences(userId)]);
+  const lang = languageFrom(prefs);
+  return { dailyGoal, language: lang.code, bilingual: lang.bilingual, languages: LANGUAGES };
+}
+
 examsRouter.get(
   "/settings",
   asyncHandler(async (req, res) => {
-    res.json({ dailyGoal: await getDailyGoal(req.user.id) });
+    res.json(await settingsOf(req.user.id));
   })
 );
 
-// body: { dailyGoal: 1-500 }
+// body: { dailyGoal?: 1-500, language?: "en" | "hi" | …, bilingual?: boolean }
 examsRouter.patch(
   "/settings",
   asyncHandler(async (req, res) => {
+    let goal;
     if (req.body?.dailyGoal !== undefined) {
-      const goal = Number(req.body.dailyGoal);
+      goal = Number(req.body.dailyGoal);
       if (!Number.isInteger(goal) || goal < 1 || goal > MAX_DAILY_GOAL) throw httpError(400, `dailyGoal must be a whole number from 1 to ${MAX_DAILY_GOAL}.`);
-      await setDailyGoal(req.user.id, goal);
     }
-    res.json({ dailyGoal: await getDailyGoal(req.user.id) });
+    const patch = languagePatch(req.body);
+    if (goal !== undefined) await setDailyGoal(req.user.id, goal);
+    if (Object.keys(patch).length) await updateUserPreferences(req.user.id, patch);
+    res.json(await settingsOf(req.user.id));
   })
 );

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../auth";
+import { navigate } from "../hooks";
 import { Icon } from "./ui";
 
 function Avatar({ user, size = 32 }) {
@@ -24,7 +25,7 @@ function Avatar({ user, size = 32 }) {
   );
 }
 
-/** Google account chip in the top-right, with the user's details and Sign out. */
+/** Account chip in the top-right, with the user's details, Settings and Sign out. */
 export default function AccountMenu() {
   const { user, signOut } = useAuth();
   const [open, setOpen] = useState(false);
@@ -62,6 +63,18 @@ export default function AccountMenu() {
             <Avatar user={user} size={72} />
             <p className="font-display text-lg font-medium">Hi, {user.givenName || user.name?.split(" ")[0] || "there"}!</p>
           </div>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              navigate("/settings");
+            }}
+            className="w-full flex items-center justify-center gap-2 h-10 mb-2 rounded-full bg-panel hover:bg-panel-3 text-sm font-medium border border-line"
+          >
+            <Icon name="settings" size={18} />
+            Settings
+          </button>
           <button
             type="button"
             role="menuitem"

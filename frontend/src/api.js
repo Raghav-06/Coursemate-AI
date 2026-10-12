@@ -112,11 +112,16 @@ export const api = {
   gradeAnswer: (id, body) => request(`/api/notebooks/${id}/answers`, { method: "POST", body }),
   listAnswers: (id) => request(`/api/notebooks/${id}/answers`),
   deleteAnswer: (answerId) => request(`/api/answers/${answerId}`, { method: "DELETE" }),
+  listExplanations: (id) => request(`/api/notebooks/${id}/explanations`),
+  explainBack: (id, body) => request(`/api/notebooks/${id}/explanations`, { method: "POST", body }),
+  deleteExplanation: (explanationId) => request(`/api/explanations/${explanationId}`, { method: "DELETE" }),
 
   // Exams and revision plans (personal), daily goal, streaks
   today: () => request("/api/today"),
   getSettings: () => request("/api/settings"),
   updateSettings: (patch) => request("/api/settings", { method: "PATCH", body: patch }),
+  getCoursePreferences: (id) => request(`/api/notebooks/${id}/preferences`),
+  updateCoursePreferences: (id, patch) => request(`/api/notebooks/${id}/preferences`, { method: "PATCH", body: patch }),
   listExams: (id) => request(`/api/notebooks/${id}/exams`),
   createExam: (id, body) => request(`/api/notebooks/${id}/exams`, { method: "POST", body }),
   getExam: (examId) => request(`/api/exams/${examId}`),

@@ -43,7 +43,7 @@ function answerIndexOf(item, options) {
  * Generates `count` validated MCQs. `topics` are the course topics (questions
  * are tagged with one); `focusTopics` narrows the questions to those topics.
  */
-export async function generateQuizQuestions({ sources, topics, focusTopics = [], count, difficulty }) {
+export async function generateQuizQuestions({ sources, topics, focusTopics = [], count, difficulty, language }) {
   const passages = focusTopics.length
     ? await retrievePassages(sources, focusTopics.map((t) => `${t.name}. ${t.description ?? ""}`).join("\n"), { k: Math.min(24, count + 8), fetchK: 60 })
     : await samplePassages(sources, { max: Math.min(30, count + 10) });
@@ -56,7 +56,8 @@ export async function generateQuizQuestions({ sources, topics, focusTopics = [],
       (topicList ? `Course topics:\n${topicList}\n\n` : "") +
       (focusTopics.length ? `Only ask about these topics: ${focusTopics.map((t) => t.name).join("; ")}.\n` : "") +
       `Write exactly ${count} questions.\n${DIFFICULTY_GUIDE[difficulty]}\n\n` +
-      'Return JSON: {"questions": [{"question": string, "options": [string, string, string, string], "answer": number, "explanation": string, "topic": string, "passage": number}]}'
+      'Return JSON: {"questions": [{"question": string, "options": [string, string, string, string], "answer": number, "explanation": string, "topic": string, "passage": number}]}',
+    { language }
   );
 
   const raw = Array.isArray(out?.questions) ? out.questions : Array.isArray(out) ? out : [];

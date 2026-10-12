@@ -24,7 +24,7 @@ function retrievalQuery(question, history) {
  * answer. Returns the citations up front so the client can render chips as
  * soon as their numbers appear in the text.
  */
-export async function answerQuestion({ sources, question, history = [] }) {
+export async function answerQuestion({ sources, question, history = [], language }) {
   const titles = new Map(sources.map((s) => [s.id, s.title]));
   await ensureCurrentEmbeddings(sources);
   const store = await loadMergedStore(sources.map((s) => s.id));
@@ -55,7 +55,7 @@ export async function answerQuestion({ sources, question, history = [] }) {
     ["human", `Source passages:\n\n${context || "(no passages found)"}\n\nQuestion: ${question}`],
   ];
 
-  return { citations, stream: streamCompletion(messages) };
+  return { citations, stream: streamCompletion(messages, { language }) };
 }
 
 // Non-streaming convenience for the CLI script.

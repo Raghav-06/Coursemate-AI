@@ -7,7 +7,7 @@ const OVERVIEW_CONTEXT_CHARS = 30_000;
 // Debounce per notebook: several sources finishing together trigger one run.
 const pending = new Map();
 
-async function generateOverview(notebookId) {
+async function generateOverview(notebookId, language) {
   const notebook = await getNotebook(notebookId);
   if (!notebook) return;
 
@@ -28,7 +28,8 @@ async function generateOverview(notebookId) {
 
   const overview = await completeJson(
     "You organize courses for college students. Given the study material in a course, produce: a short, specific course title (max 8 words, no quotes); one emoji that fits the subject; a 3-5 sentence summary that synthesizes ALL sources together, with key terms in **bold** markdown; and exactly 3 insightful questions a student could ask about these sources (each under 20 words).",
-    `${context}\n\nReturn JSON: {"title": string, "emoji": string, "summary": string, "questions": string[]}`
+    `${context}\n\nReturn JSON: {"title": string, "emoji": string, "summary": string, "questions": string[]}`,
+    { language }
   );
 
   const patch = {
@@ -43,14 +44,19 @@ async function generateOverview(notebookId) {
   await updateNotebook(notebookId, patch);
 }
 
+// The overview is shared by the course, so it uses the response language of
+// whoever last added or refreshed something in it (English until then).
+const languages = new Map();
+
 // Fire-and-forget: the overview lands in the notebook record when done.
-export function refreshNotebookOverview(notebookId) {
+export function refreshNotebookOverview(notebookId, { language } = {}) {
+  if (language) languages.set(notebookId, language);
   clearTimeout(pending.get(notebookId));
   pending.set(
     notebookId,
     setTimeout(() => {
       pending.delete(notebookId);
-      generateOverview(notebookId).catch((err) => {
+      generateOverview(notebookId, languages.get(notebookId)).catch((err) => {
         console.warn(`Notebook overview failed for ${notebookId}: ${err.message}`);
       });
     }, 1500)
