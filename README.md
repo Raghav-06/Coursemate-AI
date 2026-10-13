@@ -1,8 +1,8 @@
 # CourseMate AI
 
 A study and exam-prep app for college courses: sign in with Google (or with email + password), create a
-**course**, split it into **units**, add your material (PDF, DOCX, PPTX, TXT/MD/CSV, websites, arXiv
-papers, pasted text), and ask questions that are answered **only from your sources, with clickable
+**course**, split it into **units**, add your material (PDF, DOCX, PPTX, TXT/MD/CSV, photos of handwritten
+notes, scanned PDFs, lecture recordings, websites, arXiv papers, pasted text), and ask questions that are answered **only from your sources, with clickable
 citations**. Each source gets a guide (summary + key topics) and each course an overview with
 suggested questions.
 
@@ -57,6 +57,13 @@ suggested questions.
   course can override it (the 文A button in its header). It applies to every AI feature — chat,
   source guides, course overview, flashcards, quizzes, written questions, grading,
   explain-it-back and revision-plan tips — keeping formulas, symbols and `[n]` citations intact.
+- **Handwritten notes and lecture recordings** — upload photos (PNG, JPG, WebP) of handwritten
+  notes or whiteboards, or scanned PDFs without a text layer: a **vision model** reads the text
+  (formulas and diagrams described, unreadable words marked), and the viewer shows the image next
+  to the extracted text. Upload **lecture recordings** — audio (MP3, M4A, WAV, WebM, OGG) or video
+  (MP4, MOV, MKV): the audio is extracted, compressed and split with ffmpeg and transcribed with
+  timestamps, so citations point to the moment in the lecture (*12:34*) and the viewer plays the
+  recording from any timestamp. Progress ("Transcribing part 2 of 5…") shows under the source.
 
 | Layer     | Tech |
 |-----------|------|
@@ -108,6 +115,8 @@ See `backend/src/db/schema.sql`.
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | Your email provider's SMTP settings. Leave `SMTP_HOST` empty in development and the codes are printed in the backend console instead. |
 | `SESSION_SECRET` | `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"` |
 | `CHAT_API_KEY`, `CHAT_BASE_URL`, `CHAT_MODEL` | Your provider's API key, its OpenAI-compatible base URL, and a chat model. `.env.example` lists the URLs for common providers. |
+| `VISION_*` (optional) | A model that accepts images, for photos of notes and scanned PDFs. Empty = the chat settings (fine for gpt-4o-mini, Gemini, Claude). |
+| `TRANSCRIBE_BASE_URL`, `TRANSCRIBE_API_KEY`, `TRANSCRIBE_MODEL` (optional) | Speech-to-text for lecture recordings: OpenAI (`https://api.openai.com/v1`, `whisper-1`) or Groq (`https://api.groq.com/openai/v1`, `whisper-large-v3-turbo`). Empty URL / key = the chat ones. |
 | `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL` | `openai` (any OpenAI-compatible embeddings API) or `huggingface`, plus the model. `EMBEDDING_API_KEY` / `EMBEDDING_BASE_URL` default to the chat ones; set them when embeddings come from a different provider (Anthropic, Groq, DeepSeek and xAI have no embeddings API). |
 
 ## 5. Run it
@@ -171,6 +180,18 @@ React (5173) ──/auth, /api──▶ Express (3000) ──▶ PostgreSQL
   recorded as character ranges in `sources.locations`, and each chunk stores the page(s) it spans
   in `chunks.location`. Uploaded files are kept in `ORIGINALS_DIR` (default `uploads/originals`)
   until their source is deleted.
+- **Images and recordings:** photos and scanned PDF pages (pages whose text layer is empty; the
+  page image is decoded with pdf.js, at most `VISION_MAX_PAGES` per PDF) are sent to the vision
+  model as data URLs (large photos are scaled to ≤ 2048 px JPEG first) through LangChain
+  (`completeVision` in `llm.js`, settings `VISION_*`). Recordings go through ffmpeg
+  (`ffmpeg-static`, or `FFMPEG_PATH`): audio only, mono 16 kHz MP3 at 32 kbit/s, split into pieces
+  of at most 10 minutes and below `TRANSCRIBE_MAX_MB` (default 24, under OpenAI's and Groq's 25 MB
+  limit). Each piece is posted to `TRANSCRIBE_BASE_URL/audio/transcriptions` with
+  `response_format=verbose_json`; segment times are shifted by the piece's start and grouped into
+  ~45-second paragraphs whose start time ("12:34") becomes the location used by citations. Uploads
+  are capped by `UPLOAD_MAX_MB`. *Note:* `ffmpeg-static` downloads an ffmpeg binary for the OS
+  that ran `npm install`; if you move `node_modules` between Windows and WSL/Linux, run
+  `npm rebuild ffmpeg-static`.
 - **Chat:** MMR retrieval over the selected sources → the model answers with `[n]` citations,
   streamed to the browser via Server-Sent Events. History is stored in `messages`.
 - **AI through LangChain:** chat uses LangChain's `ChatOpenAI` class pointed at `CHAT_BASE_URL`,
@@ -231,11 +252,12 @@ React (5173) ──/auth, /api──▶ Express (3000) ──▶ PostgreSQL
 | PATCH/DELETE | `/api/notebooks/:id/units/:unitId` | Rename / delete a unit (its sources move to General) |
 | PUT | `/api/notebooks/:id/units/order` | Reorder units `{ unitIds: [] }` |
 | GET | `/api/notebooks/:id/sources` | List sources |
-| POST | `/api/notebooks/:id/sources/files` | Upload files (multipart `files`, optional `unitId`, `kind`, `examName`, `examYear`) |
+| POST | `/api/notebooks/:id/sources/files` | Upload files — documents, images, audio, video (multipart `files`, optional `unitId`, `kind`, `examName`, `examYear`) |
 | POST | `/api/notebooks/:id/sources/url` | Add links `{ urls: [], unitId?, kind?, examName?, examYear? }` |
 | POST | `/api/notebooks/:id/sources/text` | Add pasted text `{ title?, text, unitId?, kind?, examName?, examYear? }` |
 | GET/PATCH/DELETE | `/api/sources/:id` | Source details / rename, select, move `{ unitId }`, `{ kind: material\|past_paper, examName, examYear }` / delete |
-| GET | `/api/sources/:id/content` | Full source text + page/slide `locations` `[{ label, start, end }]` |
+| GET | `/api/sources/:id/content` | Full source text + page/slide/timestamp `locations` `[{ label, start, end }]` |
+| GET | `/api/sources/:id/original` | The uploaded image or recording (images, audio, video only; supports Range) |
 | POST | `/api/sources/:id/reprocess` | Extract, chunk and embed a source again (202; 409 while processing) |
 | GET/DELETE | `/api/notebooks/:id/messages` | Chat history / clear |
 | POST | `/api/notebooks/:id/chat` | Ask a question (SSE stream) `{ content, sourceIds?, unitIds?, includePastPapers? }` |

@@ -8,8 +8,14 @@ import AdmZip from "adm-zip";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { Document } from "@langchain/core/documents";
 import { config } from "../config/index.js";
+import { AUDIO_EXTENSIONS, IMAGE_TYPES, VIDEO_EXTENSIONS } from "./media.js";
+import { ocrImageFile, ocrScannedPages, pageNeedsOcr } from "./ocr.js";
+import { transcribeFile } from "./transcription.js";
 
-export const ACCEPTED_EXTENSIONS = [".pdf", ".docx", ".pptx", ".txt", ".md", ".csv"];
+export const DOCUMENT_EXTENSIONS = [".pdf", ".docx", ".pptx", ".txt", ".md", ".csv"];
+export const IMAGE_EXTENSIONS = Object.keys(IMAGE_TYPES);
+export const MEDIA_EXTENSIONS = [...AUDIO_EXTENSIONS, ...VIDEO_EXTENSIONS];
+export const ACCEPTED_EXTENSIONS = [...DOCUMENT_EXTENSIONS, ...IMAGE_EXTENSIONS, ...MEDIA_EXTENSIONS];
 
 // pdf-parse's default page renderer, but collecting each page's text
 // separately so citations can name the page.
@@ -38,9 +44,23 @@ export async function extractPdfBuffer(buffer) {
   return (await extractPdfPages(buffer)).join("\n\n");
 }
 
-/** A PDF as labelled page segments ("p. 3"). */
-export async function pdfSegments(buffer) {
-  return (await extractPdfPages(buffer)).map((text, i) => ({ label: `p. ${i + 1}`, text }));
+/**
+ * A PDF as labelled page segments ("p. 3"). Scanned pages (no text layer) are
+ * read by the vision model; if that fails, pages that do have text are kept.
+ */
+export async function pdfSegments(buffer, { onProgress } = {}) {
+  let pages = await extractPdfPages(buffer);
+  if (pages.some(pageNeedsOcr)) {
+    try {
+      ({ pages } = await ocrScannedPages(buffer, pages, {
+        onPage: (done, total) => onProgress?.(done / total, `Reading scanned page ${done + 1} of ${total}…`),
+      }));
+    } catch (err) {
+      if (pages.every(pageNeedsOcr)) throw new Error(`This PDF is scanned (no text layer) and its pages couldn't be read: ${err.message}`);
+      console.warn(`OCR of scanned pages failed, keeping the text layer: ${err.message}`);
+    }
+  }
+  return pages.map((text, i) => ({ label: `p. ${i + 1}`, text }));
 }
 
 async function extractDocx(filePath) {
@@ -77,15 +97,22 @@ async function pptxSegments(filePath) {
 }
 
 /**
- * Pulls the text out of an uploaded file (PDF, DOCX, PPTX, TXT, MD, CSV).
- * Returns { text } or, for paged formats, { segments: [{ label, text }] } so
- * citations can say "p. 12" or "Slide 4".
+ * Pulls the text out of an uploaded file: documents (PDF, DOCX, PPTX, TXT,
+ * MD, CSV), images (read by the vision model) and recordings (transcribed).
+ * Returns { text } or { segments: [{ label, text }] } so citations can say
+ * "p. 12", "Slide 4" or "12:34". `onProgress(fraction, note)` reports
+ * progress of the slow steps (OCR, transcription).
  */
-export async function extractDocument(filePath) {
+export async function extractDocument(filePath, { onProgress } = {}) {
   const ext = path.extname(filePath).toLowerCase();
+  if (IMAGE_EXTENSIONS.includes(ext)) {
+    onProgress?.(0.1, "Reading the image…");
+    return { text: await ocrImageFile(filePath) };
+  }
+  if (MEDIA_EXTENSIONS.includes(ext)) return transcribeFile(filePath, { onProgress });
   switch (ext) {
     case ".pdf":
-      return { segments: await pdfSegments(await fs.readFile(filePath)) };
+      return { segments: await pdfSegments(await fs.readFile(filePath), { onProgress }) };
     case ".docx":
       return { text: await extractDocx(filePath) };
     case ".pptx":
@@ -145,7 +172,7 @@ export function assembleSegments(segments) {
 }
 
 // "p. 12" + "p. 13" → "pp. 12–13"; "Slide 4" + "Slide 6" → "Slides 4–6";
-// anything else (e.g. timestamps) keeps the first label.
+// anything else (e.g. timestamps: "12:34") keeps the first label.
 function rangeLabel(first, last) {
   if (first === last) return first;
   const page = /^p\. (\d+)$/;

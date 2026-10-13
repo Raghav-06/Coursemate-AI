@@ -28,10 +28,11 @@ async function generateSourceGuide(title, text, language) {
 }
 
 /**
- * Background ingestion for one source. `load(sourceId)` resolves to
- * { text, title? } or { segments: [{ label, text }], title? } (file
- * extraction, URL fetch, or pasted text); segments give citations their page
- * or slide. Status moves processing → ready | error while the client polls the
+ * Background ingestion for one source. `load(sourceId, onProgress)` resolves
+ * to { text, title? } or { segments: [{ label, text }], title? } (file
+ * extraction, URL fetch, or pasted text); segments give citations their page,
+ * slide or timestamp. Slow loaders (OCR, transcription) call
+ * `onProgress(fraction, note)`, shown as 10-30% with the note. Status moves processing → ready | error while the client polls the
  * source list. `language` is the response language of the guide (and overview). With `reprocess`, a failure leaves the source usable (ready,
  * with the old chunks) and only records the error.
  */
@@ -39,7 +40,20 @@ export async function processSource(sourceId, load, { reprocess = false, languag
   try {
     await updateSource(sourceId, { progress: 10 });
 
-    const loaded = await load(sourceId);
+    let lastLoadReport = 0;
+    let lastNote;
+    let pendingReport = Promise.resolve();
+    const onLoadProgress = (fraction, note) => {
+      const now = Date.now();
+      if (now - lastLoadReport < 1000 && fraction < 1 && note === lastNote) return;
+      lastLoadReport = now;
+      lastNote = note;
+      const progress = 10 + Math.round(Math.min(1, Math.max(0, fraction)) * 19);
+      pendingReport = pendingReport
+        .then(() => updateSource(sourceId, { progress, ...(note !== undefined && { progressNote: String(note).slice(0, 200) }) }))
+        .catch(() => {});
+    };
+    const loaded = await load(sourceId, onLoadProgress).finally(() => pendingReport);
     const { text, locations } = loaded.segments
       ? assembleSegments(loaded.segments)
       : { text: normalizeText(loaded.text ?? ""), locations: null };
@@ -50,7 +64,7 @@ export async function processSource(sourceId, load, { reprocess = false, languag
     const title = loaded.title && current.titleIsPlaceholder ? loaded.title : current.title;
 
     await saveSourceText(sourceId, text, locations?.length ? locations : null);
-    await updateSource(sourceId, { progress: 30, title, titleIsPlaceholder: false });
+    await updateSource(sourceId, { progress: 30, progressNote: null, title, titleIsPlaceholder: false });
 
     const chunks = await chunkText(text, { sourceId, sourceTitle: title, locations });
     let lastReported = 30;
@@ -65,6 +79,7 @@ export async function processSource(sourceId, load, { reprocess = false, languag
     await updateSource(sourceId, {
       status: "ready",
       progress: 100,
+      progressNote: null,
       error: null,
       chunkCount: chunks.length,
       embeddingModel: embeddingModelId(),
@@ -91,8 +106,8 @@ export async function processSource(sourceId, load, { reprocess = false, languag
     await updateSource(
       sourceId,
       reprocess
-        ? { status: "ready", progress: 100, error: `Re-processing failed: ${err.message}` }
-        : { status: "error", progress: 100, error: err.message }
+        ? { status: "ready", progress: 100, progressNote: null, error: `Re-processing failed: ${err.message}` }
+        : { status: "error", progress: 100, progressNote: null, error: err.message }
     );
   }
 }

@@ -213,10 +213,11 @@ notebooksRouter.post(
         await createSource(
           req.params.id,
           { type: "file", unitId, ...kindFields, title: file.originalname, fileName: file.originalname, fileType },
-          async (sourceId) => {
-            // The original is kept so the source can be re-processed later.
+          async (sourceId, onProgress) => {
+            // The original is kept so the source can be re-processed later
+            // (and images / recordings shown in the viewer).
             try {
-              return await extractDocument(await keepOriginal(file.path, { id: sourceId, fileType }));
+              return await extractDocument(await keepOriginal(file.path, { id: sourceId, fileType }), { onProgress });
             } finally {
               unlinkQuietly(file.path);
             }

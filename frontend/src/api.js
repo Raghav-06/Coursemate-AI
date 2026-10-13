@@ -40,6 +40,28 @@ async function request(path, { method = "GET", body, form } = {}) {
   return data;
 }
 
+// Multipart upload with progress (fetch can't report upload progress).
+// `onProgress(fraction)` is called as the body is sent.
+function upload(path, form, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${BASE}${path}`);
+    xhr.withCredentials = true;
+    xhr.setRequestHeader("X-Timezone", TIMEZONE);
+    xhr.responseType = "json";
+    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total);
+    xhr.onerror = () => reject(new Error("Can't reach the CourseMate AI server. Is the backend running on port 3000?"));
+    xhr.onload = () => {
+      const data = xhr.response;
+      if (xhr.status >= 200 && xhr.status < 300) return resolve(data);
+      if (xhr.status === 401) window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+      const message = xhr.status === 413 ? "That file is larger than the server allows." : data?.message || `Upload failed (${xhr.status}).`;
+      reject(Object.assign(new Error(message), { status: xhr.status }));
+    };
+    xhr.send(form);
+  });
+}
+
 export const api = {
   base: BASE,
   health: () => request("/health"),
@@ -67,13 +89,15 @@ export const api = {
   // `unitId` (optional) files new sources under a unit; null = General.
   // `kind` ({ kind: "material" | "past_paper", examName?, examYear? }) marks past exam papers.
   listSources: (id) => request(`/api/notebooks/${id}/sources`),
-  uploadFiles: (id, files, unitId, kind = {}) => {
+  uploadFiles: (id, files, unitId, kind = {}, onProgress) => {
     const form = new FormData();
     if (unitId) form.append("unitId", unitId);
     for (const [key, value] of Object.entries(kind)) if (value !== undefined && value !== null && value !== "") form.append(key, String(value));
     for (const file of files) form.append("files", file);
-    return request(`/api/notebooks/${id}/sources/files`, { method: "POST", form });
+    return upload(`/api/notebooks/${id}/sources/files`, form, onProgress);
   },
+  // The uploaded image or recording of a source (for <img>, <audio>, <video>).
+  sourceOriginalUrl: (sourceId) => `${BASE}/api/sources/${sourceId}/original`,
   addUrls: (id, urls, unitId, kind = {}) => request(`/api/notebooks/${id}/sources/url`, { method: "POST", body: { urls, unitId, ...kind } }),
   addUrl: (id, url, title, unitId) => request(`/api/notebooks/${id}/sources/url`, { method: "POST", body: { url, title, unitId } }),
   addText: (id, title, text, unitId, kind = {}) => request(`/api/notebooks/${id}/sources/text`, { method: "POST", body: { title, text, unitId, ...kind } }),

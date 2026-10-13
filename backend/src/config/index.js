@@ -58,6 +58,31 @@ const ai = {
     batchSize: num(process.env.EMBEDDING_BATCH_SIZE, 32),
   },
 };
+// Reading handwritten notes, photos and scanned PDFs: any OpenAI-compatible
+// chat model that accepts images. Defaults to the chat settings.
+const visionBaseUrl = trimSlash(process.env.VISION_BASE_URL) || chatBaseUrl;
+ai.vision = {
+  baseUrl: visionBaseUrl,
+  apiKey: process.env.VISION_API_KEY || (visionBaseUrl === chatBaseUrl ? chatApiKey : undefined) || (isLocal(visionBaseUrl) ? "not-needed" : undefined),
+  model: process.env.VISION_MODEL || ai.chat.model,
+  // Scanned PDF pages read per source (each page is one vision request).
+  maxPages: num(process.env.VISION_MAX_PAGES, 60),
+};
+
+// Lecture recordings: an OpenAI-compatible /audio/transcriptions API (OpenAI
+// whisper-1, Groq whisper-large-v3-turbo, a local faster-whisper server…).
+const transcribeBaseUrl = trimSlash(process.env.TRANSCRIBE_BASE_URL) || chatBaseUrl;
+ai.transcribe = {
+  baseUrl: transcribeBaseUrl,
+  apiKey:
+    process.env.TRANSCRIBE_API_KEY ||
+    (transcribeBaseUrl === chatBaseUrl ? chatApiKey : undefined) ||
+    (isLocal(transcribeBaseUrl) ? "not-needed" : undefined),
+  model: process.env.TRANSCRIBE_MODEL || "whisper-1",
+  // Audio is split into pieces below the provider's upload limit (OpenAI and Groq: 25 MB).
+  maxMb: num(process.env.TRANSCRIBE_MAX_MB, 24),
+};
+
 ai.chatModel = ai.chat.model;
 ai.embeddingModel = ai.embedding.model;
 
@@ -140,6 +165,12 @@ export const config = {
     uploadMaxMb: num(process.env.UPLOAD_MAX_MB, 200),
     // Previous chat messages replayed to the LLM so follow-ups have context.
     chatHistoryMessages: num(process.env.CHAT_HISTORY_MESSAGES, 6),
+  },
+
+  // ffmpeg (bundled via ffmpeg-static) converts and splits recordings and
+  // resizes images. FFMPEG_PATH points at another binary.
+  media: {
+    ffmpegPath: process.env.FFMPEG_PATH || undefined,
   },
 
   paths: {

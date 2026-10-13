@@ -13,8 +13,8 @@ resuming the work in a new conversation.
 | 5 | Past-paper analysis | ✅ done |
 | 6 | Exam mode, revision plans, daily goal, streaks | ✅ done |
 | 7 | Explain-it-back and Indian languages | ✅ done |
-| 8 | Image OCR and lecture transcription | ⏳ next |
-| 9 | Shared courses and quiz battles | — |
+| 8 | Image OCR and lecture transcription | ✅ done |
+| 9 | Shared courses and quiz battles | ⏳ next |
 | 10 | New visual identity, privacy settings, license | — |
 
 ## How verification is done
@@ -26,8 +26,8 @@ local test harness (kept outside the repo, in the session scratchpad — rebuild
   a scratch `initdb` of the machine's PostgreSQL 16 on port 55432, UTF-8) — the real server, so
   `schema.sql` migrations run exactly as they would for you, including upgrading a database that
   already holds data from earlier stages.
-- **AI:** a small mock of an OpenAI-compatible API (chat, streaming, embeddings) returning canned
-  JSON per feature. This proves routing, parsing, validation, storage and citations end to end,
+- **AI:** a small mock of an OpenAI-compatible API (chat, streaming, vision, embeddings, audio
+  transcriptions) returning canned JSON per feature. This proves routing, parsing, validation, storage and citations end to end,
   but **not the quality of real model output** — run `npm run check-api` and try each feature with
   your own provider.
 - Backend started with `npm run dev` (boots + migrates), `npm run check-api` against the mock,
@@ -247,3 +247,38 @@ local test harness (kept outside the repo, in the session scratchpad — rebuild
   explain, plan, source guide and course overview, and none on topic extraction; clearing the
   override → Hindi bilingual instruction; English → no instruction. Fresh database migrates
   (twice). UI: explain form + result, course language dialog, Settings (mobile dark).
+
+### 8. Image OCR and lecture transcription ✅
+- Accepted uploads: + `.png .jpg .jpeg .webp` and `.mp3 .m4a .wav .webm .ogg .mp4 .mov .mkv`
+  (multer filter + Add sources). DB: `sources.progress_note` (what a slow step is doing).
+- `services/media.js` (ffmpeg via `ffmpeg-static` or `FFMPEG_PATH`: image downscaling, raw PDF page
+  pixels → JPEG, audio extraction/compression/splitting with a CSV segment list, timestamps),
+  `services/ocr.js` (vision prompt; images; scanned PDF pages: pages with < 40 non-space chars get
+  their largest image decoded by pdf-parse's bundled pdf.js — no canvas needed — up to
+  `VISION_MAX_PAGES`), `services/transcription.js` (POST `/audio/transcriptions` verbose_json per
+  piece, retries 429/5xx, clear errors per status, segments offset by piece start, grouped into
+  ~45 s paragraphs labelled "12:34"). `llm.js` `completeVision()` = LangChain ChatOpenAI with the
+  `VISION_*` settings. `processSource` passes `onProgress(fraction, note)` to loaders (10–29%,
+  note shown under the progress bar). PDF links get scanned-page OCR too. A mixed PDF whose OCR
+  fails keeps its text pages; a fully scanned one fails with the reason.
+- `GET /api/sources/:id/original` serves image/audio/video originals (owner only, Range support,
+  nosniff + sandbox CSP); `/health` adds `visionModel`, `transcribeModel`, `uploadMaxMb`.
+- New settings: `VISION_BASE_URL`, `VISION_API_KEY`, `VISION_MODEL` (default: chat settings),
+  `VISION_MAX_PAGES` (60), `TRANSCRIBE_BASE_URL`, `TRANSCRIBE_API_KEY` (default: chat ones),
+  `TRANSCRIBE_MODEL` (whisper-1), `TRANSCRIBE_MAX_MB` (24), `FFMPEG_PATH`.
+- UI: upload progress bar (XHR) and the server's size limit in Add sources; image / mic / video
+  icons; progress note under processing sources; viewer shows the image beside the text (stacked
+  when narrow) or a sticky audio/video player, timestamp markers seek and play, a cited timestamp
+  opens the recording at that moment.
+- Tested (curl, on the Stage 7 database — migration kept its data): small PNG sent as PNG data URL,
+  16 MB PNG re-encoded to JPEG; 2-page scanned PDF (generated, JPEG pages, no text) → 2 OCR calls,
+  locations p. 1 / p. 2; 5-min M4A with `TRANSCRIBE_MAX_MB=0.5` → 3 pieces (~111 s), labels 0:00,
+  1:05, 1:51, 2:56, 3:42, 4:47 (offsets correct); MP4 transcribed from its audio track; video with no
+  audio → "This recording has no audio track."; non-audio .mp3 → "no audio that can be read"; .gif
+  → 400 listing types; vision provider 400 → image error naming VISION_MODEL / VISION_BASE_URL,
+  scanned PDF → "scanned (no text layer)…" + reason; re-process of a recording shows "Extracting
+  audio…"; chat citations carry `0:00` / `pp. 1–2`; original route: PNG 200 image/png, M4A Range →
+  206, PDF / text source → 404, other user → 404, signed out → 401. `check-api` OK. UI (headless
+  Chromium): image beside text, audio player + clicking 1:05 seeks to 1:05 (dark), Add sources
+  dialog, mobile dark video viewer; no page errors.
+- Not tested against real providers (vision/transcription quality, provider-specific limits).

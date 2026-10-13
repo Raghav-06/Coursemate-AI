@@ -405,3 +405,7 @@ CREATE TABLE IF NOT EXISTS course_preferences (
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (user_id, notebook_id)
 );
+
+-- What a slow ingestion step is doing, shown under the progress bar
+-- (e.g. "Transcribing part 2 of 5…"). Cleared when processing ends.
+ALTER TABLE sources ADD COLUMN IF NOT EXISTS progress_note TEXT;

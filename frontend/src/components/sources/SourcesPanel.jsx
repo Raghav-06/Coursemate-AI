@@ -88,7 +88,7 @@ function SourceRow({ source, hasUnits, onOpen, onToggle, onRename, onMove, onRep
       onClick={() => !processing && onOpen(source.id)}
       onKeyDown={(e) => e.key === "Enter" && !processing && onOpen(source.id)}
       title={failed ? source.error : source.title}
-      className={`group flex items-center gap-2.5 pl-3 pr-1 h-12 rounded-xl ${processing ? "cursor-progress" : "cursor-pointer hover:bg-panel-2"}`}
+      className={`group flex items-center gap-2.5 pl-3 pr-1 min-h-12 py-1 rounded-xl ${processing ? "cursor-progress" : "cursor-pointer hover:bg-panel-2"}`}
     >
       {processing ? (
         <Spinner className="w-5 h-5 text-accent shrink-0" />
@@ -104,6 +104,7 @@ function SourceRow({ source, hasUnits, onOpen, onToggle, onRename, onMove, onRep
             <div className="h-full bg-accent transition-all duration-500" style={{ width: `${Math.max(5, source.progress ?? 0)}%` }} />
           </div>
         )}
+        {processing && source.progressNote && <p className="mt-0.5 text-[11px] leading-4 text-ink-3 truncate">{source.progressNote}</p>}
         {failed && <p className="text-xs text-danger/80 truncate">{source.error}</p>}
         {paper && !processing && !failed && <PaperBadge source={source} />}
       </div>

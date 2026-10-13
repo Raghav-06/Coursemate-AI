@@ -103,6 +103,57 @@ export async function* streamCompletion(messages, { language } = {}) {
   }
 }
 
+// ---- Vision (handwritten notes, photos, scanned pages) ----------------------
+
+let visionModel = null;
+function getVisionModel() {
+  const { vision } = config.ai;
+  if (!vision.apiKey) {
+    throw httpError(503, "Reading images needs a vision model: set VISION_API_KEY (or CHAT_API_KEY) in backend/.env.");
+  }
+  visionModel ??= new ChatOpenAI({
+    model: vision.model,
+    apiKey: vision.apiKey,
+    configuration: { baseURL: vision.baseUrl },
+    ...(chat.maxTokens !== undefined && { maxTokens: chat.maxTokens }),
+    timeout: REQUEST_TIMEOUT_MS,
+    maxRetries: 2,
+    streamUsage: false,
+  });
+  return visionModel;
+}
+
+function explainVision(err) {
+  const { vision } = config.ai;
+  const status = err.status ?? err.response?.status;
+  const detail = String(err.error?.message ?? err.message ?? "").split("\n")[0].slice(0, 300);
+  const hint =
+    status === 401 || status === 403
+      ? " Check VISION_API_KEY."
+      : status === 400 || status === 404 || status === 415 || status === 422
+        ? ` "${vision.model}" at ${vision.baseUrl} may not accept images — set VISION_MODEL (and VISION_BASE_URL) to a vision model.`
+        : status === 402 || status === 429
+          ? " The provider rejected the request for quota, credits or rate limits."
+          : "";
+  return httpError(502, `Image reading with ${vision.model} failed${status ? ` (${status})` : ""}: ${detail}${hint}`);
+}
+
+/** Sends images (data URLs) with a prompt to the vision model; returns its text. */
+export async function completeVision(system, prompt, imageUrls) {
+  const model = getVisionModel();
+  try {
+    const result = await model.invoke([
+      new SystemMessage(system),
+      new HumanMessage({
+        content: [{ type: "text", text: prompt }, ...imageUrls.map((url) => ({ type: "image_url", image_url: { url } }))],
+      }),
+    ]);
+    return textOf(result.content).trim();
+  } catch (err) {
+    throw explainVision(err);
+  }
+}
+
 // Candidate JSON snippets in a model reply: the whole text, a ```json fenced
 // block, and the outermost {...} slice (to the end of the text if the reply
 // was cut off before the closing brace).

@@ -7,6 +7,8 @@ import { responseLanguage } from "../services/language.js";
 import { scheduleTopicRefresh } from "../services/topics.js";
 import { readSourceLocations, readSourceText } from "../services/sourceText.js";
 import { removeSource, reprocessSource } from "../services/sources.js";
+import { hasOriginal, originalPath } from "../services/originals.js";
+import { IMAGE_EXTENSIONS, MEDIA_EXTENSIONS } from "../services/ingestion.js";
 
 export const sourcesRouter = Router();
 
@@ -31,6 +33,20 @@ sourcesRouter.get(
   asyncHandler(async (req, res) => {
     const [text, locations] = await Promise.all([readSourceText(req.params.id), readSourceLocations(req.params.id)]);
     res.json({ text, locations });
+  })
+);
+
+// The uploaded image or recording itself, shown next to its extracted text
+// (supports Range requests so recordings can seek). Other files: 404.
+const VIEWABLE = new Set([...IMAGE_EXTENSIONS, ...MEDIA_EXTENSIONS].map((e) => e.slice(1)));
+sourcesRouter.get(
+  "/:id/original",
+  asyncHandler(async (req, res) => {
+    if (!VIEWABLE.has(req.source.fileType) || !(await hasOriginal(req.source))) {
+      return res.status(404).json({ message: "No viewable original for this source." });
+    }
+    res.set({ "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "default-src 'none'; sandbox", "Cache-Control": "private, max-age=3600" });
+    res.sendFile(originalPath(req.source), { headers: { "Content-Disposition": "inline" } });
   })
 );
 

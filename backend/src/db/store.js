@@ -62,6 +62,7 @@ function toSource(r) {
     fileType: r.file_type ?? undefined,
     status: r.status,
     progress: r.progress,
+    progressNote: r.progress_note ?? null,
     selected: r.selected,
     guide: r.guide,
     chunkCount: r.chunk_count,
@@ -331,7 +332,7 @@ export async function deleteNotebook(id) {
 
 // Everything except the (potentially huge) full text.
 const SOURCE_FIELDS = `id, notebook_id, unit_id, type, title, title_is_placeholder, url, file_name, file_type, status,
-  progress, selected, guide, chunk_count, char_count, word_count, error, embedding_model, created_at,
+  progress, progress_note, selected, guide, chunk_count, char_count, word_count, error, embedding_model, created_at,
   kind, exam_name, exam_year, paper_status, paper_error`;
 
 export async function listSources(notebookId) {
@@ -394,6 +395,7 @@ const SOURCE_COLUMNS = {
   titleIsPlaceholder: "title_is_placeholder",
   status: "status",
   progress: "progress",
+  progressNote: "progress_note",
   selected: "selected",
   guide: "guide",
   chunkCount: "chunk_count",
@@ -422,7 +424,7 @@ export async function updateSource(id, patch) {
 /** Marks a source as processing unless it already is; false if it was (so only one run starts). */
 export async function claimSourceForProcessing(id) {
   const { rowCount } = await query(
-    "UPDATE sources SET status = 'processing', progress = 0, error = NULL WHERE id = $1 AND status <> 'processing'",
+    "UPDATE sources SET status = 'processing', progress = 0, progress_note = NULL, error = NULL WHERE id = $1 AND status <> 'processing'",
     [id]
   );
   return rowCount === 1;

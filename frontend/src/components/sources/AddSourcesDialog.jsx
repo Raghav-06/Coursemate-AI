@@ -2,9 +2,20 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import { Icon, IconButton, Modal, Segmented, Spinner, toast } from "../ui";
 
-const ACCEPTED = [".pdf", ".docx", ".pptx", ".txt", ".md", ".csv"];
-const MAX_BYTES = 200 * 1024 * 1024;
+const DOCUMENTS = [".pdf", ".docx", ".pptx", ".txt", ".md", ".csv"];
+const IMAGES = [".png", ".jpg", ".jpeg", ".webp"];
+const RECORDINGS = [".mp3", ".m4a", ".wav", ".webm", ".ogg", ".mp4", ".mov", ".mkv"];
+const ACCEPTED = [...DOCUMENTS, ...IMAGES, ...RECORDINGS];
+const DEFAULT_MAX_MB = 200;
 const MAX_SOURCES = 50;
+
+// The server's upload limit (UPLOAD_MAX_MB), read once from /health.
+let maxMbPromise;
+const serverMaxMb = () =>
+  (maxMbPromise ??= api.health().then(
+    (h) => Number(h?.uploadMaxMb) || DEFAULT_MAX_MB,
+    () => DEFAULT_MAX_MB
+  ));
 
 function OptionCard({ icon, title, subtitle, onClick }) {
   return (
@@ -22,7 +33,7 @@ function OptionCard({ icon, title, subtitle, onClick }) {
   );
 }
 
-function UploadHome({ onFiles, uploading, setMode }) {
+function UploadHome({ onFiles, uploading, uploadProgress, maxMb, setMode }) {
   const inputRef = useRef(null);
   const [dragging, setDragging] = useState(false);
 
@@ -58,7 +69,25 @@ function UploadHome({ onFiles, uploading, setMode }) {
           </button>{" "}
           to upload
         </p>
-        <p className="text-xs text-ink-3">Supported file types: PDF, DOCX, PPTX, TXT, Markdown, CSV</p>
+        {uploading && uploadProgress !== null ? (
+          <div className="w-full max-w-xs" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(uploadProgress * 100)} aria-label="Upload progress">
+            <div className="h-1.5 rounded-full bg-panel-3 overflow-hidden">
+              <div className="h-full bg-accent transition-all duration-300" style={{ width: `${Math.max(3, uploadProgress * 100)}%` }} />
+            </div>
+            <p className="mt-1.5 text-xs text-ink-3 tabular-nums">{uploadProgress < 1 ? `Uploading… ${Math.round(uploadProgress * 100)}%` : "Upload complete, starting…"}</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1 text-xs text-ink-3">
+            <p>Documents: PDF, DOCX, PPTX, TXT, Markdown, CSV</p>
+            <p>
+              <Icon name="image" size={14} className="align-[-2px]" /> Photos of handwritten notes (PNG, JPG, WebP) and scanned PDFs are read by AI
+            </p>
+            <p>
+              <Icon name="mic" size={14} className="align-[-2px]" /> Lecture recordings (MP3, M4A, WAV, MP4, MOV…) are transcribed with timestamps
+            </p>
+            <p>Up to {maxMb} MB per file</p>
+          </div>
+        )}
         <input
           ref={inputRef}
           type="file"
@@ -268,9 +297,20 @@ const NO_KIND = { kind: "material", examName: "", examYear: "" };
 export default function AddSourcesDialog({ open, onClose, notebookId, sourceCount, units = [], defaultUnitId = null, defaultKind = "material", onAdded }) {
   const [mode, setMode] = useState("home");
   const [busy, setBusy] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(null);
+  const [maxMb, setMaxMb] = useState(DEFAULT_MAX_MB);
   const [unitId, setUnitId] = useState(defaultUnitId);
   const [kind, setKind] = useState(NO_KIND);
   const remaining = MAX_SOURCES - sourceCount;
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    serverMaxMb().then((mb) => !cancelled && setMaxMb(mb));
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   useEffect(() => {
     if (open) {
@@ -303,7 +343,7 @@ export default function AddSourcesDialog({ open, onClose, notebookId, sourceCoun
     for (const file of files) {
       const ext = `.${file.name.split(".").pop()?.toLowerCase()}`;
       if (!ACCEPTED.includes(ext)) toast(`"${file.name}" isn't a supported file type.`, "error");
-      else if (file.size > MAX_BYTES) toast(`"${file.name}" is larger than 200MB.`, "error");
+      else if (file.size > maxMb * 1024 * 1024) toast(`"${file.name}" is larger than ${maxMb} MB.`, "error");
       else valid.push(file);
     }
     if (valid.length === 0) return;
@@ -311,7 +351,8 @@ export default function AddSourcesDialog({ open, onClose, notebookId, sourceCoun
       toast(`You can add ${remaining} more source${remaining === 1 ? "" : "s"} to this course.`, "error");
       return;
     }
-    run(() => api.uploadFiles(notebookId, valid, unitId, kindFields));
+    setUploadProgress(0);
+    run(() => api.uploadFiles(notebookId, valid, unitId, kindFields, setUploadProgress)).finally(() => setUploadProgress(null));
   };
 
   return (
@@ -346,7 +387,7 @@ export default function AddSourcesDialog({ open, onClose, notebookId, sourceCoun
           {units.length > 0 && <UnitPicker units={units} value={unitId} onChange={setUnitId} />}
           {mode !== "discover" && <KindPicker value={kind} onChange={setKind} />}
           {mode === "home" ? (
-            <UploadHome onFiles={uploadFiles} uploading={busy} setMode={setMode} />
+            <UploadHome onFiles={uploadFiles} uploading={busy} uploadProgress={uploadProgress} maxMb={maxMb} setMode={setMode} />
           ) : mode === "link" ? (
             <LinkForm busy={busy} onSubmit={(urls) => run(() => api.addUrls(notebookId, urls, unitId, kindFields))} />
           ) : mode === "text" ? (

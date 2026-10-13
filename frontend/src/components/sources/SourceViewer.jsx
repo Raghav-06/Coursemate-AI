@@ -2,7 +2,13 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../api";
 import Markdown from "../Markdown";
 import { Icon, IconButton, Spinner } from "../ui";
-import { sourceIcon } from "./sourceIcon";
+import { mediaKind, sourceIcon } from "./sourceIcon";
+
+// "12:34" / "1:02:03" → seconds (null for page or slide labels).
+function timestampSeconds(label) {
+  const m = /^(?:(\d+):)?(\d{1,2}):(\d{2})$/.exec(label ?? "");
+  return m ? Number(m[1] ?? 0) * 3600 + Number(m[2]) * 60 + Number(m[3]) : null;
+}
 
 // Where the cited passage sits in the full text: the stored offsets when
 // they still match, else a text search (older sources have no offsets).
@@ -19,7 +25,7 @@ function locate(text, citation) {
 
 // Splits the text at page/slide starts (rendered as markers) and around the
 // highlighted range.
-function SourceText({ text, locations, range, markRef }) {
+function SourceText({ text, locations, range, markRef, onSeek }) {
   const cuts = new Set([0, text.length]);
   const starts = new Map();
   for (const l of locations ?? []) {
@@ -35,9 +41,23 @@ function SourceText({ text, locations, range, markRef }) {
   for (let i = 0; i < points.length - 1; i++) {
     const [a, b] = [points[i], points[i + 1]];
     if (starts.has(a)) {
+      const label = starts.get(a);
+      const seconds = onSeek ? timestampSeconds(label) : null;
       parts.push(
-        <span key={`loc-${a}`} className="flex items-center gap-2 mt-4 mb-1 select-none" aria-label={starts.get(a)}>
-          <span className="px-2 py-0.5 rounded-md bg-panel-3 text-ink-3 text-[11px] font-semibold not-italic">{starts.get(a)}</span>
+        <span key={`loc-${a}`} className="flex items-center gap-2 mt-4 mb-1 select-none" aria-label={label}>
+          {seconds !== null ? (
+            <button
+              type="button"
+              onClick={() => onSeek(seconds)}
+              title={`Play from ${label}`}
+              className="inline-flex items-center gap-0.5 pl-1 pr-2 py-0.5 rounded-md bg-panel-3 text-ink-3 text-[11px] font-semibold tabular-nums hover:bg-accent-soft hover:text-accent-soft-fg"
+            >
+              <Icon name="play_arrow" size={14} />
+              {label}
+            </button>
+          ) : (
+            <span className="px-2 py-0.5 rounded-md bg-panel-3 text-ink-3 text-[11px] font-semibold not-italic">{label}</span>
+          )}
           <span className="flex-1 border-t border-line/70" />
         </span>
       );
@@ -57,13 +77,63 @@ function SourceText({ text, locations, range, markRef }) {
   return <>{parts}</>;
 }
 
+// The uploaded photo (next to its extracted text) or recording (with a
+// player the transcript's timestamps can seek).
+function MediaPane({ source, kind, mediaRef, startAt }) {
+  const [failed, setFailed] = useState(false);
+  const url = api.sourceOriginalUrl(source.id);
+
+  // Seek to the cited moment once the recording's metadata is in (no autoplay).
+  const seekToStart = (e) => {
+    if (startAt != null) e.currentTarget.currentTime = startAt;
+  };
+
+  if (failed) {
+    return (
+      <p className="flex items-center gap-2 rounded-xl bg-panel-2 px-3 py-2 text-xs text-ink-3">
+        <Icon name="hide_image" size={16} /> The original {kind === "image" ? "image" : "recording"} isn't available.
+      </p>
+    );
+  }
+  if (kind === "image") {
+    return (
+      <a href={url} target="_blank" rel="noopener" title="Open the full-size image" className="block">
+        <img src={url} alt={`Uploaded image: ${source.title}`} loading="lazy" onError={() => setFailed(true)} className="w-full max-h-[70vh] object-contain rounded-xl border border-line bg-panel-2" />
+      </a>
+    );
+  }
+  if (kind === "video") {
+    return (
+      <video ref={mediaRef} src={url} controls preload="metadata" playsInline onLoadedMetadata={seekToStart} onError={() => setFailed(true)} className="w-full max-h-[40vh] rounded-xl bg-black">
+        <track kind="captions" />
+      </video>
+    );
+  }
+  return <audio ref={mediaRef} src={url} controls preload="metadata" onLoadedMetadata={seekToStart} onError={() => setFailed(true)} className="w-full" />;
+}
+
 export default function SourceViewer({ source, citation, onBack, onAsk, onReprocess }) {
   const [text, setText] = useState(null);
   const [locations, setLocations] = useState(null);
   const [error, setError] = useState(null);
   const [guideOpen, setGuideOpen] = useState(!citation);
   const markRef = useRef(null);
+  const mediaRef = useRef(null);
   const [icon, color] = sourceIcon(source);
+  const media = source.status === "ready" || source.status === "processing" ? mediaKind(source) : null;
+  const citedSeconds = timestampSeconds(citation?.location);
+
+  const seek = (seconds) => {
+    const player = mediaRef.current;
+    if (!player) return;
+    player.currentTime = seconds;
+    player.play().catch(() => {});
+  };
+
+  // A new citation into the same recording moves the player there.
+  useEffect(() => {
+    if (citedSeconds !== null && mediaRef.current && mediaRef.current.readyState > 0) mediaRef.current.currentTime = citedSeconds;
+  }, [citedSeconds]);
 
   useEffect(() => {
     let cancelled = false;
@@ -141,7 +211,13 @@ export default function SourceViewer({ source, citation, onBack, onAsk, onReproc
               )}
               {source.wordCount && (
                 <p className="mt-4 text-xs text-ink-3">
-                  {source.wordCount.toLocaleString()} words{locations?.length ? ` · ${locations.length} ${/^Slide/.test(locations[0].label) ? "slides" : "pages"}` : ""}
+                  {source.wordCount.toLocaleString()} words
+                  {locations?.length
+                    ? timestampSeconds(locations[0].label) !== null
+                      ? ` · transcript with ${locations.length} timestamps`
+                      : ` · ${locations.length} ${/^Slide/.test(locations[0].label) ? "slides" : "pages"}`
+                    : ""}
+                  {media === "image" ? " · read from the image by AI" : ""}
                 </p>
               )}
               {text !== null && !locations && paged && source.status === "ready" && onReprocess && (
@@ -157,18 +233,37 @@ export default function SourceViewer({ source, citation, onBack, onAsk, onReproc
           )}
         </div>
 
-        <div className="px-5 pb-8 pt-1">
-          {error && <p className="text-sm text-danger">{error}</p>}
-          {text === null && !error && (
-            <div className="flex justify-center py-10 text-ink-3">
-              <Spinner className="w-5 h-5" />
+        {media && media !== "image" && (
+          <div className="sticky top-0 z-10 px-3 pb-2 pt-1 bg-panel">
+            <MediaPane key={source.id} source={source} kind={media} mediaRef={mediaRef} startAt={citedSeconds} />
+          </div>
+        )}
+
+        <div className={`px-5 pb-8 pt-1 ${media === "image" ? "@container" : ""}`}>
+          <div className={media === "image" ? "grid gap-4 @xl:grid-cols-2 @xl:items-start" : ""}>
+            {media === "image" && (
+              <div className="@xl:sticky @xl:top-2">
+                <MediaPane key={source.id} source={source} kind="image" />
+              </div>
+            )}
+            <div className="min-w-0">
+              {error && <p className="text-sm text-danger">{error}</p>}
+              {text === null && !error && (
+                <div className="flex justify-center py-10 text-ink-3">
+                  <Spinner className="w-5 h-5" />
+                </div>
+              )}
+              {text !== null && (
+                <div className="text-[13.5px] leading-6 text-ink-2 whitespace-pre-wrap wrap-break-word font-[450]">
+                  {text ? (
+                    <SourceText text={text} locations={locations} range={range} markRef={markRef} onSeek={media === "audio" || media === "video" ? seek : undefined} />
+                  ) : (
+                    "This source has no text."
+                  )}
+                </div>
+              )}
             </div>
-          )}
-          {text !== null && (
-            <div className="text-[13.5px] leading-6 text-ink-2 whitespace-pre-wrap wrap-break-word font-[450]">
-              {text ? <SourceText text={text} locations={locations} range={range} markRef={markRef} /> : "This source has no text."}
-            </div>
-          )}
+          </div>
         </div>
       </div>
     </div>

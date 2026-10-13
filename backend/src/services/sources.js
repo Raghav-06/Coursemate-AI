@@ -60,7 +60,8 @@ const conflict = (message) => Object.assign(new Error(message), { status: 409 })
  * Extracts, chunks and embeds a source again — e.g. so a source added before
  * page numbers existed gains them. Files use the kept original (old PPTX
  * sources recover their slides from the stored text), links are fetched
- * again, pasted text is re-chunked. Runs in the background like a new source.
+ * again, pasted text is re-chunked; images are read and recordings
+ * transcribed again. Runs in the background like a new source.
  */
 export async function reprocessSource(source, { language } = {}) {
   if (source.status === "processing") throw conflict("This source is still being processed.");
@@ -68,7 +69,7 @@ export async function reprocessSource(source, { language } = {}) {
   let load;
   if (source.type === "file") {
     if (await hasOriginal(source)) {
-      load = () => extractDocument(originalPath(source));
+      load = (_id, onProgress) => extractDocument(originalPath(source), { onProgress });
     } else if (source.fileType === "pptx") {
       const segments = slideSegmentsFromText(await readSourceText(source.id));
       if (segments) load = async () => ({ segments });
