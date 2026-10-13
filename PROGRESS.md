@@ -15,7 +15,7 @@ resuming the work in a new conversation.
 | 7 | Explain-it-back and Indian languages | ✅ done |
 | 8 | Image OCR and lecture transcription | ✅ done |
 | 9 | Shared courses and quiz battles | ✅ done |
-| 10 | New visual identity, privacy settings, license | ⏳ next |
+| 10 | New visual identity, privacy settings, license | ✅ done |
 
 ## How verification is done
 
@@ -332,3 +332,39 @@ local test harness (kept outside the repo, in the session scratchpad — rebuild
   UI (headless Chromium): Share dialog, viewer course (dark), invite page with wrong account
   (mobile), lobby (host, dark), question after pressing 1 (mobile), reveal + leaderboard (dark);
   no page errors.
+
+### 10. Own identity and polish ✅
+- Palette (CSS variables in `src/index.css`): warm paper + ink with a deep green accent (light),
+  slate-green night mode (dark), new `--gold` (streaks/wins) and `--sidebar` tokens, `shadow-card`;
+  buttons/inputs/segmented controls are rounded rectangles instead of pills. Type: DM Sans (UI) +
+  Fraunces (headings) + JetBrains Mono. New logo/favicon (`public/favicon.svg`: open book + spark).
+  Reduced-motion support.
+- Layout: course page = left sidebar (logo, course card with editable title / sharing info, tools:
+  Chat, Study, Practice, Exam plan, Exam insights, Progress; then Units & sources), main area with a
+  breadcrumb header and the selected tool, source viewer as a slide-over (`SlideOver` in ui.jsx;
+  Escape/backdrop closes). Mobile: sidebar as a drawer, bottom bar (Units, Chat, Study, Practice,
+  Exams, Progress), full-width viewer. Home: date + greeting, Today first, "Join a battle" in the
+  header, course cards with a coloured spine and emoji tile. Sign-in: study-focused hero, card
+  illustration, six feature cards (flashcards, graded practice, past papers, plan, lectures/notes,
+  Indian languages).
+- Settings → "AI & privacy": chat, embeddings, vision and transcription models with their host or
+  "on this computer" (from `/health` `ai`, built by `aiSummary()` in config; never keys) and a note
+  on local models. README: new intro, "Any AI provider — or fully local" (Ollama / LM Studio /
+  LocalAI per job), design bullet, license section.
+- MIT `LICENSE` (2026 Raghav Biyani), backend package licence → MIT; `.claude/` untracked
+  (`git rm -r --cached`, kept locally) and ignored; NotebookLM references removed from code/docs.
+- Tested: `/health` `ai` with mock (all local) and with Ollama-style URLs (local=true, host
+  localhost); no key values in `/health`; `check-api`, `check-access` pass; build + oxlint (0 errors;
+  the remaining warnings are the existing set-state-in-effect / ref patterns). Headless Chromium:
+  sign-in (light desktop, dark mobile), Home (light full page, dark, dark mobile), course Chat
+  (light/dark), slide-over viewer with audio (dark), Study, Practice (dark), Exam plan, Exam
+  insights (dark), Progress, Settings with AI & privacy, mobile chat / drawer (dark) / viewer /
+  Study (dark); no page errors.
+
+## Notes for whoever continues
+- All 10 stages are done. Real-provider testing (output quality, vision/transcription limits) was
+  not possible here — everything AI-facing was verified against the mock.
+- `ffmpeg-static` downloads an ffmpeg binary for the OS that ran `npm install`. It was installed from
+  WSL (Linux binary); if the backend runs on Windows, run `npm rebuild ffmpeg-static` (or set
+  `FFMPEG_PATH`).
+- Quiz battles live in one backend process's memory (see README).

@@ -157,7 +157,7 @@ export const config = {
   },
 
   limits: {
-    // NotebookLM caps a notebook at 50 sources.
+    // Sources per course.
     sourcesPerNotebook: num(process.env.MAX_SOURCES_PER_NOTEBOOK, 50),
     unitsPerNotebook: num(process.env.MAX_UNITS_PER_NOTEBOOK, 50),
     // New flashcards a user starts per course per day (spaced repetition).
@@ -188,6 +188,25 @@ export const config = {
     clientDist: path.resolve(root, process.env.CLIENT_DIST_DIR || "../frontend/dist"),
   },
 };
+
+/**
+ * Which models the server uses, for Settings → AI & privacy: model names and
+ * the host each request goes to (never keys). `local` means the host is this
+ * machine (e.g. Ollama or LM Studio), so that data never leaves it.
+ */
+export function aiSummary() {
+  const { chat, embedding, vision, transcribe } = config.ai;
+  const entry = (model, url, extra = {}) => ({ model, host: url ? hostOf(url) : null, local: isLocal(url), ...extra });
+  return {
+    chat: entry(chat.model, chat.baseUrl),
+    embeddings:
+      embedding.provider === "huggingface"
+        ? entry(embedding.model, embedding.baseUrl || "https://router.huggingface.co", { provider: "huggingface" })
+        : entry(embedding.model, embedding.baseUrl, { provider: "openai-compatible" }),
+    vision: entry(vision.model, vision.baseUrl),
+    transcription: entry(transcribe.model, transcribe.baseUrl),
+  };
+}
 
 /** Settings without which the server cannot run; returns human-readable problems. */
 export function configProblems() {

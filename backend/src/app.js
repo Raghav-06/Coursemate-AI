@@ -19,7 +19,7 @@ import { battlesRouter } from "./routes/battles.routes.js";
 import { configurePassport, googleConfigured } from "./auth/passport.js";
 import { pool } from "./db/pool.js";
 import { emailConfigured } from "./services/mailer.js";
-import { config } from "./config/index.js";
+import { aiSummary, config } from "./config/index.js";
 
 export function createApp() {
   const app = express();
@@ -67,6 +67,8 @@ export function createApp() {
       visionModel: config.ai.vision.model,
       transcribeModel: config.ai.transcribe.model,
       uploadMaxMb: config.limits.uploadMaxMb,
+      // Models and hosts only — keys are never sent to the browser.
+      ai: aiSummary(),
       googleAuthConfigured: googleConfigured(),
       emailConfigured: emailConfigured(),
       maxSources: config.limits.sourcesPerNotebook,

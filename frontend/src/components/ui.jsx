@@ -57,6 +57,26 @@ export function Modal({ open, onClose, title, children, footer, width = "max-w-l
   );
 }
 
+/**
+ * A panel that slides in from the right over the page (the source viewer).
+ * Escape or a click on the backdrop closes it; full width on phones.
+ */
+export function SlideOver({ label, onClose, children }) {
+  useEffect(() => {
+    const onKey = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-40 flex justify-end">
+      <div className="absolute inset-0 bg-black/30 animate-fade-in" onClick={onClose} />
+      <section role="dialog" aria-modal="true" aria-label={label} className="relative h-full w-full sm:w-[min(600px,92vw)] bg-panel border-l border-line shadow-pop flex flex-col animate-slide-in-right">
+        {children}
+      </section>
+    </div>
+  );
+}
+
 export function ConfirmDialog({ open, title, message, confirmLabel = "Delete", onConfirm, onClose }) {
   return (
     <Modal
@@ -249,7 +269,7 @@ export function timeAgo(iso) {
 /** Row of mutually exclusive options: options = [[value, label], …]. */
 export function Segmented({ value, options, onChange, label }) {
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex rounded-full border border-line p-0.5 bg-panel">
+    <div role="radiogroup" aria-label={label} className="inline-flex rounded-xl border border-line p-0.5 bg-panel">
       {options.map(([v, text]) => (
         <button
           key={v}
@@ -257,7 +277,7 @@ export function Segmented({ value, options, onChange, label }) {
           role="radio"
           aria-checked={value === v}
           onClick={() => onChange(v)}
-          className={`h-8 px-3.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${value === v ? "bg-accent text-accent-fg" : "text-ink-2 hover:bg-panel-2"}`}
+          className={`h-8 px-3.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${value === v ? "bg-accent text-accent-fg" : "text-ink-2 hover:bg-panel-2"}`}
         >
           {text}
         </button>

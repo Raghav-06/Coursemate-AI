@@ -1,7 +1,7 @@
 {
   "name": "coursemate-ai-backend",
   "version": "1.0.0",
-  "description": "CourseMate AI \u2014 a NotebookLM-style research notebook backend (Express + PostgreSQL + Google OAuth + LangChain with any model provider).",
+  "description": "CourseMate AI backend — study and exam prep from your own course material (Express + PostgreSQL + LangChain with any model provider).",
   "type": "module",
   "main": "server.js",
   "scripts": {
@@ -41,7 +41,7 @@
     "uuid": "^11.1.1"
   },
   "author": "Raghav Biyani",
-  "license": "ISC",
+  "license": "MIT",
   "engines": {
     "node": ">=20"
   }

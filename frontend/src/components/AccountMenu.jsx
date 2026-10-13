@@ -19,7 +19,7 @@ function Avatar({ user, size = 32 }) {
     );
   }
   return (
-    <span style={{ width: size, height: size, fontSize: Math.round(size * 0.44) }} className="rounded-full bg-violet-600 text-white flex items-center justify-center font-medium">
+    <span style={{ width: size, height: size, fontSize: Math.round(size * 0.44) }} className="rounded-full bg-accent text-accent-fg flex items-center justify-center font-medium">
       {initial}
     </span>
   );

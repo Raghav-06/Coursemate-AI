@@ -1,10 +1,13 @@
 # CourseMate AI
 
-A study and exam-prep app for college courses: sign in with Google (or with email + password), create a
-**course**, split it into **units**, add your material (PDF, DOCX, PPTX, TXT/MD/CSV, photos of handwritten
-notes, scanned PDFs, lecture recordings, websites, arXiv papers, pasted text), and ask questions that are answered **only from your sources, with clickable
-citations**. Each source gets a guide (summary + key topics) and each course an overview with
-suggested questions.
+**Study and exam prep for college courses, built on your own material.** Create a **course**, split
+it into **units**, and add what your lecturer gave you — PDFs, slides, Word docs, photos of
+handwritten notes, scanned PDFs, lecture recordings, links, past exam papers. CourseMate turns them
+into spaced-repetition **flashcards**, **quizzes**, **graded answer-writing practice**,
+**explain-it-back** checks, **past-paper insights**, a **revision plan** to exam day and live **quiz
+battles** with classmates — and every answer cites the exact page, slide or minute it came from.
+It runs on any AI provider, or entirely on local models, and answers in English or 11 Indian
+languages.
 
 ## Features
 
@@ -75,6 +78,10 @@ suggested questions.
   one at a time, **500 points for a correct answer plus up to 500 for speed** → live leaderboard
   (Server-Sent Events) → results saved, and every answer counts toward your daily goal and topic
   mastery like a quiz.
+- **Made for studying** — a calm paper-and-ink look (light and dark) with serif headings; each
+  course has a left sidebar with its tools (Chat, Study, Practice, Exam plan, Exam insights,
+  Progress) and its units and sources, the selected tool in the main area, and sources opening in a
+  slide-over viewer. Home opens on **Today**. Works on phones (drawer + bottom bar).
 
 | Layer     | Tech |
 |-----------|------|
@@ -82,9 +89,28 @@ suggested questions.
 | Backend   | Node.js + Express (`backend/`) |
 | Auth      | Google OAuth 2.0 (Passport) **or** email + verified code + password (scrypt hash); sessions in Postgres |
 | Database  | PostgreSQL via `pg` — users, email verification codes, notebooks, sources, chunks + embeddings, chat, sessions |
-| AI        | **LangChain** with any model provider — chat via any OpenAI-compatible API, embeddings via an OpenAI-compatible API or Hugging Face |
+| AI        | **LangChain** with any model provider — chat and vision via any OpenAI-compatible API, embeddings via an OpenAI-compatible API or Hugging Face; transcription via any OpenAI-compatible `/audio/transcriptions` API (audio prepared with ffmpeg) |
 
 ---
+
+## Any AI provider — or fully local
+
+CourseMate talks to models through LangChain and plain OpenAI-compatible APIs, so you choose where
+your notes go. Each job has its own setting in `backend/.env`, and *Settings → AI & privacy* in the
+app shows which models the server uses (never the keys):
+
+| Job | Settings | Hosted examples | Local examples |
+|-----|----------|-----------------|----------------|
+| Chat, guides, flashcards, quizzes, grading, plans | `CHAT_BASE_URL`, `CHAT_MODEL`, `CHAT_API_KEY` | OpenAI, Anthropic, Gemini, Groq, OpenRouter, Mistral… | Ollama `http://localhost:11434/v1` (`llama3.1`, `qwen2.5`), LM Studio `http://localhost:1234/v1` |
+| Search (embeddings) | `EMBEDDING_PROVIDER`, `EMBEDDING_BASE_URL`, `EMBEDDING_MODEL` | OpenAI `text-embedding-3-small`, Gemini, Mistral, Hugging Face | Ollama `nomic-embed-text`, LM Studio |
+| Reading photos / scans | `VISION_BASE_URL`, `VISION_MODEL`, `VISION_API_KEY` (default: chat) | `gpt-4o-mini`, Gemini, Claude | Ollama `qwen2.5vl`, `llava`, `llama3.2-vision` |
+| Transcribing lectures | `TRANSCRIBE_BASE_URL`, `TRANSCRIBE_MODEL`, `TRANSCRIBE_API_KEY` | OpenAI `whisper-1`, Groq `whisper-large-v3-turbo` | any local server with an OpenAI-compatible `/audio/transcriptions` (e.g. faster-whisper-server, LocalAI) |
+
+**Keeping notes on your machine:** point every base URL at a local server (Ollama, LM Studio,
+LocalAI…) — no API keys are needed for `localhost` — and nothing you upload leaves the computer
+running the backend; the AI & privacy panel then says "on this computer" for each model. Small local
+models write weaker flashcards and grades than large hosted ones, and `npm run check-api` tests the
+chat and embedding settings before you start.
 
 ## 1. Prerequisites
 
@@ -359,3 +385,7 @@ npm run check-access                                 # prove shared-course acces
 npm run create-database -- you@gmail.com file.pdf    # ingest files into a new notebook for a user
 npm run cli-chat -- <notebookId>                     # chat in the terminal
 ```
+
+## License
+
+[MIT](LICENSE) © 2026 Raghav Biyani

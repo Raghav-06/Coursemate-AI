@@ -8,16 +8,20 @@ import { ConfirmDialog, Icon, IconButton, Menu, Modal, Spinner, timeAgo, toast }
 import JoinBattleDialog from "../components/battle/JoinBattleDialog";
 import TodayPanel from "../components/today/TodayPanel";
 
-// Soft card tints, picked deterministically per notebook like NotebookLM's.
+// Each course gets a "binder" colour (spine stripe + emoji tile), picked from its id.
 const TINTS = [
-  "bg-blue-50 dark:bg-blue-950/40",
-  "bg-emerald-50 dark:bg-emerald-950/40",
-  "bg-amber-50 dark:bg-amber-950/30",
-  "bg-rose-50 dark:bg-rose-950/30",
-  "bg-violet-50 dark:bg-violet-950/40",
-  "bg-cyan-50 dark:bg-cyan-950/40",
-  "bg-lime-50 dark:bg-lime-950/30",
+  ["bg-[#0e6b56]", "bg-[#dcefe6] dark:bg-[#173a30]"],
+  ["bg-[#c2702b]", "bg-[#f6e4d2] dark:bg-[#3d2a1a]"],
+  ["bg-[#3d5a98]", "bg-[#dee5f4] dark:bg-[#1e2a44]"],
+  ["bg-[#9b3f5c]", "bg-[#f3dee5] dark:bg-[#3a1d28]"],
+  ["bg-[#6b5b2e]", "bg-[#ece6d2] dark:bg-[#33301d]"],
+  ["bg-[#2f7a8a]", "bg-[#d9edf0] dark:bg-[#17343a]"],
 ];
+
+function greeting() {
+  const hour = new Date().getHours();
+  return hour < 5 ? "Studying late" : hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+}
 
 function tintFor(id) {
   let hash = 0;
@@ -142,18 +146,25 @@ export default function HomePage() {
 
   return (
     <div className="h-full overflow-y-auto scroll-thin">
-      <header className="sticky top-0 z-20 bg-bg/90 backdrop-blur-sm flex items-center justify-between h-16 px-4 sm:px-8">
+      <header className="sticky top-0 z-20 bg-bg/90 backdrop-blur-sm flex items-center justify-between h-16 px-4 sm:px-8 border-b border-line/50">
         <Logo />
         <div className="flex items-center gap-1">
+          <button type="button" className="btn-ghost h-9 px-3 max-sm:px-2" onClick={() => setJoining(true)} title="Join a quiz battle with a code">
+            <Icon name="sports_esports" size={20} /> <span className="max-sm:hidden">Join a battle</span>
+          </button>
           <ThemeToggle />
           <AccountMenu />
         </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-4 sm:px-8 pb-16">
-        <h1 className="font-display text-3xl sm:text-[42px] leading-tight font-semibold tracking-tight mt-6 sm:mt-10 mb-6 bg-linear-to-r/srgb from-blue-600 via-violet-500 to-rose-500 bg-clip-text text-transparent dark:from-blue-300 dark:via-violet-300 dark:to-rose-300">
-          {user?.givenName ? `Welcome, ${user.givenName}` : "Welcome to CourseMate AI"}
-        </h1>
+        <div className="mt-6 sm:mt-10 mb-6">
+          <p className="text-sm text-ink-3">{new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</p>
+          <h1 className="font-display text-3xl sm:text-[40px] leading-tight font-semibold">
+            {greeting()}
+            {user?.givenName ? `, ${user.givenName}` : ""}
+          </h1>
+        </div>
 
         <TodayPanel />
 
@@ -163,15 +174,12 @@ export default function HomePage() {
             {creating ? <Spinner /> : <Icon name="add" size={20} />}
             Create new
           </button>
-          <button type="button" className="btn-outline h-10 px-4" onClick={() => setJoining(true)}>
-            <Icon name="sports_esports" size={20} /> Join a battle
-          </button>
           <div className="flex items-center gap-1 ml-auto">
-            <div className="flex rounded-full border border-line p-0.5">
+            <div className="flex rounded-xl border border-line p-0.5">
               <IconButton icon="grid_view" label="Grid view" onClick={() => setView("grid")} className={`w-8! h-8! ${view === "grid" ? "bg-accent-soft! text-accent-soft-fg!" : ""}`} size={18} />
               <IconButton icon="view_list" label="List view" onClick={() => setView("list")} className={`w-8! h-8! ${view === "list" ? "bg-accent-soft! text-accent-soft-fg!" : ""}`} size={18} />
             </div>
-            <select value={sort} onChange={(e) => setSort(e.target.value)} className="h-9 rounded-full border border-line bg-bg px-3 text-sm text-ink-2 focus:outline-hidden focus:border-accent" aria-label="Sort courses">
+            <select value={sort} onChange={(e) => setSort(e.target.value)} className="h-9 rounded-xl border border-line bg-bg px-3 text-sm text-ink-2 focus:outline-hidden focus:border-accent" aria-label="Sort courses">
               <option value="recent">Most recent</option>
               <option value="title">Title</option>
             </select>
@@ -190,9 +198,9 @@ export default function HomePage() {
               type="button"
               onClick={create}
               disabled={creating}
-              className="h-52 rounded-2xl border border-line bg-panel hover:bg-panel-2 flex flex-col items-center justify-center gap-3 transition-colors"
+              className="h-52 rounded-2xl border-2 border-dashed border-line hover:border-accent/60 hover:bg-panel flex flex-col items-center justify-center gap-3 transition-colors"
             >
-              <span className="w-14 h-14 rounded-full bg-accent-soft text-accent-soft-fg flex items-center justify-center">
+              <span className="w-14 h-14 rounded-2xl bg-accent-soft text-accent-soft-fg flex items-center justify-center">
                 <Icon name="add" size={30} />
               </span>
               <span className="font-display text-base font-medium">Create new course</span>
@@ -204,10 +212,11 @@ export default function HomePage() {
                 tabIndex={0}
                 onClick={() => navigate(`/notebook/${nb.id}`)}
                 onKeyDown={(e) => e.key === "Enter" && navigate(`/notebook/${nb.id}`)}
-                className={`group relative h-52 rounded-2xl p-5 flex flex-col cursor-pointer hover:shadow-pop transition-shadow ${tintFor(nb.id)}`}
+                className="group relative h-52 rounded-2xl pl-6 pr-5 py-5 flex flex-col cursor-pointer bg-panel border border-line/70 shadow-card hover:shadow-pop hover:-translate-y-0.5 transition overflow-hidden"
               >
+                <span className={`absolute left-0 inset-y-0 w-1.5 ${tintFor(nb.id)[0]}`} aria-hidden="true" />
                 <div className="flex items-start justify-between">
-                  <span className="text-[40px] leading-none">{nb.emoji}</span>
+                  <span className={`w-12 h-12 rounded-xl flex items-center justify-center text-[26px] leading-none ${tintFor(nb.id)[1]}`}>{nb.emoji}</span>
                   {nb.memberCount > 1 && (
                     <span className="ml-auto mr-1 flex items-center gap-0.5 px-2 h-6 rounded-full bg-panel/70 text-ink-2 text-xs" title={`${nb.memberCount} people`}>
                       <Icon name="group" size={14} /> {nb.memberCount}

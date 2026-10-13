@@ -3,8 +3,9 @@ import { api } from "../api";
 import { navigate, useMediaQuery } from "../hooks";
 import { Logo, ThemeToggle } from "../components/TopBar";
 import AccountMenu from "../components/AccountMenu";
-import { Icon, IconButton, Spinner, toast } from "../components/ui";
+import { Icon, IconButton, SlideOver, Spinner, toast } from "../components/ui";
 import SourcesPanel from "../components/sources/SourcesPanel";
+import SourceViewer from "../components/sources/SourceViewer";
 import AddSourcesDialog from "../components/sources/AddSourcesDialog";
 import ChatPanel from "../components/chat/ChatPanel";
 import StudyPanel from "../components/study/StudyPanel";
@@ -14,40 +15,47 @@ import ExamsPanel from "../components/exams/ExamsPanel";
 import CourseLanguageDialog from "../components/CourseLanguageDialog";
 import ShareDialog from "../components/ShareDialog";
 
-// Main-area tools of a course.
-const VIEWS = [
-  ["chat", "Chat", "chat"],
-  ["study", "Study", "style"],
-  ["practice", "Practice", "quiz"],
-  ["progress", "Progress", "insights"],
-  ["exams", "Exams", "event_upcoming"],
+// Main-area tools of a course, in the sidebar. The two exam entries are
+// tabs of the Exams view (revision plan | past-paper insights).
+const NAV = [
+  { key: "chat", label: "Chat", icon: "forum" },
+  { key: "study", label: "Study", icon: "style" },
+  { key: "practice", label: "Practice", icon: "quiz" },
+  { key: "exams", examsTab: "plan", label: "Exam plan", icon: "event_upcoming" },
+  { key: "exams", examsTab: "papers", label: "Exam insights", icon: "history_edu" },
+  { key: "progress", label: "Progress", icon: "insights" },
+];
+const VIEWS = ["chat", "study", "practice", "progress", "exams"];
+// Mobile bottom bar: the course outline (sidebar) plus the main tools.
+const MOBILE_NAV = [
+  { key: "outline", label: "Units", icon: "menu_book" },
+  NAV[0],
+  NAV[1],
+  NAV[2],
+  { ...NAV[3], label: "Exams" },
+  NAV[5],
 ];
 
 // "#/notebook/<id>?view=study" opens a tool directly (e.g. from Home).
 function initialView() {
   const view = window.location.hash.match(/[?&]view=(\w+)/)?.[1];
-  return VIEWS.some(([key]) => key === view) ? view : "chat";
+  return VIEWS.includes(view) ? view : "chat";
 }
 
-function ViewTabs({ view, onChange, badges }) {
+function NavItem({ item, active, badge, onClick }) {
   return (
-    <nav className="flex items-center gap-1 rounded-full bg-panel-2 p-1" aria-label="Course tools">
-      {VIEWS.map(([key, label, icon]) => (
-        <button
-          key={key}
-          type="button"
-          onClick={() => onChange(key)}
-          aria-current={view === key ? "page" : undefined}
-          className={`flex items-center gap-1.5 h-8 px-3.5 rounded-full text-sm font-medium transition-colors ${
-            view === key ? "bg-panel text-ink shadow-sm" : "text-ink-2 hover:text-ink"
-          }`}
-        >
-          <Icon name={icon} size={18} filled={view === key} />
-          {label}
-          {badges[key] > 0 && <span className="min-w-5 h-5 px-1.5 rounded-full bg-accent text-accent-fg text-[11px] font-semibold leading-5 tabular-nums">{badges[key]}</span>}
-        </button>
-      ))}
-    </nav>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-current={active ? "page" : undefined}
+      className={`group flex items-center gap-3 h-10 px-3 rounded-xl text-sm font-medium transition-colors ${
+        active ? "bg-panel text-ink shadow-card" : "text-ink-2 hover:bg-panel/60 hover:text-ink"
+      }`}
+    >
+      <Icon name={item.icon} size={20} filled={active} className={active ? "text-accent" : "text-ink-3 group-hover:text-ink-2"} />
+      <span className="flex-1 text-left">{item.label}</span>
+      {badge > 0 && <span className="min-w-5 h-5 px-1.5 rounded-full bg-accent text-accent-fg text-[11px] font-semibold leading-5 tabular-nums">{badge}</span>}
+    </button>
   );
 }
 
@@ -77,7 +85,7 @@ function EditableTitle({ notebook, onRename }) {
         }
       }}
       aria-label="Course title"
-      className="min-w-0 flex-1 max-w-xl bg-transparent font-display text-lg sm:text-xl font-medium text-ink rounded-lg px-2 py-1 -mx-2 hover:bg-panel-2 focus:bg-panel focus:outline-hidden focus:ring-2 focus:ring-accent/50 truncate"
+      className="w-full min-w-0 bg-transparent font-display text-base font-semibold text-ink rounded-lg px-1.5 py-0.5 -mx-1.5 hover:bg-panel-2 focus:bg-panel focus:outline-hidden focus:ring-2 focus:ring-accent/50 truncate"
     />
   );
 }
@@ -96,8 +104,7 @@ export default function NotebookPage({ notebookId }) {
   const [scope, setScope] = useState([]); // chat scope: unit ids ("general" = no unit); [] = whole course
   const [viewer, setViewer] = useState(null); // { sourceId, citation? }
   const [streaming, setStreaming] = useState(null); // { question, text, citations }
-  const [collapsed, setCollapsed] = useState({ sources: false });
-  const [tab, setTab] = useState("chat"); // mobile: "sources" | "chat" (the main area)
+  const [drawerOpen, setDrawerOpen] = useState(false); // mobile: the sidebar as a drawer
   const [view, setView] = useState(initialView); // main area: chat | study | practice | progress | exams
   const [examsTab, setExamsTab] = useState("plan"); // plan | papers
   const [insightsTopic, setInsightsTopic] = useState(""); // past-paper questions filtered to a topic
@@ -308,10 +315,9 @@ export default function NotebookPage({ notebookId }) {
     }
   };
 
+  // Citations and sources open in the slide-over viewer.
   const openCitation = useCallback((citation) => {
     setViewer({ sourceId: citation.sourceId, citation });
-    setCollapsed((c) => ({ ...c, sources: false }));
-    setTab("sources");
   }, []);
 
   // ---- Chat -------------------------------------------------------------------
@@ -329,7 +335,7 @@ export default function NotebookPage({ notebookId }) {
         toast(scopeIds.length ? "No selected, ready sources in the chosen units." : "Select at least one ready source to chat with.", "error");
         return;
       }
-      setTab("chat");
+      setDrawerOpen(false);
       setView("chat");
       const controller = new AbortController();
       abortRef.current = controller;
@@ -375,7 +381,7 @@ export default function NotebookPage({ notebookId }) {
   // ---- Progress → practice --------------------------------------------------------
 
   const showView = (next) => {
-    setTab("chat");
+    setDrawerOpen(false);
     setView(next);
   };
   const quizOnTopics = (topics) => {
@@ -457,8 +463,6 @@ export default function NotebookPage({ notebookId }) {
       canEdit={canEdit}
       sources={sources}
       units={units}
-      collapsed={isWide && collapsed.sources}
-      onToggleCollapsed={isWide ? () => setCollapsed((c) => ({ ...c, sources: !c.sources })) : null}
       onAdd={openAdd}
       onToggle={toggleSources}
       onRename={renameSource}
@@ -471,12 +475,11 @@ export default function NotebookPage({ notebookId }) {
       onRenameUnit={renameUnit}
       onMoveUnit={moveUnit}
       onDeleteUnit={deleteUnit}
-      viewer={viewer}
+      activeSourceId={viewer?.sourceId}
       onOpen={(sourceId) => setViewer({ sourceId })}
-      onCloseViewer={() => setViewer(null)}
-      onAsk={sendMessage}
     />
   );
+  const viewedSource = viewer && sources.find((s) => s.id === viewer.sourceId);
 
   const studyPanel = (
     <section className="panel w-full">
@@ -553,63 +556,102 @@ export default function NotebookPage({ notebookId }) {
   );
 
   const mainPanel = { study: studyPanel, practice: practicePanel, progress: progressPanel, exams: examsPanel }[view] ?? chatPanel;
+  const isActive = (item) => item.key === view && (!item.examsTab || item.examsTab === examsTab);
+  const go = (item) => {
+    if (item.examsTab) setExamsTab(item.examsTab);
+    showView(item.key);
+  };
+  const current = NAV.find(isActive) ?? NAV[0];
+  const badges = { study: studyCounts.due + studyCounts.new };
+
+  // The course outline: tools, then units and their sources.
+  const sidebar = (
+    <aside className="h-full w-full flex flex-col min-h-0 bg-sidebar">
+      <div className="flex items-center gap-2 h-14 px-3 shrink-0">
+        <Logo />
+        {!isWide && <IconButton icon="close" label="Close menu" className="ml-auto" onClick={() => setDrawerOpen(false)} />}
+      </div>
+      <div className="px-3 pb-3 shrink-0">
+        <div className="flex items-start gap-2.5 rounded-2xl bg-panel/70 border border-line/60 p-3">
+          <span className="text-2xl leading-none mt-0.5">{notebook.emoji}</span>
+          <div className="min-w-0 flex-1">
+            {canEdit ? (
+              <EditableTitle notebook={notebook} onRename={(title) => updateNotebook({ title })} />
+            ) : (
+              <h1 className="font-display text-base font-semibold leading-snug text-ink line-clamp-2">{notebook.title}</h1>
+            )}
+            <p className="text-xs text-ink-3 truncate mt-0.5">
+              {sharedBy ? `Shared by ${sharedBy} · ${notebook.role}` : `${sources.length} source${sources.length === 1 ? "" : "s"} · ${units.length} unit${units.length === 1 ? "" : "s"}`}
+            </p>
+          </div>
+        </div>
+      </div>
+      <nav className="px-2 flex flex-col gap-0.5 shrink-0" aria-label="Course tools">
+        {NAV.map((item) => (
+          <NavItem key={item.label} item={item} active={isActive(item)} badge={badges[item.key] ?? 0} onClick={() => go(item)} />
+        ))}
+      </nav>
+      <div className="mt-4 mx-3 border-t border-line/70" />
+      <div className="flex-1 min-h-0 flex">{sourcesPanel}</div>
+    </aside>
+  );
 
   return (
-    <div className="h-full flex flex-col">
-      <header className="flex items-center gap-3 h-16 px-3 sm:px-4 shrink-0">
-        <Logo compact />
-        <span className="text-2xl leading-none">{notebook.emoji}</span>
-        {canEdit ? (
-          <EditableTitle notebook={notebook} onRename={(title) => updateNotebook({ title })} />
-        ) : (
-          <h1 className="min-w-0 max-w-xl font-display text-lg sm:text-xl font-medium text-ink truncate">{notebook.title}</h1>
-        )}
-        {sharedBy && (
-          <span className="max-md:hidden shrink-0 px-2 py-0.5 rounded-full bg-panel-2 text-ink-3 text-xs" title={`Shared by ${sharedBy}`}>
-            Shared by {sharedBy}
-          </span>
-        )}
-        {isWide && <ViewTabs view={view} onChange={setView} badges={{ study: studyCounts.due + studyCounts.new }} />}
-        <div className="ml-auto flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setShareOpen(true)}
-            className={notebook.role === "owner" ? "btn-outline h-9 px-3 max-sm:px-2" : "btn-ghost h-9 px-2"}
-            title={notebook.role === "owner" ? "Share this course" : "People in this course"}
-          >
-            <Icon name={notebook.role === "owner" ? "person_add" : "group"} size={18} />
-            <span className="max-sm:hidden">{notebook.role === "owner" ? "Share" : notebook.memberCount}</span>
-          </button>
-          <IconButton icon="translate" label="Language for this course" onClick={() => setLanguageOpen(true)} />
-          <ThemeToggle />
-          <AccountMenu />
+    <div className="h-full flex">
+      {isWide && <div className="w-[clamp(270px,22vw,320px)] shrink-0 border-r border-line/70 flex">{sidebar}</div>}
+      {!isWide && drawerOpen && (
+        <div className="fixed inset-0 z-40 flex">
+          <div className="absolute inset-0 bg-black/40 animate-fade-in" onClick={() => setDrawerOpen(false)} />
+          <div className="relative w-[min(340px,88vw)] h-full shadow-pop animate-slide-in-left flex">{sidebar}</div>
         </div>
-      </header>
+      )}
 
-      {isWide ? (
-        <div className="flex-1 min-h-0 flex gap-3 px-3 pb-3">
-          <div className={`${collapsed.sources ? "w-14" : "w-[clamp(260px,24vw,360px)]"} shrink-0 flex transition-[width]`}>{sourcesPanel}</div>
-          <div className="flex-1 min-w-0 flex">{mainPanel}</div>
-        </div>
-      ) : (
-        <>
-          <div className="flex-1 min-h-0 flex px-2">{tab === "sources" ? sourcesPanel : mainPanel}</div>
-          <nav className="shrink-0 grid grid-cols-6 h-14 border-t border-line/60">
-            {[["sources", "Sources", "folder_open"], ...VIEWS].map(([key, label, icon, shortLabel]) => {
-              const active = key === "sources" ? tab === "sources" : tab !== "sources" && view === key;
-              const badge = key === "study" ? studyCounts.due + studyCounts.new : 0;
+      <div className="flex-1 min-w-0 flex flex-col">
+        <header className="flex items-center gap-2 h-14 px-3 sm:px-4 shrink-0">
+          {!isWide && <IconButton icon="menu" label="Course menu" onClick={() => setDrawerOpen(true)} />}
+          {!isWide && <span className="text-xl leading-none">{notebook.emoji}</span>}
+          {isWide ? (
+            <p className="min-w-0 flex items-center gap-1.5 text-sm text-ink-3">
+              <span className="truncate">{notebook.title}</span>
+              <Icon name="chevron_right" size={18} />
+              <span className="font-medium text-ink whitespace-nowrap">{current.label}</span>
+            </p>
+          ) : (
+            <h1 className="min-w-0 truncate font-display text-lg font-semibold text-ink">{notebook.title}</h1>
+          )}
+          <div className="ml-auto flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setShareOpen(true)}
+              className={notebook.role === "owner" ? "btn-outline h-9 px-3 max-sm:px-2" : "btn-ghost h-9 px-2"}
+              title={notebook.role === "owner" ? "Share this course" : "People in this course"}
+            >
+              <Icon name={notebook.role === "owner" ? "person_add" : "group"} size={18} />
+              <span className="max-sm:hidden">{notebook.role === "owner" ? "Share" : notebook.memberCount}</span>
+            </button>
+            <IconButton icon="translate" label="Language for this course" onClick={() => setLanguageOpen(true)} />
+            <ThemeToggle />
+            <AccountMenu />
+          </div>
+        </header>
+
+        <div className={`flex-1 min-h-0 flex ${isWide ? "px-3 pb-3" : "px-2"}`}>{mainPanel}</div>
+
+        {!isWide && (
+          <nav className="shrink-0 grid grid-cols-6 h-14 border-t border-line/60 bg-sidebar" aria-label="Course tools">
+            {MOBILE_NAV.map((item) => {
+              const active = item.key === "outline" ? drawerOpen : !drawerOpen && item.key === view;
+              const badge = badges[item.key] ?? 0;
               return (
                 <button
-                  key={key}
+                  key={item.label}
                   type="button"
-                  onClick={() => {
-                    if (key === "sources") return setTab("sources");
-                    showView(key);
-                  }}
-                  className={`relative flex flex-col items-center justify-center gap-0.5 text-xs font-medium ${active ? "text-accent" : "text-ink-3"}`}
+                  onClick={() => (item.key === "outline" ? setDrawerOpen(true) : go(item))}
+                  aria-current={active ? "page" : undefined}
+                  className={`relative flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium ${active ? "text-accent" : "text-ink-3"}`}
                 >
-                  <Icon name={icon} filled={active} size={22} />
-                  {shortLabel ?? label}
+                  <Icon name={item.icon} filled={active} size={22} />
+                  {item.label}
                   {badge > 0 && (
                     <span className="absolute top-1.5 left-1/2 ml-2 min-w-4 h-4 px-1 rounded-full bg-accent text-accent-fg text-[10px] font-semibold leading-4 tabular-nums">{badge}</span>
                   )}
@@ -617,7 +659,22 @@ export default function NotebookPage({ notebookId }) {
               );
             })}
           </nav>
-        </>
+        )}
+      </div>
+
+      {viewedSource && (
+        <SlideOver label={viewedSource.title} onClose={() => setViewer(null)}>
+          <SourceViewer
+            source={viewedSource}
+            citation={viewer.citation}
+            onBack={() => setViewer(null)}
+            onAsk={(question) => {
+              setViewer(null);
+              sendMessage(question);
+            }}
+            onReprocess={canEdit ? reprocessSource : undefined}
+          />
+        </SlideOver>
       )}
 
       <CourseLanguageDialog notebookId={notebookId} open={languageOpen} onClose={() => setLanguageOpen(false)} />

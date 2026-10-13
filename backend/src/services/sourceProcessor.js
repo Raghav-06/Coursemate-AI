@@ -11,7 +11,7 @@ import { getSource, updateSource } from "../db/store.js";
 const GUIDE_SAMPLE_CHARS = 24_000;
 
 /**
- * The "source guide" NotebookLM shows when a source is opened: a short
+ * The source guide shown when a source is opened: a short
  * summary plus key topics the user can click to ask about.
  */
 async function generateSourceGuide(title, text, language) {

@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 import { config } from "../config/index.js";
 import { ACCEPTED_EXTENSIONS } from "../services/ingestion.js";
 
-const MAX_FILE_BYTES = config.limits.uploadMaxMb * 1024 * 1024; // NotebookLM caps uploads at 200MB
+const MAX_FILE_BYTES = config.limits.uploadMaxMb * 1024 * 1024; // UPLOAD_MAX_MB, default 200
 const MAX_FILES_PER_REQUEST = 20;
 
 const storage = multer.diskStorage({

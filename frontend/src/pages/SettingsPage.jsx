@@ -4,11 +4,11 @@ import { navigate } from "../hooks";
 import { Logo, ThemeToggle } from "../components/TopBar";
 import AccountMenu from "../components/AccountMenu";
 import LanguagePicker from "../components/LanguagePicker";
-import { IconButton, Spinner, toast } from "../components/ui";
+import { Icon, IconButton, Spinner, toast } from "../components/ui";
 
 function Section({ title, description, children }) {
   return (
-    <section className="rounded-3xl bg-panel border border-line p-5 sm:p-6 flex flex-col gap-4">
+    <section className="rounded-2xl bg-panel border border-line/70 shadow-card p-5 sm:p-6 flex flex-col gap-4">
       <div>
         <h2 className="font-display text-lg font-semibold">{title}</h2>
         {description && <p className="text-sm text-ink-2 mt-1">{description}</p>}
@@ -18,11 +18,59 @@ function Section({ title, description, children }) {
   );
 }
 
-/** Account settings: response language and daily study goal. */
+const AI_ROWS = [
+  ["chat", "Chat & generation", "Answers, guides, flashcards, quizzes, grading, plans", "forum"],
+  ["embeddings", "Search (embeddings)", "Finds the passages each answer cites", "manage_search"],
+  ["vision", "Image reading", "Photos of handwritten notes and scanned PDFs", "image"],
+  ["transcription", "Transcription", "Lecture recordings", "mic"],
+];
+
+// Which models the server uses and where your notes go (from /health; no keys).
+function AiPrivacy({ ai }) {
+  if (!ai) return <p className="text-sm text-ink-3">The server didn't report its models.</p>;
+  const allLocal = AI_ROWS.every(([key]) => ai[key]?.local);
+  return (
+    <>
+      <ul className="flex flex-col divide-y divide-line/70">
+        {AI_ROWS.map(([key, label, use, icon]) => {
+          const m = ai[key];
+          return (
+            <li key={key} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
+              <span className="w-9 h-9 shrink-0 rounded-xl bg-panel-2 text-ink-2 flex items-center justify-center">
+                <Icon name={icon} size={20} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-ink">{label}</p>
+                <p className="text-xs text-ink-3">{use}</p>
+              </div>
+              <div className="text-right min-w-0 max-w-[50%]">
+                <p className="text-sm font-mono text-ink truncate" title={m?.model}>
+                  {m?.model ?? "—"}
+                </p>
+                <p className={`text-xs truncate ${m?.local ? "text-success" : "text-ink-3"}`}>{m ? (m.local ? "on this computer" : m.host) : ""}</p>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      <p className={`flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm ${allLocal ? "bg-success/10 text-success" : "bg-panel-2 text-ink-2"}`}>
+        <Icon name={allLocal ? "verified_user" : "info"} size={18} className="mt-0.5 shrink-0" />
+        <span>
+          {allLocal
+            ? "Every model runs on the server's own machine, so your notes never leave it."
+            : "Text from your sources is sent to these providers to answer and generate. Your server admin can switch any of them to a local model (e.g. Ollama or LM Studio) so notes never leave the machine."}
+        </span>
+      </p>
+    </>
+  );
+}
+
+/** Account settings: response language, daily study goal, and the AI models in use. */
 export default function SettingsPage() {
   const [settings, setSettings] = useState(null);
   const [error, setError] = useState(null);
   const [goal, setGoal] = useState("");
+  const [health, setHealth] = useState(null);
 
   useEffect(() => {
     api.getSettings().then(
@@ -32,6 +80,7 @@ export default function SettingsPage() {
       },
       (err) => setError(err.message)
     );
+    api.health().then(setHealth, () => setHealth({}));
   }, []);
 
   const save = async (patch, message = "Saved") => {
@@ -91,6 +140,9 @@ export default function SettingsPage() {
                   Save
                 </button>
               </form>
+            </Section>
+            <Section title="AI & privacy" description="The models this CourseMate server uses. API keys stay on the server and are never shown here.">
+              {health ? <AiPrivacy ai={health.ai} /> : <Spinner className="w-5 h-5 text-ink-3" />}
             </Section>
           </>
         )}

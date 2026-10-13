@@ -166,7 +166,7 @@ export default function SourceViewer({ source, citation, onBack, onAsk, onReproc
   return (
     <div className="flex flex-col min-h-0 h-full">
       <div className="panel-header gap-1 px-2!">
-        <IconButton icon="arrow_back" label="Back to sources" onClick={onBack} />
+        <IconButton icon="close" label="Close the source" onClick={onBack} />
         <Icon name={icon} className={`${color} shrink-0`} size={20} />
         <h2 className="flex-1 min-w-0 truncate text-sm font-medium px-1" title={source.title}>
           {source.title}

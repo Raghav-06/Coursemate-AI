@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { Checkbox, ConfirmDialog, Icon, IconButton, Menu, Modal, Spinner } from "../ui";
+import { Checkbox, ConfirmDialog, Icon, Menu, Modal, Spinner } from "../ui";
 import { sourceIcon } from "./sourceIcon";
-import SourceViewer from "./SourceViewer";
 
 /** Small one-field dialog used to name units and rename sources. */
 export function NameDialog({ open, title, initial = "", placeholder, saveLabel = "Save", maxLength = 200, onClose, onSave }) {
@@ -75,7 +74,7 @@ function PaperBadge({ source }) {
   );
 }
 
-function SourceRow({ source, hasUnits, canEdit, onOpen, onToggle, onRename, onMove, onReprocess, onRemove, onSetKind, onAnalyse }) {
+function SourceRow({ source, hasUnits, canEdit, active, onOpen, onToggle, onRename, onMove, onReprocess, onRemove, onSetKind, onAnalyse }) {
   const [icon, color] = sourceIcon(source);
   const processing = source.status === "processing";
   const failed = source.status === "error";
@@ -88,7 +87,7 @@ function SourceRow({ source, hasUnits, canEdit, onOpen, onToggle, onRename, onMo
       onClick={() => !processing && onOpen(source.id)}
       onKeyDown={(e) => e.key === "Enter" && !processing && onOpen(source.id)}
       title={failed ? source.error : source.title}
-      className={`group flex items-center gap-2.5 pl-3 pr-1 min-h-12 py-1 rounded-xl ${processing ? "cursor-progress" : "cursor-pointer hover:bg-panel-2"}`}
+      className={`group flex items-center gap-2.5 pl-3 pr-1 min-h-11 py-1 rounded-xl ${processing ? "cursor-progress" : active ? "bg-panel shadow-card cursor-pointer" : "cursor-pointer hover:bg-panel/60"}`}
     >
       {processing ? (
         <Spinner className="w-5 h-5 text-accent shrink-0" />
@@ -159,11 +158,13 @@ function UnitHeader({ title, sources, collapsed, onCollapse, onToggle, menu }) {
   );
 }
 
+/**
+ * The course's units and sources, in the sidebar: add sources and units,
+ * tick sources for chat, open one (in the slide-over viewer), and manage them.
+ */
 export default function SourcesPanel({
   sources,
   units,
-  collapsed,
-  onToggleCollapsed,
   onAdd,
   onToggle,
   onRename,
@@ -176,10 +177,8 @@ export default function SourcesPanel({
   onRenameUnit,
   onMoveUnit,
   onDeleteUnit,
-  viewer,
+  activeSourceId,
   onOpen,
-  onCloseViewer,
-  onAsk,
   canEdit = true, // viewers of a shared course can't add or change sources and units
 }) {
   const [renaming, setRenaming] = useState(null);
@@ -192,7 +191,6 @@ export default function SourcesPanel({
   const ready = sources.filter((s) => s.status === "ready");
   const selectedCount = ready.filter((s) => s.selected).length;
   const allSelected = ready.length > 0 && selectedCount === ready.length;
-  const viewedSource = viewer && sources.find((s) => s.id === viewer.sourceId);
 
   const unitIds = new Set(units.map((u) => u.id));
   const general = sources.filter((s) => !s.unitId || !unitIds.has(s.unitId));
@@ -211,35 +209,9 @@ export default function SourcesPanel({
 
   const rowProps = { hasUnits: units.length > 0, canEdit, onOpen, onToggle, onRename: setRenaming, onMove: setMoving, onReprocess, onRemove: setRemoving, onSetKind, onAnalyse };
 
-  if (collapsed) {
-    return (
-      <section className="panel w-full items-center py-2 gap-1">
-        <IconButton icon="dock_to_right" label="Expand sources" onClick={onToggleCollapsed} />
-        {canEdit && <IconButton icon="add" label="Add sources" onClick={() => onAdd()} />}
-        <div className="flex flex-col items-center gap-1 mt-1 overflow-y-auto scroll-thin">
-          {sources.map((s) => {
-            const [icon, color] = sourceIcon(s);
-            return <IconButton key={s.id} icon={icon} label={s.title} className={color} onClick={() => (onToggleCollapsed(), onOpen(s.id))} />;
-          })}
-        </div>
-      </section>
-    );
-  }
-
-  if (viewedSource) {
-    return (
-      <section className="panel w-full">
-        <SourceViewer source={viewedSource} citation={viewer.citation} onBack={onCloseViewer} onAsk={onAsk} onReprocess={canEdit ? onReprocess : undefined} />
-      </section>
-    );
-  }
-
   return (
-    <section className="panel w-full">
-      <div className="panel-header">
-        <h2 className="font-display text-base font-medium">Sources</h2>
-        {onToggleCollapsed && <IconButton icon="dock_to_left" label="Collapse sources" onClick={onToggleCollapsed} />}
-      </div>
+    <section className="flex flex-col min-h-0 w-full" aria-label="Units and sources">
+      <h2 className="px-4 pt-3 text-[11px] font-semibold uppercase tracking-wider text-ink-3">Units & sources</h2>
 
       {canEdit ? (
         <div className="px-3 pt-3 pb-2 flex gap-2">
@@ -284,7 +256,7 @@ export default function SourcesPanel({
           <div className="flex-1 overflow-y-auto scroll-thin px-1 pb-3">
             {groups.map(({ key, unit, index, sources: list }) => {
               // A course without units shows a plain list, as before.
-              if (units.length === 0) return list.map((source) => <SourceRow key={source.id} source={source} {...rowProps} />);
+              if (units.length === 0) return list.map((source) => <SourceRow key={source.id} source={source} active={source.id === activeSourceId} {...rowProps} />);
               const closed = closedUnits.has(key);
               return (
                 <div key={key}>
@@ -308,7 +280,7 @@ export default function SourcesPanel({
                   {!closed && (
                     <div className="pl-2">
                       {list.map((source) => (
-                        <SourceRow key={source.id} source={source} {...rowProps} />
+                        <SourceRow key={source.id} source={source} active={source.id === activeSourceId} {...rowProps} />
                       ))}
                       {list.length === 0 && unit && canEdit && (
                         <button type="button" onClick={() => onAdd(unit.id)} className="ml-3 mb-1 h-9 px-2 text-xs text-ink-3 hover:text-accent">

@@ -110,7 +110,7 @@ export default function TodayPanel() {
       </h2>
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Goal and streak */}
-        <div className="rounded-3xl bg-panel border border-line p-5 flex flex-col gap-4">
+        <div className="rounded-2xl bg-panel border border-line/70 shadow-card p-5 flex flex-col gap-4">
           <div className="flex items-center gap-4">
             <GoalRing done={data.done} goal={data.goal} />
             <div className="min-w-0">
@@ -122,7 +122,7 @@ export default function TodayPanel() {
                 </button>
               </p>
               <p className="mt-2 flex items-center gap-1.5 text-sm font-semibold">
-                <Icon name="local_fire_department" filled size={20} className={data.streak.current ? "text-orange-500" : "text-ink-3"} />
+                <Icon name="local_fire_department" filled size={20} className={data.streak.current ? "text-gold" : "text-ink-3"} />
                 {data.streak.current}-day streak
               </p>
               <p className="text-xs text-ink-3">Best: {data.streak.best} days</p>
@@ -142,7 +142,7 @@ export default function TodayPanel() {
         </div>
 
         {/* Next exam */}
-        <div className="rounded-3xl bg-panel border border-line p-5 flex flex-col gap-3 min-w-0">
+        <div className="rounded-2xl bg-panel border border-line/70 shadow-card p-5 flex flex-col gap-3 min-w-0">
           {exam ? (
             <>
               <div className="flex items-start gap-3">
@@ -184,7 +184,7 @@ export default function TodayPanel() {
         </div>
 
         {/* Cards due */}
-        <div className="rounded-3xl bg-panel border border-line p-5 flex flex-col gap-3 min-w-0">
+        <div className="rounded-2xl bg-panel border border-line/70 shadow-card p-5 flex flex-col gap-3 min-w-0">
           <div className="flex items-center gap-2">
             <Icon name="style" size={22} className="text-accent" />
             <p className="font-display font-semibold">Flashcards</p>
