@@ -108,6 +108,26 @@ export const api = {
   reprocessSource: (sourceId) => request(`/api/sources/${sourceId}/reprocess`, { method: "POST" }),
   searchArxiv: (query) => request(`/api/arxiv?query=${encodeURIComponent(query)}&maxDocs=10`),
 
+  // Sharing: members (owner / editor / viewer) and email invites
+  listMembers: (id) => request(`/api/notebooks/${id}/members`),
+  inviteMember: (id, email, role) => request(`/api/notebooks/${id}/invites`, { method: "POST", body: { email, role } }),
+  revokeInvite: (id, inviteId) => request(`/api/notebooks/${id}/invites/${inviteId}`, { method: "DELETE" }),
+  setMemberRole: (id, userId, role) => request(`/api/notebooks/${id}/members/${userId}`, { method: "PATCH", body: { role } }),
+  removeMember: (id, userId) => request(`/api/notebooks/${id}/members/${userId}`, { method: "DELETE" }),
+  leaveCourse: (id) => request(`/api/notebooks/${id}/members/me`, { method: "DELETE" }),
+  getInvite: (token) => request(`/api/invites/${encodeURIComponent(token)}`),
+  acceptInvite: (token) => request(`/api/invites/${encodeURIComponent(token)}/accept`, { method: "POST" }),
+
+  // Quiz battles (live games by join code; state streams over Server-Sent Events)
+  listBattles: (id) => request(`/api/notebooks/${id}/battles`),
+  createBattle: (id, body) => request(`/api/notebooks/${id}/battles`, { method: "POST", body }),
+  joinBattle: (code) => request("/api/battles/join", { method: "POST", body: { code } }),
+  getBattle: (code) => request(`/api/battles/${encodeURIComponent(code)}`),
+  battleEventsUrl: (code) => `${BASE}/api/battles/${encodeURIComponent(code)}/events`,
+  startBattle: (code) => request(`/api/battles/${encodeURIComponent(code)}/start`, { method: "POST" }),
+  answerBattle: (code, index, choice) => request(`/api/battles/${encodeURIComponent(code)}/answer`, { method: "POST", body: { index, choice } }),
+  leaveBattle: (code) => request(`/api/battles/${encodeURIComponent(code)}/leave`, { method: "POST" }),
+
   // Flashcards (decks are per course; review state is per user)
   listDecks: (id) => request(`/api/notebooks/${id}/decks`),
   createDeck: (id, body) => request(`/api/notebooks/${id}/decks`, { method: "POST", body }),

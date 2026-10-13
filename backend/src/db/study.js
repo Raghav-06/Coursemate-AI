@@ -1,5 +1,5 @@
 import { query, withTransaction } from "./pool.js";
-import { canAccessNotebook, dayStartSql } from "./access.js";
+import { canAccessNotebook, dayStartSql, memberRoleSql } from "./access.js";
 
 // Flashcard decks, cards and each user's spaced-repetition state. Decks and
 // cards are shared by everyone who can open the course; review state and the
@@ -75,14 +75,16 @@ export async function listDecks(notebookId, userId) {
   return rows.map(toDeck);
 }
 
-/** A deck the user may open (via its course), or null. */
+/** A deck the user may open (via its course), with their `role` in the course, or null. */
 export async function getDeck(id, userId) {
   const { rows } = await query(
-    `SELECT d.* FROM decks d JOIN notebooks n ON n.id = d.notebook_id
+    `SELECT d.*, ${memberRoleSql("n", "$2")} AS member_role FROM decks d JOIN notebooks n ON n.id = d.notebook_id
       WHERE d.id = $1 AND ${canAccessNotebook("n", "$2")}`,
     [id, userId]
   );
-  return toDeck(rows[0]);
+  const deck = toDeck(rows[0]);
+  if (deck) deck.role = rows[0].member_role;
+  return deck;
 }
 
 export async function createDeck({ notebookId, unitId = null, title, createdBy = null }) {
@@ -127,13 +129,16 @@ export async function listCards(deckId, userId) {
   return rows.map(toCard);
 }
 
-/** A card the user may open (via its deck's course), with their review state. */
+/** A card the user may open (via its deck's course), with their review state and `role`. */
 export async function getCard(id, userId) {
   const { rows } = await query(
-    `${CARD_SELECT} JOIN notebooks n ON n.id = d.notebook_id WHERE c.id = $1 AND ${canAccessNotebook("n", "$2")}`,
+    `${CARD_SELECT.replace("SELECT c.*,", `SELECT c.*, ${memberRoleSql("n", "$2")} AS member_role,`)}
+      JOIN notebooks n ON n.id = d.notebook_id WHERE c.id = $1 AND ${canAccessNotebook("n", "$2")}`,
     [id, userId]
   );
-  return toCard(rows[0]);
+  const card = toCard(rows[0]);
+  if (card) card.role = rows[0].member_role;
+  return card;
 }
 
 export async function countCards(deckId) {

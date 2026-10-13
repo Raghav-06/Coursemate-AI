@@ -61,3 +61,41 @@ export async function sendVerificationCode(email, code, purpose, ttlMinutes) {
 
   await transport.sendMail({ from: mailFrom, to: email, subject: copy.subject(code), text, html });
 }
+
+/**
+ * Tells someone a course was shared with them. `existing`: they already have
+ * an account (the link opens the course); otherwise the link signs them up
+ * and joins. Resolves to true if an email went out; without SMTP the link is
+ * printed to the console and the owner copies it from the share dialog.
+ */
+export async function sendCourseInvite(email, { courseTitle, inviterName, role, link, existing }) {
+  const transport = getTransporter();
+  const who = inviterName || "Someone";
+  const access = role === "editor" ? "edit" : "view";
+  const subject = `${who} shared "${courseTitle}" with you on CourseMate AI`;
+  const intro = `${who} invited you to ${access} the course "${courseTitle}" on CourseMate AI.`;
+  const action = existing ? "Open the course" : "Accept the invite";
+  if (!transport) {
+    console.log(`\n📧 [no SMTP] course invite for ${email}: ${link}\n`);
+    return false;
+  }
+  const text = `${intro}\n\n${action}: ${link}\n\n${existing ? "" : "Sign up or sign in with this email address to join. "}If you weren't expecting this, you can ignore this email.`;
+  const html = `<!doctype html><html><body style="margin:0;background:#f0f4f9;font-family:Arial,Helvetica,sans-serif;color:#1f1f1f">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:16px;padding:32px">
+      <tr><td style="font-size:20px;font-weight:bold;padding-bottom:16px">CourseMate AI</td></tr>
+      <tr><td style="font-size:15px;line-height:1.5;padding-bottom:24px">${escapeHtml(intro)}</td></tr>
+      <tr><td align="center" style="padding-bottom:24px">
+        <a href="${escapeHtml(link)}" style="display:inline-block;font-size:15px;font-weight:bold;background:#0b57d0;color:#ffffff;text-decoration:none;border-radius:999px;padding:12px 24px">${escapeHtml(action)}</a>
+      </td></tr>
+      <tr><td style="font-size:13px;color:#5f6368;line-height:1.5">${existing ? "" : "Sign up or sign in with this email address to join. "}If you weren't expecting this, you can ignore this email.</td></tr>
+    </table>
+  </td></tr></table></body></html>`;
+  try {
+    await transport.sendMail({ from: mailFrom, to: email, subject, text, html });
+    return true;
+  } catch (err) {
+    console.warn(`Invite email to ${email} failed: ${err.message}`);
+    return false;
+  }
+}

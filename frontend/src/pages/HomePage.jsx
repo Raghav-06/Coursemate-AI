@@ -5,6 +5,7 @@ import { Logo, ThemeToggle } from "../components/TopBar";
 import AccountMenu from "../components/AccountMenu";
 import { useAuth } from "../auth";
 import { ConfirmDialog, Icon, IconButton, Menu, Modal, Spinner, timeAgo, toast } from "../components/ui";
+import JoinBattleDialog from "../components/battle/JoinBattleDialog";
 import TodayPanel from "../components/today/TodayPanel";
 
 // Soft card tints, picked deterministically per notebook like NotebookLM's.
@@ -55,6 +56,9 @@ function RenameDialog({ notebook, onClose, onSaved }) {
   );
 }
 
+// "Shared by Asha" on courses someone else owns.
+const sharedBy = (nb) => (nb.role && nb.role !== "owner" ? nb.owner?.name || nb.owner?.email || "someone" : null);
+
 export default function HomePage() {
   const { user } = useAuth();
   const [notebooks, setNotebooks] = useState(null);
@@ -69,6 +73,8 @@ export default function HomePage() {
   const [creating, setCreating] = useState(false);
   const [renaming, setRenaming] = useState(null);
   const [deleting, setDeleting] = useState(null);
+  const [leaving, setLeaving] = useState(null);
+  const [joining, setJoining] = useState(false);
 
   useEffect(() => {
     api.listNotebooks().then(setNotebooks, (err) => {
@@ -113,12 +119,26 @@ export default function HomePage() {
     }
   };
 
+  const leave = async (notebook) => {
+    try {
+      await api.leaveCourse(notebook.id);
+      setNotebooks((list) => list.filter((n) => n.id !== notebook.id));
+      toast(`You left "${notebook.title}"`);
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
+
+  // Owners delete; editors rename; anyone else in a shared course can leave it.
   const menuFor = (nb) => [
-    { label: "Edit title", icon: "edit", onClick: () => setRenaming(nb) },
-    { label: "Delete", icon: "delete", danger: true, onClick: () => setDeleting(nb) },
+    nb.role !== "viewer" && { label: "Edit title", icon: "edit", onClick: () => setRenaming(nb) },
+    nb.role === "owner" || !nb.role
+      ? { label: "Delete", icon: "delete", danger: true, onClick: () => setDeleting(nb) }
+      : { label: "Leave course", icon: "logout", danger: true, onClick: () => setLeaving(nb) },
   ];
 
-  const meta = (nb) => `${timeAgo(nb.updatedAt ?? nb.createdAt)} · ${nb.sourceCount} source${nb.sourceCount === 1 ? "" : "s"}`;
+  const meta = (nb) =>
+    `${timeAgo(nb.updatedAt ?? nb.createdAt)} · ${nb.sourceCount} source${nb.sourceCount === 1 ? "" : "s"}${sharedBy(nb) ? ` · Shared by ${sharedBy(nb)}` : ""}`;
 
   return (
     <div className="h-full overflow-y-auto scroll-thin">
@@ -143,7 +163,10 @@ export default function HomePage() {
             {creating ? <Spinner /> : <Icon name="add" size={20} />}
             Create new
           </button>
-          <div className="flex items-center gap-1">
+          <button type="button" className="btn-outline h-10 px-4" onClick={() => setJoining(true)}>
+            <Icon name="sports_esports" size={20} /> Join a battle
+          </button>
+          <div className="flex items-center gap-1 ml-auto">
             <div className="flex rounded-full border border-line p-0.5">
               <IconButton icon="grid_view" label="Grid view" onClick={() => setView("grid")} className={`w-8! h-8! ${view === "grid" ? "bg-accent-soft! text-accent-soft-fg!" : ""}`} size={18} />
               <IconButton icon="view_list" label="List view" onClick={() => setView("list")} className={`w-8! h-8! ${view === "list" ? "bg-accent-soft! text-accent-soft-fg!" : ""}`} size={18} />
@@ -185,6 +208,11 @@ export default function HomePage() {
               >
                 <div className="flex items-start justify-between">
                   <span className="text-[40px] leading-none">{nb.emoji}</span>
+                  {nb.memberCount > 1 && (
+                    <span className="ml-auto mr-1 flex items-center gap-0.5 px-2 h-6 rounded-full bg-panel/70 text-ink-2 text-xs" title={`${nb.memberCount} people`}>
+                      <Icon name="group" size={14} /> {nb.memberCount}
+                    </span>
+                  )}
                   <Menu items={menuFor(nb)} buttonClassName="-mr-2 -mt-2 opacity-70 group-hover:opacity-100" />
                 </div>
                 <h2 className="mt-auto font-display text-lg font-semibold leading-snug line-clamp-3 text-ink">{nb.title}</h2>
@@ -213,6 +241,7 @@ export default function HomePage() {
                 <span className="flex items-center gap-3 min-w-0">
                   <span className="text-xl">{nb.emoji}</span>
                   <span className="truncate text-sm font-medium">{nb.title}</span>
+                  {sharedBy(nb) && <span className="shrink-0 text-xs text-ink-3 max-sm:hidden">Shared by {sharedBy(nb)}</span>}
                 </span>
                 <span className="w-20 text-right text-sm text-ink-2">{nb.sourceCount}</span>
                 <span className="w-28 text-sm text-ink-3 hidden sm:block">{timeAgo(nb.updatedAt ?? nb.createdAt)}</span>
@@ -228,6 +257,15 @@ export default function HomePage() {
         onClose={() => setRenaming(null)}
         onSaved={(updated) => setNotebooks((list) => list.map((n) => (n.id === updated.id ? { ...n, ...updated } : n)))}
       />
+      <ConfirmDialog
+        open={Boolean(leaving)}
+        title="Leave course?"
+        message={`You'll lose access to "${leaving?.title}" until its owner invites you again.`}
+        confirmLabel="Leave"
+        onConfirm={() => leave(leaving)}
+        onClose={() => setLeaving(null)}
+      />
+      {joining && <JoinBattleDialog open onClose={() => setJoining(false)} />}
       <ConfirmDialog
         open={Boolean(deleting)}
         title="Delete course?"

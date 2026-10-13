@@ -257,7 +257,7 @@ export function Segmented({ value, options, onChange, label }) {
           role="radio"
           aria-checked={value === v}
           onClick={() => onChange(v)}
-          className={`h-8 px-3.5 rounded-full text-sm font-medium transition-colors ${value === v ? "bg-accent text-accent-fg" : "text-ink-2 hover:bg-panel-2"}`}
+          className={`h-8 px-3.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${value === v ? "bg-accent text-accent-fg" : "text-ink-2 hover:bg-panel-2"}`}
         >
           {text}
         </button>

@@ -409,3 +409,81 @@ CREATE TABLE IF NOT EXISTS course_preferences (
 -- What a slow ingestion step is doing, shown under the progress bar
 -- (e.g. "Transcribing part 2 of 5…"). Cleared when processing ends.
 ALTER TABLE sources ADD COLUMN IF NOT EXISTS progress_note TEXT;
+
+-- ---- Shared courses ---------------------------------------------------------
+-- Who may open a course and what they may do: owner (members, delete),
+-- editor (sources, units, decks), viewer (read, chat, personal practice).
+-- notebooks.user_id stays the owner.
+CREATE TABLE IF NOT EXISTS notebook_members (
+  notebook_id  UUID NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
+  user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role         TEXT NOT NULL CHECK (role IN ('owner', 'editor', 'viewer')),
+  invited_by   UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (notebook_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS notebook_members_user_idx ON notebook_members (user_id);
+-- Existing courses: their creator becomes the owner (no-op once done).
+INSERT INTO notebook_members (notebook_id, user_id, role)
+  SELECT id, user_id, 'owner' FROM notebooks
+  ON CONFLICT (notebook_id, user_id) DO NOTHING;
+
+-- Invites for emails without an account yet; applied when that email signs up
+-- or signs in (or opens the link). Only a hash of the token is stored.
+CREATE TABLE IF NOT EXISTS notebook_invites (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  notebook_id  UUID NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
+  email        TEXT NOT NULL,
+  role         TEXT NOT NULL CHECK (role IN ('editor', 'viewer')),
+  token_hash   TEXT NOT NULL UNIQUE,
+  invited_by   UUID REFERENCES users(id) ON DELETE SET NULL,
+  expires_at   TIMESTAMPTZ NOT NULL,
+  accepted_at  TIMESTAMPTZ,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS notebook_invites_open_idx ON notebook_invites (notebook_id, LOWER(email)) WHERE accepted_at IS NULL;
+CREATE INDEX IF NOT EXISTS notebook_invites_email_idx ON notebook_invites (LOWER(email)) WHERE accepted_at IS NULL;
+
+-- Chat history is personal: each message belongs to the member who chatted.
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE CASCADE;
+UPDATE messages m SET user_id = n.user_id FROM notebooks n WHERE m.user_id IS NULL AND n.id = m.notebook_id;
+CREATE INDEX IF NOT EXISTS messages_user_idx ON messages (notebook_id, user_id, created_at);
+
+-- Which sources each member has switched off for chat (personal; default on).
+CREATE TABLE IF NOT EXISTS source_deselections (
+  user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  source_id  UUID NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+  PRIMARY KEY (user_id, source_id)
+);
+-- Sources switched off before selection became personal: keep them off for
+-- the owner, then retire the shared flag (no-op once done).
+INSERT INTO source_deselections (user_id, source_id)
+  SELECT n.user_id, s.id FROM sources s JOIN notebooks n ON n.id = s.notebook_id WHERE s.selected = FALSE
+  ON CONFLICT DO NOTHING;
+UPDATE sources SET selected = TRUE WHERE selected = FALSE;
+
+-- ---- Quiz battles -------------------------------------------------------------
+-- Live games run in server memory; finished ones are saved here.
+CREATE TABLE IF NOT EXISTS battles (
+  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  notebook_id        UUID NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
+  host_id            UUID REFERENCES users(id) ON DELETE SET NULL,
+  code               TEXT NOT NULL,
+  unit_ids           JSONB NOT NULL DEFAULT '[]',
+  seconds_per_question INTEGER NOT NULL,
+  questions          JSONB NOT NULL,            -- [{ question, options, answer, explanation, topic, citation }]
+  started_at         TIMESTAMPTZ,
+  finished_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS battles_notebook_idx ON battles (notebook_id, finished_at DESC);
+
+CREATE TABLE IF NOT EXISTS battle_players (
+  battle_id  UUID NOT NULL REFERENCES battles(id) ON DELETE CASCADE,
+  user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,
+  score      INTEGER NOT NULL,
+  correct    INTEGER NOT NULL,
+  rank       INTEGER NOT NULL,
+  PRIMARY KEY (battle_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS battle_players_user_idx ON battle_players (user_id);

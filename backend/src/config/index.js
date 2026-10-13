@@ -163,6 +163,11 @@ export const config = {
     // New flashcards a user starts per course per day (spaced repetition).
     newCardsPerDay: num(process.env.NEW_CARDS_PER_DAY, 20),
     uploadMaxMb: num(process.env.UPLOAD_MAX_MB, 200),
+    // Shared courses: people per course (owner included) and how long an invite link works.
+    membersPerNotebook: num(process.env.MAX_MEMBERS_PER_COURSE, 50),
+    inviteTtlDays: num(process.env.INVITE_TTL_DAYS, 14),
+    // Quiz battles: players per game.
+    battlePlayers: num(process.env.MAX_BATTLE_PLAYERS, 30),
     // Previous chat messages replayed to the LLM so follow-ups have context.
     chatHistoryMessages: num(process.env.CHAT_HISTORY_MESSAGES, 6),
   },

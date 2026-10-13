@@ -87,7 +87,7 @@ function QuestionCard({ question, unitTitle, onOpenCitation, onPractise, onChang
         {question.year && <span className="px-2 py-0.5 rounded-full bg-panel-3 text-ink-2 tabular-nums">{question.year}</span>}
         <span className="text-ink-3 truncate">{[question.examName ?? question.sourceTitle, question.section].filter(Boolean).join(" · ")}</span>
         <span className="ml-auto" />
-        <Menu buttonClassName="w-8! h-8!" items={[{ label: "Change topic", icon: "sell", onClick: () => onChangeTopic(question) }]} />
+        {onChangeTopic && <Menu buttonClassName="w-8! h-8!" items={[{ label: "Change topic", icon: "sell", onClick: () => onChangeTopic(question) }]} />}
       </div>
       <p className="text-sm leading-6 whitespace-pre-wrap">{question.text}</p>
       <div className="flex flex-wrap items-center gap-1.5">
@@ -198,9 +198,11 @@ export default function ExamInsightsPanel({ notebook, units, onOpenCitation, onP
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 flex flex-col gap-5">
         <div className="flex flex-wrap items-center gap-3">
           <h2 className="font-display text-xl font-semibold mr-auto">Past-paper insights</h2>
-          <button type="button" className="btn-outline h-9 px-4 text-sm" onClick={onAddPaper}>
-            <Icon name="add" size={18} /> Add past paper
-          </button>
+          {onAddPaper && (
+            <button type="button" className="btn-outline h-9 px-4 text-sm" onClick={onAddPaper}>
+              <Icon name="add" size={18} /> Add past paper
+            </button>
+          )}
         </div>
 
         {error && <p className="text-sm text-danger">{error}</p>}
@@ -220,9 +222,11 @@ export default function ExamInsightsPanel({ notebook, units, onOpenCitation, onP
               Add previous years' exam papers. CourseMate pulls out every question, maps it to your units and topics, and shows what gets asked most — and where the
               answers are in your notes.
             </p>
-            <button type="button" className="btn-primary" onClick={onAddPaper}>
-              <Icon name="upload_file" size={18} /> Add past papers
-            </button>
+            {onAddPaper && (
+              <button type="button" className="btn-primary" onClick={onAddPaper}>
+                <Icon name="upload_file" size={18} /> Add past papers
+              </button>
+            )}
           </div>
         )}
 
@@ -325,7 +329,7 @@ export default function ExamInsightsPanel({ notebook, units, onOpenCitation, onP
                   {!questions && <Spinner className="w-5 h-5 text-ink-3" />}
                   {questions?.length === 0 && <p className="text-sm text-ink-3">No questions match these filters.</p>}
                   {questions?.map((q) => (
-                    <QuestionCard key={q.id} question={q} unitTitle={unitTitle(q.unitId)} onOpenCitation={onOpenCitation} onPractise={onPractise} onChangeTopic={setEditing} />
+                    <QuestionCard key={q.id} question={q} unitTitle={unitTitle(q.unitId)} onOpenCitation={onOpenCitation} onPractise={onPractise} onChangeTopic={notebook.role !== "viewer" ? setEditing : undefined} />
                   ))}
                 </section>
               </>

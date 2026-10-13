@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { asyncHandler, isUuid } from "../utils/asyncHandler.js";
-import { getSource, updateSource } from "../db/store.js";
-import { resolveUnitId, sourceKindFields } from "./helpers.js";
+import { getSource, setSourcesSelected, updateSource } from "../db/store.js";
+import { assertRole, resolveUnitId, sourceKindFields } from "./helpers.js";
 import { analysePaper, isAnalysing, setSourceKind } from "../services/pastPapers.js";
 import { responseLanguage } from "../services/language.js";
 import { scheduleTopicRefresh } from "../services/topics.js";
@@ -14,6 +14,7 @@ export const sourcesRouter = Router();
 
 const MAX_TITLE_CHARS = 200;
 
+// Loads :id into req.source (with the user's role in its course) or 404s.
 sourcesRouter.param("id", async (req, res, next, id) => {
   try {
     req.source = isUuid(id) ? await getSource(id, req.user.id) : null;
@@ -25,6 +26,16 @@ sourcesRouter.param("id", async (req, res, next, id) => {
 });
 
 sourcesRouter.get("/:id", (req, res) => res.json(req.source));
+
+// Changing a source (anything but your own chat selection) needs editor or owner.
+const requireEditor = (req, _res, next) => {
+  try {
+    assertRole(req.source.role, "editor");
+    next();
+  } catch (err) {
+    next(err);
+  }
+};
 
 // Full extracted text, for the source viewer and citation highlighting, plus
 // where each page / slide starts in it ([{ label, start, end }] or null).
@@ -54,6 +65,7 @@ sourcesRouter.get(
 // a source added before they existed). 202 + the source, now "processing".
 sourcesRouter.post(
   "/:id/reprocess",
+  requireEditor,
   asyncHandler(async (req, res) => {
     res.status(202).json(await reprocessSource(req.source, { language: await responseLanguage(req.user.id, req.source.notebookId) }));
   })
@@ -63,6 +75,7 @@ sourcesRouter.post(
 // material or changing units). 202; 409 unless it's a ready past paper.
 sourcesRouter.post(
   "/:id/analyse",
+  requireEditor,
   asyncHandler(async (req, res) => {
     if (req.source.kind !== "past_paper") return res.status(409).json({ message: "Only past papers can be analysed." });
     if (req.source.status !== "ready") return res.status(409).json({ message: "Wait for the paper to finish processing." });
@@ -72,21 +85,30 @@ sourcesRouter.post(
   })
 );
 
-// body: { title?, selected?, unitId?, kind?, examName?, examYear? } — unitId moves the source to a unit
+// body: { title?, selected?, unitId?, kind?, examName?, examYear? } — `selected` is your own
+// chat selection (any member); the rest needs editor: unitId moves the source to a unit
 // (null/"general" = General); kind switches between course material and past paper.
 sourcesRouter.patch(
   "/:id",
   asyncHandler(async (req, res) => {
     const { title, selected, unitId } = req.body ?? {};
+    if (typeof selected === "boolean") {
+      await setSourcesSelected(req.user.id, [req.source.id], selected);
+      req.source.selected = selected;
+    }
+    const editing = ["title", "unitId", "kind", "examName", "examYear"].some((key) => req.body?.[key] !== undefined);
+    if (!editing) return res.json(req.source);
+    assertRole(req.source.role, "editor");
+
     const patch = {};
     const cleanTitle = typeof title === "string" ? title.trim().slice(0, MAX_TITLE_CHARS) : "";
     if (cleanTitle) Object.assign(patch, { title: cleanTitle, titleIsPlaceholder: false });
-    if (typeof selected === "boolean") patch.selected = selected;
     const unit = await resolveUnitId(req.source.notebookId, unitId);
     if (unit !== undefined) patch.unitId = unit;
     const kindFields = sourceKindFields(req.body);
     let updated = await updateSource(req.params.id, patch);
     if (Object.keys(kindFields).length) updated = await setSourceKind({ ...req.source, ...patch }, kindFields);
+    updated = { ...updated, selected: req.source.selected, role: req.source.role };
     // Moving a source changes both units' topics.
     if (unit !== undefined && unit !== req.source.unitId) {
       scheduleTopicRefresh(req.source.notebookId, req.source.unitId);
@@ -98,6 +120,7 @@ sourcesRouter.patch(
 
 sourcesRouter.delete(
   "/:id",
+  requireEditor,
   asyncHandler(async (req, res) => {
     await removeSource(req.params.id);
     res.status(204).end();

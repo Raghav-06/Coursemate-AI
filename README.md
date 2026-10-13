@@ -64,6 +64,17 @@ suggested questions.
   (MP4, MOV, MKV): the audio is extracted, compressed and split with ffmpeg and transcribed with
   timestamps, so citations point to the moment in the lecture (*12:34*) and the viewer plays the
   recording from any timestamp. Progress ("Transcribing part 2 of 5…") shows under the source.
+- **Shared courses with roles** — the course owner invites classmates by email as **editors**
+  (add and change sources, units and decks) or **viewers** (read, chat, study and practise). People
+  who already have an account are added at once; anyone else gets an invite link (emailed, or
+  copyable when SMTP isn't set) that applies when they sign up or sign in with that address. Chat
+  history, flashcard progress, quizzes, graded answers, mastery, exams and plans — and which sources
+  are ticked for chat — stay **personal**. Shared courses show who owns them; members can leave.
+- **Quiz battles** — start a battle from chosen units (5/10/15 questions, 10/20/30 s each): you get
+  a 6-character **join code** for people in the course → lobby → the host starts → timed questions
+  one at a time, **500 points for a correct answer plus up to 500 for speed** → live leaderboard
+  (Server-Sent Events) → results saved, and every answer counts toward your daily goal and topic
+  mastery like a quiz.
 
 | Layer     | Tech |
 |-----------|------|
@@ -173,8 +184,25 @@ React (5173) ──/auth, /api──▶ Express (3000) ──▶ PostgreSQL
   (`users.password_hash`, never plain text) and signs the user in. Sign-in attempts are rate-limited.
 - **One account per email:** if someone signs up with email and later uses Google with the same
   address (or the reverse), both sign-in methods open the same account and notebooks.
-- **Authorization:** every `/api/*` route requires a session, and every notebook and source
-  lookup is filtered by the signed-in user's id, so other users' ids return 404.
+- **Authorization:** every `/api/*` route requires a session. A course is visible only to its
+  members (`notebook_members`: owner / editor / viewer — every course lookup, and every deck, card,
+  quiz, exam… reached through one, checks membership), so other users' ids return 404. Changing
+  sources, units, decks, the course title or past-paper mappings needs editor (403 for viewers);
+  members, invites and deleting the course need the owner. Personal data is additionally filtered
+  by user id. `npm run check-access` (in `backend/`) proves it against your database: throwaway
+  owner/editor/viewer/outsider accounts, ~45 checks, cleaned up afterwards.
+- **Sharing:** `notebook_invites` holds open invites (email, role, a SHA-256 hash of the token,
+  expiry — `INVITE_TTL_DAYS`, default 14). They are applied when a verified account with that email
+  signs up or signs in, or opens the link (`#/invite/<token>`; only the invited email can accept).
+  On upgrade, each existing course's creator becomes its owner, existing chat messages are assigned
+  to that owner, and sources that were unticked stay unticked for the owner only
+  (`source_deselections`).
+- **Quiz battles:** live games are held **in the server's memory** (fine for one backend process;
+  a restart ends running games, and several processes behind a load balancer would need a shared
+  store such as Redis). Questions come from the quiz generator; players follow along over
+  Server-Sent Events (`/api/battles/:code/events`), answers are hidden until a question closes, and
+  a question closes early when everyone has answered. Finished games are saved to `battles` and
+  `battle_players`. Only members of the battle's course can join (`MAX_BATTLE_PLAYERS`, default 30).
 - **Sources:** text is extracted (files, URLs, pasted text), saved to `sources.content`, split into
   overlapping chunks, embedded, and stored in `chunks.embedding` (`REAL[]`). Pages and slides are
   recorded as character ranges in `sources.locations`, and each chunk stores the page(s) it spans
@@ -256,6 +284,19 @@ React (5173) ──/auth, /api──▶ Express (3000) ──▶ PostgreSQL
 | POST | `/api/notebooks/:id/sources/url` | Add links `{ urls: [], unitId?, kind?, examName?, examYear? }` |
 | POST | `/api/notebooks/:id/sources/text` | Add pasted text `{ title?, text, unitId?, kind?, examName?, examYear? }` |
 | GET/PATCH/DELETE | `/api/sources/:id` | Source details / rename, select, move `{ unitId }`, `{ kind: material\|past_paper, examName, examYear }` / delete |
+| GET | `/api/notebooks/:id/members` | Members (with roles) and, for the owner, open invites |
+| POST | `/api/notebooks/:id/invites` | Owner: invite `{ email, role: editor\|viewer }` → `{ member }` (existing account) or `{ invite, link, emailed }` |
+| DELETE | `/api/notebooks/:id/invites/:inviteId` | Owner: cancel an invite |
+| PATCH/DELETE | `/api/notebooks/:id/members/:userId` | Owner: change a role `{ role }` / remove; `DELETE …/members/me` leaves the course |
+| GET | `/api/invites/:token` | What an invite link is for (course, inviter, role, whether your email matches) |
+| POST | `/api/invites/:token/accept` | Join the course (only with the invited email) |
+| GET/POST | `/api/notebooks/:id/battles` | Live + past battles / start one `{ unitIds?, count: 5\|10\|15, seconds: 10\|20\|30, difficulty? }` → `{ code }` |
+| POST | `/api/battles/join` | Join a lobby `{ code }` |
+| GET | `/api/battles/:code` | The battle as you see it (answers hidden while a question is open) |
+| GET | `/api/battles/:code/events` | Server-Sent Events: that state after every change |
+| POST | `/api/battles/:code/start` | Host: start |
+| POST | `/api/battles/:code/answer` | `{ index, choice: 0-3 }` |
+| POST | `/api/battles/:code/leave` | Leave the lobby (the host closes it) |
 | GET | `/api/sources/:id/content` | Full source text + page/slide/timestamp `locations` `[{ label, start, end }]` |
 | GET | `/api/sources/:id/original` | The uploaded image or recording (images, audio, video only; supports Range) |
 | POST | `/api/sources/:id/reprocess` | Extract, chunk and embed a source again (202; 409 while processing) |
@@ -314,6 +355,7 @@ If you host the frontend on a different domain from the API, set `VITE_API_URL` 
 ```bash
 npm run db:migrate                                   # create/update tables
 npm run check-api                                    # test API key(s) + models
+npm run check-access                                 # prove shared-course access control (throwaway users)
 npm run create-database -- you@gmail.com file.pdf    # ingest files into a new notebook for a user
 npm run cli-chat -- <notebookId>                     # chat in the terminal
 ```

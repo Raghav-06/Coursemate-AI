@@ -14,6 +14,8 @@ import { timezone } from "./middleware/timezone.js";
 import { studyRouter } from "./routes/study.routes.js";
 import { practiceRouter } from "./routes/practice.routes.js";
 import { examsRouter } from "./routes/exams.routes.js";
+import { invitesRouter } from "./routes/members.routes.js";
+import { battlesRouter } from "./routes/battles.routes.js";
 import { configurePassport, googleConfigured } from "./auth/passport.js";
 import { pool } from "./db/pool.js";
 import { emailConfigured } from "./services/mailer.js";
@@ -81,6 +83,8 @@ export function createApp() {
   app.use("/api", studyRouter);
   app.use("/api", practiceRouter);
   app.use("/api", examsRouter);
+  app.use("/api/invites", invitesRouter);
+  app.use("/api/battles", battlesRouter);
   app.use("/api", (_req, res) => res.status(404).json({ message: "Not found." }));
 
   // Production: serve the built React app from the same origin.

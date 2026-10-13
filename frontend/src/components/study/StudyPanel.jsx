@@ -24,6 +24,8 @@ function DueBadge({ due, fresh }) {
 export default function StudyPanel({ notebook, units, sources, onOpenCitation, onCounts, intent, onIntentUsed }) {
   const [data, setData] = useState(null); // { decks, dueCount, newCount, newLimit, newToday }
   const [error, setError] = useState(null);
+  // Decks are shared course content: viewers of a shared course study them but can't change them.
+  const canEdit = notebook.role !== "viewer";
   const [mode, setMode] = useState({ name: "list" }); // list | review { deck? } | edit { deckId }
   const [generating, setGenerating] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -150,12 +152,16 @@ export default function StudyPanel({ notebook, units, sources, onOpenCitation, o
 
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="font-display text-base font-semibold mr-auto">Decks</h3>
-          <button type="button" className="btn-outline" onClick={() => setCreating(true)}>
-            <Icon name="add" size={18} /> Empty deck
-          </button>
-          <button type="button" className="btn-primary" onClick={() => setGenerating(true)}>
-            <Icon name="auto_awesome" size={18} /> Generate flashcards
-          </button>
+          {canEdit && (
+            <>
+              <button type="button" className="btn-outline" onClick={() => setCreating(true)}>
+                <Icon name="add" size={18} /> Empty deck
+              </button>
+              <button type="button" className="btn-primary" onClick={() => setGenerating(true)}>
+                <Icon name="auto_awesome" size={18} /> Generate flashcards
+              </button>
+            </>
+          )}
         </div>
 
         {making && (
@@ -175,7 +181,11 @@ export default function StudyPanel({ notebook, units, sources, onOpenCitation, o
           <div className="flex flex-col items-center text-center gap-3 py-10 px-6 rounded-3xl border border-dashed border-line">
             <Icon name="style" size={36} className="text-ink-3" />
             <p className="text-sm font-medium text-ink-2">No decks yet</p>
-            <p className="text-xs text-ink-3 max-w-sm leading-5">Generate flashcards from a unit or the whole course. Every card links back to the page it came from.</p>
+            <p className="text-xs text-ink-3 max-w-sm leading-5">
+              {canEdit
+                ? "Generate flashcards from a unit or the whole course. Every card links back to the page it came from."
+                : "The course's owner and editors haven't made any decks yet."}
+            </p>
           </div>
         )}
 
@@ -185,8 +195,8 @@ export default function StudyPanel({ notebook, units, sources, onOpenCitation, o
               key={deck.id}
               role="button"
               tabIndex={0}
-              onClick={() => setMode({ name: "edit", deckId: deck.id })}
-              onKeyDown={(e) => e.key === "Enter" && setMode({ name: "edit", deckId: deck.id })}
+              onClick={() => setMode(canEdit ? { name: "edit", deckId: deck.id } : { name: "review", deck })}
+              onKeyDown={(e) => e.key === "Enter" && setMode(canEdit ? { name: "edit", deckId: deck.id } : { name: "review", deck })}
               className="group flex items-center gap-3 p-3 pl-4 rounded-2xl border border-line bg-panel hover:bg-panel-2 cursor-pointer"
             >
               <Icon name="style" size={22} className="text-accent shrink-0" />
@@ -212,8 +222,8 @@ export default function StudyPanel({ notebook, units, sources, onOpenCitation, o
               <Menu
                 items={[
                   { label: "Study", icon: "play_arrow", onClick: () => setMode({ name: "review", deck }) },
-                  { label: "Edit cards", icon: "edit", onClick: () => setMode({ name: "edit", deckId: deck.id }) },
-                  { label: "Delete deck", icon: "delete", danger: true, onClick: () => setDeleting(deck) },
+                  canEdit && { label: "Edit cards", icon: "edit", onClick: () => setMode({ name: "edit", deckId: deck.id }) },
+                  canEdit && { label: "Delete deck", icon: "delete", danger: true, onClick: () => setDeleting(deck) },
                 ]}
               />
             </div>

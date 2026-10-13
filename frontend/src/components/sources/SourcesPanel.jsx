@@ -75,7 +75,7 @@ function PaperBadge({ source }) {
   );
 }
 
-function SourceRow({ source, hasUnits, onOpen, onToggle, onRename, onMove, onReprocess, onRemove, onSetKind, onAnalyse }) {
+function SourceRow({ source, hasUnits, canEdit, onOpen, onToggle, onRename, onMove, onReprocess, onRemove, onSetKind, onAnalyse }) {
   const [icon, color] = sourceIcon(source);
   const processing = source.status === "processing";
   const failed = source.status === "error";
@@ -111,15 +111,15 @@ function SourceRow({ source, hasUnits, onOpen, onToggle, onRename, onMove, onRep
       <Menu
         buttonClassName="w-8! h-8! opacity-0 group-hover:opacity-100 focus:opacity-100 max-lg:opacity-100"
         items={[
-          !failed && { label: "Rename source", icon: "edit", onClick: () => onRename(source) },
-          hasUnits && { label: "Move to unit", icon: "drive_file_move", onClick: () => onMove(source) },
+          canEdit && !failed && { label: "Rename source", icon: "edit", onClick: () => onRename(source) },
+          canEdit && hasUnits && { label: "Move to unit", icon: "drive_file_move", onClick: () => onMove(source) },
           source.url && { label: "Open original link", icon: "open_in_new", onClick: () => window.open(source.url, "_blank", "noopener") },
-          !processing && { label: "Re-process", icon: "refresh", onClick: () => onReprocess(source.id) },
-          onSetKind && !failed && (paper
+          canEdit && !processing && { label: "Re-process", icon: "refresh", onClick: () => onReprocess(source.id) },
+          canEdit && onSetKind && !failed && (paper
             ? { label: "Mark as course material", icon: "menu_book", onClick: () => onSetKind(source.id, "material") }
             : { label: "Mark as past paper", icon: "history_edu", onClick: () => onSetKind(source.id, "past_paper") }),
-          paper && source.status === "ready" && source.paperStatus !== "pending" && onAnalyse && { label: "Find questions again", icon: "manage_search", onClick: () => onAnalyse(source.id) },
-          { label: "Remove source", icon: "delete", danger: true, onClick: () => onRemove(source) },
+          canEdit && paper && source.status === "ready" && source.paperStatus !== "pending" && onAnalyse && { label: "Find questions again", icon: "manage_search", onClick: () => onAnalyse(source.id) },
+          canEdit && { label: "Remove source", icon: "delete", danger: true, onClick: () => onRemove(source) },
         ]}
       />
       <span className="w-8 flex justify-center">
@@ -180,6 +180,7 @@ export default function SourcesPanel({
   onOpen,
   onCloseViewer,
   onAsk,
+  canEdit = true, // viewers of a shared course can't add or change sources and units
 }) {
   const [renaming, setRenaming] = useState(null);
   const [moving, setMoving] = useState(null);
@@ -208,13 +209,13 @@ export default function SourcesPanel({
       return next;
     });
 
-  const rowProps = { hasUnits: units.length > 0, onOpen, onToggle, onRename: setRenaming, onMove: setMoving, onReprocess, onRemove: setRemoving, onSetKind, onAnalyse };
+  const rowProps = { hasUnits: units.length > 0, canEdit, onOpen, onToggle, onRename: setRenaming, onMove: setMoving, onReprocess, onRemove: setRemoving, onSetKind, onAnalyse };
 
   if (collapsed) {
     return (
       <section className="panel w-full items-center py-2 gap-1">
         <IconButton icon="dock_to_right" label="Expand sources" onClick={onToggleCollapsed} />
-        <IconButton icon="add" label="Add sources" onClick={() => onAdd()} />
+        {canEdit && <IconButton icon="add" label="Add sources" onClick={() => onAdd()} />}
         <div className="flex flex-col items-center gap-1 mt-1 overflow-y-auto scroll-thin">
           {sources.map((s) => {
             const [icon, color] = sourceIcon(s);
@@ -228,7 +229,7 @@ export default function SourcesPanel({
   if (viewedSource) {
     return (
       <section className="panel w-full">
-        <SourceViewer source={viewedSource} citation={viewer.citation} onBack={onCloseViewer} onAsk={onAsk} onReprocess={onReprocess} />
+        <SourceViewer source={viewedSource} citation={viewer.citation} onBack={onCloseViewer} onAsk={onAsk} onReprocess={canEdit ? onReprocess : undefined} />
       </section>
     );
   }
@@ -240,23 +241,31 @@ export default function SourcesPanel({
         {onToggleCollapsed && <IconButton icon="dock_to_left" label="Collapse sources" onClick={onToggleCollapsed} />}
       </div>
 
-      <div className="px-3 pt-3 pb-2 flex gap-2">
-        <button type="button" className="btn-outline flex-1 h-10" onClick={() => onAdd()}>
-          <Icon name="add" size={20} />
-          Add sources
-        </button>
-        <button type="button" className="btn-outline h-10 px-3" onClick={() => setUnitDialog({})} title="Add a unit (chapter or module)">
-          <Icon name="create_new_folder" size={20} />
-          <span className="max-sm:hidden">Unit</span>
-        </button>
-      </div>
+      {canEdit ? (
+        <div className="px-3 pt-3 pb-2 flex gap-2">
+          <button type="button" className="btn-outline flex-1 h-10" onClick={() => onAdd()}>
+            <Icon name="add" size={20} />
+            Add sources
+          </button>
+          <button type="button" className="btn-outline h-10 px-3" onClick={() => setUnitDialog({})} title="Add a unit (chapter or module)">
+            <Icon name="create_new_folder" size={20} />
+            <span className="max-sm:hidden">Unit</span>
+          </button>
+        </div>
+      ) : (
+        <p className="mx-3 mt-3 mb-1 flex items-center gap-2 rounded-xl bg-panel-2 px-3 py-2 text-xs text-ink-3">
+          <Icon name="visibility" size={16} /> You can view and chat with this shared course.
+        </p>
+      )}
 
       {sources.length === 0 && units.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center text-center gap-3 px-6 pb-10">
           <Icon name="description" size={40} className="text-ink-3" />
           <p className="text-sm font-medium text-ink-2">Saved sources will appear here</p>
           <p className="text-xs text-ink-3 leading-5">
-            Add lecture notes, slides, readings or past papers. Group them into units (chapters or modules) to study one part of the course at a time.
+            {canEdit
+              ? "Add lecture notes, slides, readings or past papers. Group them into units (chapters or modules) to study one part of the course at a time."
+              : "No sources have been added to this course yet."}
           </p>
         </div>
       ) : (
@@ -286,6 +295,7 @@ export default function SourcesPanel({
                     onCollapse={() => toggleClosed(key)}
                     onToggle={onToggle}
                     menu={
+                      canEdit &&
                       unit && [
                         { label: "Add sources here", icon: "add", onClick: () => onAdd(unit.id) },
                         { label: "Rename unit", icon: "edit", onClick: () => setUnitDialog({ unit }) },
@@ -300,7 +310,7 @@ export default function SourcesPanel({
                       {list.map((source) => (
                         <SourceRow key={source.id} source={source} {...rowProps} />
                       ))}
-                      {list.length === 0 && unit && (
+                      {list.length === 0 && unit && canEdit && (
                         <button type="button" onClick={() => onAdd(unit.id)} className="ml-3 mb-1 h-9 px-2 text-xs text-ink-3 hover:text-accent">
                           No sources yet — add some
                         </button>

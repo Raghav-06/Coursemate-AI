@@ -45,6 +45,11 @@ function toNotebook(r) {
     updatedAt: iso(r.updated_at),
   };
   if (r.source_count !== undefined) nb.sourceCount = Number(r.source_count);
+  if (r.role !== undefined) {
+    nb.role = r.role;
+    nb.memberCount = Number(r.member_count ?? 1);
+    if (r.owner_email !== undefined) nb.owner = { id: r.user_id, name: r.owner_name ?? null, email: r.owner_email ?? null };
+  }
   return nb;
 }
 
@@ -265,39 +270,55 @@ export async function retireEmailVerifications(email, purpose, exceptId = null) 
 
 // ---- Notebooks -------------------------------------------------------------
 
+// With a user: their role, the owner's name and the member count, for shared courses.
+const NOTEBOOK_SHARING = `m.role, (SELECT COUNT(*) FROM notebook_members c WHERE c.notebook_id = n.id) AS member_count,
+  o.name AS owner_name, o.email AS owner_email`;
+
+/** Courses the user is a member of (owned and shared with them). */
 export async function listNotebooks(userId) {
   const { rows } = await query(
-    `SELECT n.*, (SELECT COUNT(*) FROM sources s WHERE s.notebook_id = n.id) AS source_count
+    `SELECT n.*, (SELECT COUNT(*) FROM sources s WHERE s.notebook_id = n.id) AS source_count, ${NOTEBOOK_SHARING}
        FROM notebooks n
-      WHERE n.user_id = $1
+       JOIN notebook_members m ON m.notebook_id = n.id AND m.user_id = $1
+       LEFT JOIN users o ON o.id = n.user_id
       ORDER BY n.updated_at DESC`,
     [userId]
   );
   return rows.map(toNotebook);
 }
 
+/** A course; with `userId`, only if they are a member (then with their `role`). */
 export async function getNotebook(id, userId) {
   const { rows } = await query(
-    `SELECT * FROM notebooks WHERE id = $1 ${userId ? "AND user_id = $2" : ""}`,
+    userId
+      ? `SELECT n.*, ${NOTEBOOK_SHARING} FROM notebooks n
+           JOIN notebook_members m ON m.notebook_id = n.id AND m.user_id = $2
+           LEFT JOIN users o ON o.id = n.user_id
+          WHERE n.id = $1`
+      : "SELECT * FROM notebooks WHERE id = $1",
     userId ? [id, userId] : [id]
   );
   return toNotebook(rows[0]);
 }
 
+/** Creates a course with its creator as owner. */
 export async function addNotebook(notebook) {
-  const { rows } = await query(
-    `INSERT INTO notebooks (user_id, title, title_is_auto, emoji, summary, suggested_questions)
-     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-    [
-      notebook.userId,
-      notebook.title ?? "Untitled course",
-      notebook.titleIsAuto ?? true,
-      notebook.emoji ?? "📓",
-      notebook.summary ?? null,
-      JSON.stringify(notebook.suggestedQuestions ?? []),
-    ]
-  );
-  return toNotebook(rows[0]);
+  return withTransaction(async (client) => {
+    const { rows } = await client.query(
+      `INSERT INTO notebooks (user_id, title, title_is_auto, emoji, summary, suggested_questions)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [
+        notebook.userId,
+        notebook.title ?? "Untitled course",
+        notebook.titleIsAuto ?? true,
+        notebook.emoji ?? "📓",
+        notebook.summary ?? null,
+        JSON.stringify(notebook.suggestedQuestions ?? []),
+      ]
+    );
+    await client.query("INSERT INTO notebook_members (notebook_id, user_id, role) VALUES ($1, $2, 'owner')", [rows[0].id, notebook.userId]);
+    return toNotebook({ ...rows[0], role: "owner", member_count: 1 });
+  });
 }
 
 const NOTEBOOK_COLUMNS = {
@@ -335,24 +356,45 @@ const SOURCE_FIELDS = `id, notebook_id, unit_id, type, title, title_is_placehold
   progress, progress_note, selected, guide, chunk_count, char_count, word_count, error, embedding_model, created_at,
   kind, exam_name, exam_year, paper_status, paper_error`;
 
-export async function listSources(notebookId) {
+const PREFIXED_SOURCE_FIELDS = SOURCE_FIELDS.replace(/(\w+)/g, "s.$1");
+// A member's own chat selection (sources are on unless they switched them off).
+const SELECTED_FOR = (userParam) =>
+  `NOT EXISTS (SELECT 1 FROM source_deselections d WHERE d.source_id = s.id AND d.user_id = ${userParam}) AS selected`;
+
+/** A course's sources; with `userId`, `selected` is that member's own selection. */
+export async function listSources(notebookId, userId) {
   const { rows } = await query(
-    `SELECT ${SOURCE_FIELDS} FROM sources WHERE notebook_id = $1 ORDER BY created_at ASC`,
-    [notebookId]
+    `SELECT ${PREFIXED_SOURCE_FIELDS}${userId ? `, ${SELECTED_FOR("$2")}` : ""}
+       FROM sources s WHERE s.notebook_id = $1 ORDER BY s.created_at ASC`,
+    userId ? [notebookId, userId] : [notebookId]
   );
   return rows.map(toSource);
 }
 
+/** A source; with `userId`, only if they are a member of its course (then with their `role`). */
 export async function getSource(id, userId) {
   const { rows } = await query(
     userId
-      ? `SELECT ${SOURCE_FIELDS.replace(/(\w+)/g, "s.$1")} FROM sources s
-           JOIN notebooks n ON n.id = s.notebook_id
-          WHERE s.id = $1 AND n.user_id = $2`
+      ? `SELECT ${PREFIXED_SOURCE_FIELDS}, m.role AS member_role, ${SELECTED_FOR("$2")} FROM sources s
+           JOIN notebook_members m ON m.notebook_id = s.notebook_id AND m.user_id = $2
+          WHERE s.id = $1`
       : `SELECT ${SOURCE_FIELDS} FROM sources WHERE id = $1`,
     userId ? [id, userId] : [id]
   );
-  return toSource(rows[0]);
+  const source = toSource(rows[0]);
+  if (source && rows[0].member_role) source.role = rows[0].member_role;
+  return source;
+}
+
+/** Switches sources on or off for one member's chat. */
+export async function setSourcesSelected(userId, sourceIds, selected) {
+  if (sourceIds.length === 0) return;
+  await query(
+    selected
+      ? "DELETE FROM source_deselections WHERE user_id = $1 AND source_id = ANY($2::uuid[])"
+      : "INSERT INTO source_deselections (user_id, source_id) SELECT $1, unnest($2::uuid[]) ON CONFLICT DO NOTHING",
+    [userId, sourceIds]
+  );
 }
 
 export async function countSources(notebookId) {
@@ -396,7 +438,6 @@ const SOURCE_COLUMNS = {
   status: "status",
   progress: "progress",
   progressNote: "progress_note",
-  selected: "selected",
   guide: "guide",
   chunkCount: "chunk_count",
   charCount: "char_count",
@@ -552,22 +593,23 @@ export async function loadChunks(sourceId) {
 
 // ---- Messages --------------------------------------------------------------
 
-export async function listMessages(notebookId) {
-  const { rows } = await query("SELECT * FROM messages WHERE notebook_id = $1 ORDER BY created_at ASC", [notebookId]);
+// Chat history is personal: each member sees only their own messages.
+export async function listMessages(notebookId, userId) {
+  const { rows } = await query("SELECT * FROM messages WHERE notebook_id = $1 AND user_id = $2 ORDER BY created_at ASC", [notebookId, userId]);
   return rows.map(toMessage);
 }
 
-export async function addMessage(notebookId, message) {
+export async function addMessage(notebookId, userId, message) {
   const { rows } = await query(
-    `INSERT INTO messages (notebook_id, role, content, citations) VALUES ($1, $2, $3, $4) RETURNING *`,
-    [notebookId, message.role, message.content, message.citations ? JSON.stringify(message.citations) : null]
+    `INSERT INTO messages (notebook_id, user_id, role, content, citations) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+    [notebookId, userId, message.role, message.content, message.citations ? JSON.stringify(message.citations) : null]
   );
   await touch(notebookId);
   return toMessage(rows[0]);
 }
 
-export async function clearMessages(notebookId) {
-  await query("DELETE FROM messages WHERE notebook_id = $1", [notebookId]);
+export async function clearMessages(notebookId, userId) {
+  await query("DELETE FROM messages WHERE notebook_id = $1 AND user_id = $2", [notebookId, userId]);
 }
 
 

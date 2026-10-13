@@ -22,11 +22,12 @@ export function useTheme() {
 }
 
 // Minimal hash router: "#/" is the course list, "#/notebook/<id>" a course,
-// "#/settings" the settings page.
+// "#/settings" the settings page, "#/invite/<token>" a course invite and
+// "#/battle/<code>" a quiz battle.
 export function useRoute() {
   const parse = () => {
-    const match = window.location.hash.match(/^#\/notebook\/([^/?#]+)/);
-    if (match) return { page: "notebook", id: decodeURIComponent(match[1]) };
+    const match = window.location.hash.match(/^#\/(notebook|invite|battle)\/([^/?#]+)/);
+    if (match) return { page: match[1], id: decodeURIComponent(match[2]) };
     return /^#\/settings\b/.test(window.location.hash) ? { page: "settings" } : { page: "home" };
   };
   const [route, setRoute] = useState(parse);

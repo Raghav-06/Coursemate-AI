@@ -7,6 +7,7 @@ import { burnPasswordCheck, hashPassword, passwordProblem, verifyPassword } from
 import { hit, reset } from "../auth/rateLimit.js";
 import { sendVerificationCode } from "../services/mailer.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { acceptInvitesForUser } from "../db/members.js";
 import {
   consumeEmailVerification,
   createEmailVerification,
@@ -67,7 +68,7 @@ authRouter.get("/google/callback", (req, res, next) => {
     // login() regenerates the session id (prevents session fixation).
     req.logIn(user, (loginErr) => {
       if (loginErr) return next(loginErr);
-      res.redirect(`${config.clientUrl}${returnTo}`);
+      applyInvites(user).finally(() => res.redirect(`${config.clientUrl}${returnTo}`));
     });
   })(req, res, next);
 });
@@ -136,8 +137,19 @@ function sameHash(a, b) {
   return x.length === y.length && crypto.timingSafeEqual(x, y);
 }
 
-function logIn(req, user) {
-  return new Promise((resolve, reject) => req.logIn(user, (err) => (err ? reject(err) : resolve())));
+// Course invites sent to this (verified) email apply when its owner signs up or in.
+async function applyInvites(user) {
+  if (!user?.emailVerified) return;
+  try {
+    await acceptInvitesForUser(user);
+  } catch (err) {
+    console.warn(`Applying course invites for ${user.id} failed: ${err.message}`);
+  }
+}
+
+async function logIn(req, user) {
+  await new Promise((resolve, reject) => req.logIn(user, (err) => (err ? reject(err) : resolve())));
+  await applyInvites(user);
 }
 
 authRouter.post(

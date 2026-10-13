@@ -21,7 +21,7 @@ import {
   updateNotebook,
 } from "../db/store.js";
 import { config } from "../config/index.js";
-import { httpError, idList, languagePatch, resolveSources, resolveUnitId, sourceKindFields } from "./helpers.js";
+import { httpError, idList, languagePatch, requireRole, resolveSources, resolveUnitId, sourceKindFields } from "./helpers.js";
 import { extractDocument } from "../services/ingestion.js";
 import { keepOriginal } from "../services/originals.js";
 import { loadUrl } from "../services/urlLoader.js";
@@ -33,6 +33,8 @@ import { courseStudyRoutes } from "./study.routes.js";
 import { coursePracticeRoutes } from "./practice.routes.js";
 import { coursePastPaperRoutes } from "./pastPapers.routes.js";
 import { courseExamRoutes } from "./exams.routes.js";
+import { courseMemberRoutes } from "./members.routes.js";
+import { courseBattleRoutes } from "./battles.routes.js";
 import { recordActivity } from "../db/exams.js";
 import { responseLanguage } from "../services/language.js";
 import { getCoursePreferences, updateCoursePreferences } from "../db/preferences.js";
@@ -49,7 +51,8 @@ const cleanTitle = (value, max = MAX_TITLE_CHARS) => (typeof value === "string" 
 
 const DEFAULT_EMOJIS = ["📓", "📘", "📗", "📙", "📕", "🧠", "🔬", "📚", "💡", "🧪"];
 
-// Loads :id into req.notebook or 404s. Only the signed-in user's notebooks match.
+// Loads :id into req.notebook (with the user's role) or 404s. Only courses the
+// signed-in user is a member of match; mutating routes add requireRole().
 notebooksRouter.param("id", async (req, _res, next, id) => {
   try {
     req.notebook = isUuid(id) ? await getNotebook(id, req.user.id) : null;
@@ -98,17 +101,20 @@ notebooksRouter.get("/:id", (req, res) => res.json(req.notebook));
 
 notebooksRouter.patch(
   "/:id",
+  requireRole("editor"),
   asyncHandler(async (req, res) => {
     const { title, emoji } = req.body ?? {};
     const patch = {};
     if (cleanTitle(title)) Object.assign(patch, { title: cleanTitle(title), titleIsAuto: false });
-    if (typeof emoji === "string" && emoji.trim()) patch.emoji = emoji.trim();
-    res.json(await updateNotebook(req.params.id, patch));
+    if (typeof emoji === "string" && emoji.trim()) patch.emoji = emoji.trim().slice(0, 16);
+    await updateNotebook(req.params.id, patch);
+    res.json(await getNotebook(req.params.id, req.user.id));
   })
 );
 
 notebooksRouter.delete(
   "/:id",
+  requireRole("owner"),
   asyncHandler(async (req, res) => {
     const removedSources = await deleteNotebook(req.params.id);
     await removeSourceFiles(removedSources);
@@ -118,6 +124,7 @@ notebooksRouter.delete(
 
 notebooksRouter.post(
   "/:id/overview",
+  requireRole("editor"),
   asyncHandler(async (req, res) => {
     refreshNotebookOverview(req.params.id, { language: await responseLanguage(req.user.id, req.params.id) });
     res.status(202).json({ ok: true });
@@ -136,6 +143,7 @@ notebooksRouter.get(
 // body: { title }
 notebooksRouter.post(
   "/:id/units",
+  requireRole("editor"),
   asyncHandler(async (req, res) => {
     const title = cleanTitle(req.body?.title, MAX_UNIT_TITLE_CHARS);
     if (!title) throw httpError(400, "Give the unit a name.");
@@ -149,6 +157,7 @@ notebooksRouter.post(
 // "order" is never read as a unit id.
 notebooksRouter.put(
   "/:id/units/order",
+  requireRole("editor"),
   asyncHandler(async (req, res) => {
     const unitIds = idList(req.body?.unitIds, { name: "unitIds" });
     if (!unitIds) throw httpError(400, "unitIds is required.");
@@ -159,6 +168,7 @@ notebooksRouter.put(
 // body: { title }
 notebooksRouter.patch(
   "/:id/units/:unitId",
+  requireRole("editor"),
   asyncHandler(async (req, res) => {
     const title = cleanTitle(req.body?.title, MAX_UNIT_TITLE_CHARS);
     if (!title) throw httpError(400, "Give the unit a name.");
@@ -169,6 +179,7 @@ notebooksRouter.patch(
 // Its sources move to General (and its topics go with it).
 notebooksRouter.delete(
   "/:id/units/:unitId",
+  requireRole("editor"),
   asyncHandler(async (req, res) => {
     await deleteUnitTopics(req.notebook.id, req.unit.id);
     await deleteUnit(req.unit.id);
@@ -182,13 +193,14 @@ notebooksRouter.delete(
 notebooksRouter.get(
   "/:id/sources",
   asyncHandler(async (req, res) => {
-    res.json(await listSources(req.params.id));
+    res.json(await listSources(req.params.id, req.user.id));
   })
 );
 
 // multipart "files" (one or many), plus an optional "unitId" field
 notebooksRouter.post(
   "/:id/sources/files",
+  requireRole("editor"),
   upload.array("files"),
   asyncHandler(async (req, res) => {
     const files = req.files ?? [];
@@ -233,6 +245,7 @@ notebooksRouter.post(
 // body: { urls: string[] } or { url, title? }, plus unitId? — websites, PDF links, arXiv papers…
 notebooksRouter.post(
   "/:id/sources/url",
+  requireRole("editor"),
   asyncHandler(async (req, res) => {
     const { url } = req.body ?? {};
     const title = cleanTitle(req.body?.title);
@@ -271,6 +284,7 @@ notebooksRouter.post(
 // body: { title?, text, unitId? } — "Copied text" sources
 notebooksRouter.post(
   "/:id/sources/text",
+  requireRole("editor"),
   asyncHandler(async (req, res) => {
     const text = String(req.body?.text ?? "");
     if (!text.trim()) throw httpError(400, "Paste some text to add as a source.");
@@ -291,14 +305,14 @@ notebooksRouter.post(
 notebooksRouter.get(
   "/:id/messages",
   asyncHandler(async (req, res) => {
-    res.json(await listMessages(req.params.id));
+    res.json(await listMessages(req.params.id, req.user.id));
   })
 );
 
 notebooksRouter.delete(
   "/:id/messages",
   asyncHandler(async (req, res) => {
-    await clearMessages(req.params.id);
+    await clearMessages(req.params.id, req.user.id);
     res.status(204).end();
   })
 );
@@ -322,13 +336,18 @@ notebooksRouter.post(
     const unitIds = idList(req.body?.unitIds, { allow: ["general"], name: "unitIds" });
     // Past papers are left out unless the user asks to include them.
     const includePastPapers = req.body?.includePastPapers === true;
-    const sources = await resolveSources(req.params.id, { sourceIds: idList(req.body?.sourceIds, { name: "sourceIds" }), unitIds, includePastPapers });
+    const sources = await resolveSources(req.params.id, {
+      userId: req.user.id,
+      sourceIds: idList(req.body?.sourceIds, { name: "sourceIds" }),
+      unitIds,
+      includePastPapers,
+    });
     if (sources.length === 0) {
       throw httpError(409, unitIds?.length ? "No selected, ready sources in the chosen units." : "Select at least one ready source to chat with.");
     }
     assertApiKey(); // fail fast (503) before storing the question if no API key is set
 
-    const history = await listMessages(req.params.id);
+    const history = await listMessages(req.params.id, req.user.id);
 
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
@@ -337,7 +356,7 @@ notebooksRouter.post(
     });
     const send = (event) => res.write(`data: ${JSON.stringify(event)}\n\n`);
 
-    const userMessage = await addMessage(req.params.id, { role: "user", content });
+    const userMessage = await addMessage(req.params.id, req.user.id, { role: "user", content });
     await recordActivity(req.user.id, req.tz, "chat");
     send({ type: "user", message: userMessage });
 
@@ -356,7 +375,7 @@ notebooksRouter.post(
         send({ type: "delta", text: delta });
       }
 
-      const assistantMessage = await addMessage(req.params.id, { role: "assistant", content: answer, citations });
+      const assistantMessage = await addMessage(req.params.id, req.user.id, { role: "assistant", content: answer, citations });
       send({ type: "done", message: assistantMessage });
     } catch (err) {
       console.error(err);
@@ -409,3 +428,8 @@ notebooksRouter.patch(
 // ---- Exams and revision plans (personal) ------------------------------------------------
 
 courseExamRoutes(notebooksRouter);
+
+// ---- Sharing (members, invites) and quiz battles ------------------------------------------
+
+courseMemberRoutes(notebooksRouter);
+courseBattleRoutes(notebooksRouter);

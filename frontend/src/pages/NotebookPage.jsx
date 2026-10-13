@@ -12,6 +12,7 @@ import PracticePanel from "../components/practice/PracticePanel";
 import ProgressPanel from "../components/progress/ProgressPanel";
 import ExamsPanel from "../components/exams/ExamsPanel";
 import CourseLanguageDialog from "../components/CourseLanguageDialog";
+import ShareDialog from "../components/ShareDialog";
 
 // Main-area tools of a course.
 const VIEWS = [
@@ -105,6 +106,7 @@ export default function NotebookPage({ notebookId }) {
   const [progressKey, setProgressKey] = useState(0); // bumps after practice so Progress reloads
   const [studyCounts, setStudyCounts] = useState({ due: 0, new: 0 });
   const [languageOpen, setLanguageOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const isWide = useMediaQuery("(min-width: 1024px)");
 
   const overviewUntil = useRef(0);
@@ -125,7 +127,7 @@ export default function NotebookPage({ notebookId }) {
           (r) => !cancelled && setStudyCounts({ due: r.dueCount, new: r.newCount }),
           () => {}
         );
-        if (srcs.length === 0 || window.location.hash.includes("new=1")) setAddOpen(true);
+        if (nb.role !== "viewer" && (srcs.length === 0 || window.location.hash.includes("new=1"))) setAddOpen(true);
         history.replaceState(null, "", `#/notebook/${notebookId}`); // drop ?new=1 / ?view= once used
         if (srcs.some((s) => s.status === "ready") && !nb.summary) {
           overviewUntil.current = Date.now() + OVERVIEW_WAIT_MS;
@@ -446,8 +448,13 @@ export default function NotebookPage({ notebookId }) {
     );
   }
 
+  // Owners and editors change the course's material; viewers read, chat and practise.
+  const canEdit = notebook.role !== "viewer";
+  const sharedBy = notebook.role !== "owner" ? notebook.owner?.name || notebook.owner?.email : null;
+
   const sourcesPanel = (
     <SourcesPanel
+      canEdit={canEdit}
       sources={sources}
       units={units}
       collapsed={isWide && collapsed.sources}
@@ -518,7 +525,7 @@ export default function NotebookPage({ notebookId }) {
           initialTopicId: insightsTopic,
           onOpenCitation: openCitation,
           onPractise: practiseQuestion,
-          onAddPaper: () => openAdd(null, "past_paper"),
+          onAddPaper: canEdit ? () => openAdd(null, "past_paper") : undefined,
           sourcesKey: sources.map((s) => `${s.id}:${s.status}:${s.kind}:${s.paperStatus}`).join("|"),
         }}
       />
@@ -541,7 +548,7 @@ export default function NotebookPage({ notebookId }) {
       onStop={stopStreaming}
       onClear={clearChat}
       onOpenCitation={openCitation}
-      onAddSources={() => openAdd()}
+      onAddSources={canEdit ? () => openAdd() : undefined}
     />
   );
 
@@ -552,9 +559,27 @@ export default function NotebookPage({ notebookId }) {
       <header className="flex items-center gap-3 h-16 px-3 sm:px-4 shrink-0">
         <Logo compact />
         <span className="text-2xl leading-none">{notebook.emoji}</span>
-        <EditableTitle notebook={notebook} onRename={(title) => updateNotebook({ title })} />
+        {canEdit ? (
+          <EditableTitle notebook={notebook} onRename={(title) => updateNotebook({ title })} />
+        ) : (
+          <h1 className="min-w-0 max-w-xl font-display text-lg sm:text-xl font-medium text-ink truncate">{notebook.title}</h1>
+        )}
+        {sharedBy && (
+          <span className="max-md:hidden shrink-0 px-2 py-0.5 rounded-full bg-panel-2 text-ink-3 text-xs" title={`Shared by ${sharedBy}`}>
+            Shared by {sharedBy}
+          </span>
+        )}
         {isWide && <ViewTabs view={view} onChange={setView} badges={{ study: studyCounts.due + studyCounts.new }} />}
         <div className="ml-auto flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setShareOpen(true)}
+            className={notebook.role === "owner" ? "btn-outline h-9 px-3 max-sm:px-2" : "btn-ghost h-9 px-2"}
+            title={notebook.role === "owner" ? "Share this course" : "People in this course"}
+          >
+            <Icon name={notebook.role === "owner" ? "person_add" : "group"} size={18} />
+            <span className="max-sm:hidden">{notebook.role === "owner" ? "Share" : notebook.memberCount}</span>
+          </button>
           <IconButton icon="translate" label="Language for this course" onClick={() => setLanguageOpen(true)} />
           <ThemeToggle />
           <AccountMenu />
@@ -596,6 +621,7 @@ export default function NotebookPage({ notebookId }) {
       )}
 
       <CourseLanguageDialog notebookId={notebookId} open={languageOpen} onClose={() => setLanguageOpen(false)} />
+      {shareOpen && <ShareDialog notebook={notebook} open onClose={() => setShareOpen(false)} />}
       <AddSourcesDialog
         open={addOpen}
         onClose={() => setAddOpen(false)}

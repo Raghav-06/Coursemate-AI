@@ -1,6 +1,7 @@
 import { isUuid } from "../utils/asyncHandler.js";
 import { getUnit, listSources } from "../db/store.js";
 import { LANGUAGES, isLanguage } from "../services/language.js";
+import { roleAtLeast } from "../db/access.js";
 
 // Shared request helpers for the API routers.
 
@@ -9,6 +10,26 @@ const MAX_IDS = 200;
 export function httpError(status, message) {
   return Object.assign(new Error(message), { status });
 }
+
+const ROLE_ACTIONS = {
+  editor: "Only the course's owner and editors can change its sources, units and decks.",
+  owner: "Only the course's owner can do that.",
+};
+
+/** 403 unless `role` (the user's role in the course) is at least `needed`. */
+export function assertRole(role, needed) {
+  if (!roleAtLeast(role, needed)) throw httpError(403, ROLE_ACTIONS[needed]);
+}
+
+/** Route middleware: the course loaded by :id (req.notebook) needs at least this role. */
+export const requireRole = (needed) => (req, _res, next) => {
+  try {
+    assertRole(req.notebook?.role, needed);
+    next();
+  } catch (err) {
+    next(err);
+  }
+};
 
 /** Trimmed text from a request field, at most `max` characters ("" if not a string). */
 export const cleanString = (value, max) => (typeof value === "string" ? value.trim().slice(0, max) : "");
@@ -67,8 +88,8 @@ export function sourceKindFields(body) {
  * optionally limited to some units ("general" = no unit). Only ingested
  * sources can be used, and past papers only with includePastPapers.
  */
-export async function resolveSources(notebookId, { sourceIds, unitIds, selectedOnly = true, includePastPapers = false } = {}) {
-  const all = (await listSources(notebookId)).filter((s) => includePastPapers || s.kind !== "past_paper");
+export async function resolveSources(notebookId, { userId, sourceIds, unitIds, selectedOnly = true, includePastPapers = false } = {}) {
+  const all = (await listSources(notebookId, userId)).filter((s) => includePastPapers || s.kind !== "past_paper");
   let wanted = sourceIds ? all.filter((s) => sourceIds.includes(s.id)) : all.filter((s) => s.selected || !selectedOnly);
   if (unitIds?.length) {
     const units = new Set(unitIds.map((u) => (u === "general" ? null : u)));

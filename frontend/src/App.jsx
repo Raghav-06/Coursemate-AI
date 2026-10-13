@@ -4,6 +4,8 @@ import { api } from "./api";
 import { AuthProvider, useAuth } from "./auth";
 import { Spinner, Toaster } from "./components/ui";
 import HomePage from "./pages/HomePage";
+import InvitePage from "./pages/InvitePage";
+import BattlePage from "./pages/BattlePage";
 import NotebookPage from "./pages/NotebookPage";
 import LoginPage from "./pages/LoginPage";
 import SettingsPage from "./pages/SettingsPage";
@@ -53,6 +55,10 @@ function Routes() {
     page = <SettingsPage />;
   } else if (route.page === "notebook") {
     page = <NotebookPage key={route.id} notebookId={route.id} />;
+  } else if (route.page === "invite") {
+    page = <InvitePage key={route.id} token={route.id} />;
+  } else if (route.page === "battle") {
+    page = <BattlePage key={route.id} code={route.id} />;
   } else {
     page = <HomePage />;
   }

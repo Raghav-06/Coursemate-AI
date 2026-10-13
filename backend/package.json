@@ -1,7 +1,7 @@
 {
   "name": "coursemate-ai-backend",
   "version": "1.0.0",
-  "description": "CourseMate AI — a NotebookLM-style research notebook backend (Express + PostgreSQL + Google OAuth + LangChain with any model provider).",
+  "description": "CourseMate AI \u2014 a NotebookLM-style research notebook backend (Express + PostgreSQL + Google OAuth + LangChain with any model provider).",
   "type": "module",
   "main": "server.js",
   "scripts": {
@@ -12,7 +12,8 @@
     "cli-chat": "node scripts/cliChat.js",
     "mmr-demo": "node scripts/mmrDemo.js",
     "multiquery-demo": "node scripts/multiQueryDemo.js",
-    "check-api": "node scripts/checkApi.js"
+    "check-api": "node scripts/checkApi.js",
+    "check-access": "node scripts/checkAccess.js"
   },
   "dependencies": {
     "@huggingface/inference": "^4.13.30",

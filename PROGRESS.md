@@ -14,8 +14,8 @@ resuming the work in a new conversation.
 | 6 | Exam mode, revision plans, daily goal, streaks | ✅ done |
 | 7 | Explain-it-back and Indian languages | ✅ done |
 | 8 | Image OCR and lecture transcription | ✅ done |
-| 9 | Shared courses and quiz battles | ⏳ next |
-| 10 | New visual identity, privacy settings, license | — |
+| 9 | Shared courses and quiz battles | ✅ done |
+| 10 | New visual identity, privacy settings, license | ⏳ next |
 
 ## How verification is done
 
@@ -282,3 +282,53 @@ local test harness (kept outside the repo, in the session scratchpad — rebuild
   Chromium): image beside text, audio player + clicking 1:05 seeks to 1:05 (dark), Add sources
   dialog, mobile dark video viewer; no page errors.
 - Not tested against real providers (vision/transcription quality, provider-specific limits).
+
+### 9. Shared courses and quiz battles ✅
+- DB: `notebook_members` (owner/editor/viewer; backfilled: each course's creator → owner),
+  `notebook_invites` (email, role, sha256 token hash, expires_at, accepted_at; one open invite per
+  course+email), `messages.user_id` (backfilled to the owner; chat history personal),
+  `source_deselections` (per-user chat selection; previously unticked sources migrated to the
+  owner, then `sources.selected` reset), `battles` + `battle_players`. Queries: `db/members.js`,
+  `db/battles.js`; `db/access.js` `canAccessNotebook` now = membership, plus `memberRoleSql`,
+  `roleAtLeast`.
+- Access: `getNotebook`/`getSource`/`getDeck`/`getCard` return the user's `role`; `requireRole()` /
+  `assertRole()` in `routes/helpers.js`. Editor+: course rename/overview, units, add/edit/delete/
+  reprocess/analyse sources (upload guard runs before multer), decks + cards, topic refresh,
+  past-paper question fixes. Owner: invites, roles, removing members, deleting the course. Any
+  member: read, chat, own selection, reviews, quizzes, answers, explanations, exams, preferences,
+  battles. Personal data stays filtered by user id.
+- Invites (`routes/members.routes.js`): existing account → added immediately (+ notice email);
+  otherwise invite + link `#/invite/<token>`; emailed via the existing mailer (`sendCourseInvite`),
+  printed to the console and returned to the owner when SMTP isn't set. Applied at sign-up / sign-in
+  (password, email code, Google — verified emails only) and via the link (invited email only).
+  New settings `MAX_MEMBERS_PER_COURSE` (50), `INVITE_TTL_DAYS` (14), `MAX_BATTLE_PLAYERS` (30).
+- Battles (`services/battles.js`, in memory): 6-char codes (no 0/O/1/I), lobby → start (host) →
+  question (`seconds`, closes early when all answered) → 5 s reveal → … → finished (saved, activity
+  "quiz" + topic events per answer). Points: 500 + up to 500 for speed. Answers and the current
+  question's points are hidden until the reveal. Lobbies expire after 30 min, results stay 15 min;
+  max 2 live battles per host. SSE `GET /api/battles/:code/events` (personalised snapshots, 20 s
+  pings). Only members of the battle's course can see/join it (others: 404).
+- `npm run check-access` (`scripts/checkAccess.js`): creates owner/editor/viewer/outsider accounts,
+  starts the app on a random port, runs 46 checks (outsider 404 on every course/source/deck route
+  and missing from the list; viewer 403 on 13 edit routes + file upload, personal selection;
+  editor allowed on sources/units/decks, 403 on invites/delete/remove; owner can't leave; viewer
+  leaves → 404; signed out 401), deletes the accounts.
+- UI: Share dialog (owner: invite by email + role, copyable link when not emailed, change role,
+  remove, cancel invites; others: member list + Leave), header Share / people button and "Shared by"
+  chip, read-only title/sources/decks/insights for viewers, Home course cards with people count and
+  "Shared by", Leave course in the card menu, "Join a battle" (code dialog), invite page, Practice →
+  Battles (create, happening now with join/rejoin, past battles), battle page (lobby with big code,
+  timed question with keys 1–4, locked-in state, reveal with explanation + source location, live
+  leaderboard, results with your answers).
+- Tested: `check-access` all pass; curl: invite of a new email (mixed case) → link, existing user →
+  added as viewer; wrong account accepting the link → 403, bad token → 404; the invited email signs
+  up → member with role editor; viewer chat stored only in their history, clearing it left the
+  owner's; viewer quiz personal; deselection migration (owner only); battle: bad count/seconds →
+  400, outsider join/events → 404, lowercase code works, non-host start → 403, answer before start
+  → 409, duplicate answer → 409, early reveal when all answered, speed points (997/998), SSE stream
+  lobby→question→reveal×5→finished, results saved with ranks, activity + 11 topic events recorded,
+  past battles listed, outsider → 404. Fix during verification: the leaderboard showed the current
+  question's points before the reveal (gave answers away) → hidden until reveal (re-tested).
+  UI (headless Chromium): Share dialog, viewer course (dark), invite page with wrong account
+  (mobile), lobby (host, dark), question after pressing 1 (mobile), reveal + leaderboard (dark);
+  no page errors.

@@ -5,6 +5,7 @@ import QuizPlayer from "./QuizPlayer";
 import NewQuizDialog from "./NewQuizDialog";
 import AnswerWriting from "./AnswerWriting";
 import ExplainBack from "./ExplainBack";
+import BattlesTab from "../battle/BattlesTab";
 
 function ScorePill({ quiz }) {
   if (quiz.lastScore === null) return <span className="text-xs text-ink-3">Not taken</span>;
@@ -17,7 +18,8 @@ function ScorePill({ quiz }) {
 }
 
 /**
- * Practice: multiple-choice quizzes, answer writing and explain-it-back.
+ * Practice: multiple-choice quizzes, answer writing, explain-it-back and
+ * quiz battles with classmates.
  * `intent` starts something right away: { kind: "quiz", topicIds, unitIds?,
  * count? } makes and plays a quiz on those topics (or units); { kind:
  * "answer", question, marks, … } opens answer writing; { kind: "explain",
@@ -116,19 +118,24 @@ export default function PracticePanel({ notebook, units, sources, onOpenCitation
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 flex flex-col gap-5">
         <div className="flex flex-wrap items-center gap-3">
           <h2 className="font-display text-xl font-semibold mr-auto">Practice</h2>
-          <Segmented
-            label="Practice mode"
-            value={tab}
-            onChange={setTab}
-            options={[
-              ["quiz", "Quizzes"],
-              ["answer", "Answer writing"],
-              ["explain", "Explain it back"],
-            ]}
-          />
+          <div className="max-w-full overflow-x-auto scroll-thin">
+            <Segmented
+              label="Practice mode"
+              value={tab}
+              onChange={setTab}
+              options={[
+                ["quiz", "Quizzes"],
+                ["answer", "Answer writing"],
+                ["explain", "Explain it back"],
+                ["battle", "Battles"],
+              ]}
+            />
+          </div>
         </div>
 
-        {tab === "explain" ? (
+        {tab === "battle" ? (
+          <BattlesTab notebook={notebook} units={units} sources={sources} />
+        ) : tab === "explain" ? (
           <ExplainBack notebookId={notebook.id} onOpenCitation={onOpenCitation} preset={explainPreset} onPresetUsed={() => setExplainPreset(null)} onDone={onActivity} />
         ) : tab === "answer" ? (
           <AnswerWriting

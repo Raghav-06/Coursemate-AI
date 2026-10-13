@@ -1,5 +1,5 @@
 import { asyncHandler, isUuid } from "../utils/asyncHandler.js";
-import { httpError, resolveUnitId } from "./helpers.js";
+import { httpError, requireRole, resolveUnitId } from "./helpers.js";
 import { getTopicsByIds } from "../db/practice.js";
 import { getPaperQuestion, listPaperQuestions, updatePaperQuestion } from "../db/pastPapers.js";
 import { examInsights } from "../services/pastPapers.js";
@@ -40,6 +40,7 @@ export function coursePastPaperRoutes(router) {
   // body: { unitId?, topicId? } — fix a question's mapping by hand (null clears)
   router.patch(
     "/:id/past-paper-questions/:questionId",
+    requireRole("editor"),
     asyncHandler(async (req, res) => {
       if (!isUuid(req.params.questionId)) throw httpError(404, "Question not found.");
       const question = await getPaperQuestion(req.params.questionId, req.notebook.id);

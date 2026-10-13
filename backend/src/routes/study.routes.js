@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { asyncHandler, isUuid } from "../utils/asyncHandler.js";
 import { config } from "../config/index.js";
-import { cleanString, httpError, idList, resolveSources, resolveUnitId } from "./helpers.js";
+import { assertRole, cleanString, httpError, idList, requireRole, resolveSources, resolveUnitId } from "./helpers.js";
 import { getUnit } from "../db/store.js";
 import {
   addCards,
@@ -75,6 +75,7 @@ export function courseStudyRoutes(router) {
   // body: { title, unitId? } — an empty deck to fill by hand
   router.post(
     "/:id/decks",
+    requireRole("editor"),
     asyncHandler(async (req, res) => {
       const title = cleanString(req.body?.title, MAX_DECK_TITLE);
       if (!title) throw httpError(400, "Give the deck a name.");
@@ -87,6 +88,7 @@ export function courseStudyRoutes(router) {
   // body: { title?, unitIds?, sourceIds?, topicIds?, count: 10|20|30, difficulty: easy|medium|hard }
   router.post(
     "/:id/decks/generate",
+    requireRole("editor"),
     asyncHandler(async (req, res) => {
       const count = Number(req.body?.count ?? 10);
       if (!CARD_COUNTS.includes(count)) throw httpError(400, `count must be one of ${CARD_COUNTS.join(", ")}.`);
@@ -171,6 +173,16 @@ studyRouter.param("deckId", async (req, _res, next, id) => {
   }
 });
 
+// Decks and cards are shared course content: changing them needs editor or owner.
+const deckEditor = (req, _res, next) => {
+  try {
+    assertRole((req.deck ?? req.card).role, "editor");
+    next();
+  } catch (err) {
+    next(err);
+  }
+};
+
 studyRouter.param("cardId", async (req, _res, next, id) => {
   try {
     req.card = isUuid(id) ? await getCard(id, req.user.id) : null;
@@ -191,6 +203,7 @@ studyRouter.get(
 // body: { title?, unitId? }
 studyRouter.patch(
   "/decks/:deckId",
+  deckEditor,
   asyncHandler(async (req, res) => {
     const patch = {};
     if (req.body?.title !== undefined) {
@@ -205,6 +218,7 @@ studyRouter.patch(
 
 studyRouter.delete(
   "/decks/:deckId",
+  deckEditor,
   asyncHandler(async (req, res) => {
     await deleteDeck(req.deck.id);
     res.status(204).end();
@@ -214,6 +228,7 @@ studyRouter.delete(
 // body: { front, back, topic? }
 studyRouter.post(
   "/decks/:deckId/cards",
+  deckEditor,
   asyncHandler(async (req, res) => {
     const fields = cardFields(req.body);
     if ((await countCards(req.deck.id)) >= MAX_CARDS_PER_DECK) throw httpError(409, `A deck can hold up to ${MAX_CARDS_PER_DECK} cards.`);
@@ -225,6 +240,7 @@ studyRouter.post(
 // body: { front?, back?, topic? }
 studyRouter.patch(
   "/cards/:cardId",
+  deckEditor,
   asyncHandler(async (req, res) => {
     await updateCard(req.card.id, cardFields(req.body, { partial: true }));
     res.json(await getCard(req.card.id, req.user.id));
@@ -233,6 +249,7 @@ studyRouter.patch(
 
 studyRouter.delete(
   "/cards/:cardId",
+  deckEditor,
   asyncHandler(async (req, res) => {
     await deleteCard(req.card.id);
     res.status(204).end();

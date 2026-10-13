@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { asyncHandler, isUuid } from "../utils/asyncHandler.js";
-import { cleanString, httpError, idList, resolveSources } from "./helpers.js";
+import { cleanString, httpError, idList, requireRole, resolveSources } from "./helpers.js";
 import { listUnits } from "../db/store.js";
 import {
   addAnswerAttempt,
@@ -51,7 +51,7 @@ async function unitScope(notebookId, unitIds) {
  * Topics of the chosen units, extracting any that are missing or stale
  * first (one model call per unit) so generated items can be tagged.
  */
-async function topicsFor(notebookId, unitIds) {
+export async function topicsFor(notebookId, unitIds) {
   const scope = await unitScope(notebookId, unitIds);
   await Promise.all(scope.map((u) => refreshUnitTopics(notebookId, u).catch(() => {})));
   return (await listTopics(notebookId)).filter((t) => scope.includes(t.unitId));
@@ -85,6 +85,7 @@ export function coursePracticeRoutes(router) {
   // body: { unitId? } — re-extract one unit's topics (or every unit's) in the background
   router.post(
     "/:id/topics/refresh",
+    requireRole("editor"),
     asyncHandler(async (req, res) => {
       assertApiKey();
       const unitId = req.body?.unitId;

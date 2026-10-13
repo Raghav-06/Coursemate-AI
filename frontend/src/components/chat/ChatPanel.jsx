@@ -36,10 +36,12 @@ function Overview({ notebook, sources, onAddSources }) {
         <span className="w-14 h-14 rounded-full bg-accent-soft text-accent-soft-fg flex items-center justify-center">
           <Icon name="upload" size={28} />
         </span>
-        <h2 className="font-display text-2xl font-medium">Add a source to get started</h2>
-        <button type="button" className="btn-outline" onClick={onAddSources}>
-          Upload a source
-        </button>
+        <h2 className="font-display text-2xl font-medium">{onAddSources ? "Add a source to get started" : "No sources in this course yet"}</h2>
+        {onAddSources && (
+          <button type="button" className="btn-outline" onClick={onAddSources}>
+            Upload a source
+          </button>
+        )}
       </div>
     );
   }
