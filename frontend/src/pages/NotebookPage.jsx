@@ -12,6 +12,7 @@ import StudyPanel from "../components/study/StudyPanel";
 import PracticePanel from "../components/practice/PracticePanel";
 import ProgressPanel from "../components/progress/ProgressPanel";
 import ExamsPanel from "../components/exams/ExamsPanel";
+import KnowledgeMapPanel from "../components/map/KnowledgeMapPanel";
 import CourseLanguageDialog from "../components/CourseLanguageDialog";
 import ShareDialog from "../components/ShareDialog";
 
@@ -21,19 +22,21 @@ const NAV = [
   { key: "chat", label: "Chat", icon: "forum" },
   { key: "study", label: "Study", icon: "style" },
   { key: "practice", label: "Practice", icon: "quiz" },
+  { key: "map", label: "Knowledge map", icon: "account_tree" },
   { key: "exams", examsTab: "plan", label: "Exam plan", icon: "event_upcoming" },
   { key: "exams", examsTab: "papers", label: "Exam insights", icon: "history_edu" },
   { key: "progress", label: "Progress", icon: "insights" },
 ];
-const VIEWS = ["chat", "study", "practice", "progress", "exams"];
+const VIEWS = ["chat", "study", "practice", "progress", "exams", "map"];
 // Mobile bottom bar: the course outline (sidebar) plus the main tools.
 const MOBILE_NAV = [
   { key: "outline", label: "Units", icon: "menu_book" },
   NAV[0],
   NAV[1],
   NAV[2],
-  { ...NAV[3], label: "Exams" },
-  NAV[5],
+  { ...NAV[3], label: "Map" },
+  { ...NAV[4], label: "Exams" },
+  NAV[6],
 ];
 
 // "#/notebook/<id>?view=study" opens a tool directly (e.g. from Home).
@@ -207,7 +210,16 @@ export default function NotebookPage({ notebookId }) {
     try {
       const updated = await api.updateSource(id, { kind });
       setSources((list) => list.map((s) => (s.id === id ? updated : s)));
-      toast(kind === "past_paper" ? "Marked as a past paper — finding its questions…" : "Marked as course material");
+      toast(kind === "past_paper" ? "Marked as a past paper — finding its questions…" : kind === "syllabus" ? "Marked as the syllabus — the knowledge map will update" : "Marked as notes");
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
+
+  const dismissKind = async (id) => {
+    try {
+      const updated = await api.updateSource(id, { dismissKindSuggestion: true });
+      setSources((list) => list.map((s) => (s.id === id ? updated : s)));
     } catch (err) {
       toast(err.message, "error");
     }
@@ -426,6 +438,12 @@ export default function NotebookPage({ notebookId }) {
     }
   };
 
+  // "Practise this" on a knowledge-map node: a quiz on its course topic, else ask the chat.
+  const practiseNode = (node) => {
+    if (node.topicId) return quizOnTopics([{ id: node.topicId }]);
+    return askAboutTopic({ name: node.name, unitTitle: node.ancestors?.at(-1)?.name });
+  };
+
   const practiseQuestion = (q) => {
     const marks = q.marks === null ? 5 : q.marks <= 3 ? 2 : q.marks <= 7 ? 5 : 10;
     setPracticeIntent({ kind: "answer", question: q.text.slice(0, 1000), marks, topicId: q.topicId, unitIds: q.unitId ? [q.unitId] : [], origin: "past_paper" });
@@ -469,6 +487,7 @@ export default function NotebookPage({ notebookId }) {
       onMove={moveSource}
       onReprocess={reprocessSource}
       onSetKind={setSourceKind}
+      onDismissKind={dismissKind}
       onAnalyse={analysePaper}
       onRemove={removeSource}
       onCreateUnit={createUnit}
@@ -555,7 +574,21 @@ export default function NotebookPage({ notebookId }) {
     />
   );
 
-  const mainPanel = { study: studyPanel, practice: practicePanel, progress: progressPanel, exams: examsPanel }[view] ?? chatPanel;
+  const mapPanel = (
+    <section className="panel w-full">
+      <KnowledgeMapPanel
+        notebook={notebook}
+        canEdit={canEdit}
+        sourcesKey={sources.map((s) => `${s.id}:${s.status}:${s.kind}:${s.paperStatus}`).join("|")}
+        onOpenCitation={openCitation}
+        onPractise={practiseNode}
+        onAsk={(node) => askAboutTopic({ name: node.name, unitTitle: node.ancestors?.at(-1)?.name })}
+        onAddSources={(kind) => openAdd(null, kind)}
+      />
+    </section>
+  );
+
+  const mainPanel = { study: studyPanel, practice: practicePanel, progress: progressPanel, exams: examsPanel, map: mapPanel }[view] ?? chatPanel;
   const isActive = (item) => item.key === view && (!item.examsTab || item.examsTab === examsTab);
   const go = (item) => {
     if (item.examsTab) setExamsTab(item.examsTab);
@@ -638,7 +671,7 @@ export default function NotebookPage({ notebookId }) {
         <div className={`flex-1 min-h-0 flex ${isWide ? "px-3 pb-3" : "px-2"}`}>{mainPanel}</div>
 
         {!isWide && (
-          <nav className="shrink-0 grid grid-cols-6 h-14 border-t border-line/60 bg-sidebar" aria-label="Course tools">
+          <nav className="shrink-0 grid grid-cols-7 h-14 border-t border-line/60 bg-sidebar" aria-label="Course tools">
             {MOBILE_NAV.map((item) => {
               const active = item.key === "outline" ? drawerOpen : !drawerOpen && item.key === view;
               const badge = badges[item.key] ?? 0;

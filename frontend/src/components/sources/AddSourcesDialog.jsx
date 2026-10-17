@@ -244,7 +244,7 @@ function UnitPicker({ units, value, onChange }) {
 
 const THIS_YEAR = new Date().getFullYear();
 
-/** Course material or a past exam paper (with optional exam name and year). */
+/** Notes (course material), the syllabus, or past exam papers (with optional exam name and year). */
 function KindPicker({ value, onChange }) {
   const paper = value.kind === "past_paper";
   return (
@@ -257,11 +257,15 @@ function KindPicker({ value, onChange }) {
           value={value.kind}
           onChange={(kind) => onChange({ ...value, kind })}
           options={[
-            ["material", "Course material"],
-            ["past_paper", "Past exam papers"],
+            ["material", "Notes"],
+            ["syllabus", "Syllabus"],
+            ["past_paper", "Past papers"],
           ]}
         />
       </div>
+      {value.kind === "syllabus" && (
+        <p className="pl-8 text-xs text-ink-3">The syllabus shapes the course's knowledge map (chapters, topics and what the exam covers). It's used in chat, but not for flashcards or quizzes.</p>
+      )}
       {paper && (
         <div className="flex flex-wrap items-center gap-2 pl-8">
           <input
@@ -325,7 +329,9 @@ export default function AddSourcesDialog({ open, onClose, notebookId, sourceCoun
   const kindFields =
     kind.kind === "past_paper"
       ? { kind: "past_paper", examName: kind.examName.trim() || undefined, examYear: Number.isInteger(year) && year >= 1950 && year <= THIS_YEAR + 1 ? year : undefined }
-      : {};
+      : kind.kind === "syllabus"
+        ? { kind: "syllabus" }
+        : {};
 
   const run = async (fn) => {
     setBusy(true);

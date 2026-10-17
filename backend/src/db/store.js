@@ -41,6 +41,8 @@ function toNotebook(r) {
     emoji: r.emoji,
     summary: r.summary,
     suggestedQuestions: r.suggested_questions ?? [],
+    examType: r.exam_type ?? null,
+    examSettings: r.exam_settings ?? {},
     createdAt: iso(r.created_at),
     updatedAt: iso(r.updated_at),
   };
@@ -80,6 +82,7 @@ function toSource(r) {
     examYear: r.exam_year ?? null,
     paperStatus: r.paper_status ?? null,
     paperError: r.paper_error ?? null,
+    suggestedKind: r.suggested_kind ?? null,
     createdAt: iso(r.created_at),
   };
 }
@@ -327,10 +330,12 @@ const NOTEBOOK_COLUMNS = {
   emoji: "emoji",
   summary: "summary",
   suggestedQuestions: "suggested_questions",
+  examType: "exam_type",
+  examSettings: "exam_settings",
 };
 
 export async function updateNotebook(id, patch) {
-  const { sets, values } = buildSet(patch, NOTEBOOK_COLUMNS, ["suggested_questions"]);
+  const { sets, values } = buildSet(patch, NOTEBOOK_COLUMNS, ["suggested_questions", "exam_settings"]);
   values.push(id);
   const { rows } = await query(
     `UPDATE notebooks SET ${[...sets, "updated_at = NOW()"].join(", ")} WHERE id = $${values.length} RETURNING *`,
@@ -354,7 +359,7 @@ export async function deleteNotebook(id) {
 // Everything except the (potentially huge) full text.
 const SOURCE_FIELDS = `id, notebook_id, unit_id, type, title, title_is_placeholder, url, file_name, file_type, status,
   progress, progress_note, selected, guide, chunk_count, char_count, word_count, error, embedding_model, created_at,
-  kind, exam_name, exam_year, paper_status, paper_error`;
+  kind, exam_name, exam_year, paper_status, paper_error, suggested_kind`;
 
 const PREFIXED_SOURCE_FIELDS = SOURCE_FIELDS.replace(/(\w+)/g, "s.$1");
 // A member's own chat selection (sources are on unless they switched them off).
@@ -449,6 +454,7 @@ const SOURCE_COLUMNS = {
   examYear: "exam_year",
   paperStatus: "paper_status",
   paperError: "paper_error",
+  suggestedKind: "suggested_kind",
 };
 
 export async function updateSource(id, patch) {

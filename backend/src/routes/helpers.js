@@ -12,7 +12,7 @@ export function httpError(status, message) {
 }
 
 const ROLE_ACTIONS = {
-  editor: "Only the course's owner and editors can change its sources, units and decks.",
+  editor: "Only the course's owner and editors can change its sources, units, decks and exam settings.",
   owner: "Only the course's owner can do that.",
 };
 
@@ -54,7 +54,7 @@ export async function resolveUnitId(notebookId, value) {
   return value;
 }
 
-const SOURCE_KINDS = ["material", "past_paper"];
+const SOURCE_KINDS = ["material", "syllabus", "past_paper"];
 const MAX_EXAM_NAME = 120;
 
 /**
@@ -85,11 +85,14 @@ export function sourceKindFields(body) {
 /**
  * Sources a request should use: explicit ids if given, else the ones ticked
  * in the sources panel (or every source, with selectedOnly: false),
+ * (the syllabus only with includeSyllabus — chat uses it, generators don't),
  * optionally limited to some units ("general" = no unit). Only ingested
  * sources can be used, and past papers only with includePastPapers.
  */
-export async function resolveSources(notebookId, { userId, sourceIds, unitIds, selectedOnly = true, includePastPapers = false } = {}) {
-  const all = (await listSources(notebookId, userId)).filter((s) => includePastPapers || s.kind !== "past_paper");
+export async function resolveSources(notebookId, { userId, sourceIds, unitIds, selectedOnly = true, includePastPapers = false, includeSyllabus = false } = {}) {
+  const all = (await listSources(notebookId, userId)).filter(
+    (s) => (includePastPapers || s.kind !== "past_paper") && (includeSyllabus || s.kind !== "syllabus")
+  );
   let wanted = sourceIds ? all.filter((s) => sourceIds.includes(s.id)) : all.filter((s) => s.selected || !selectedOnly);
   if (unitIds?.length) {
     const units = new Set(unitIds.map((u) => (u === "general" ? null : u)));

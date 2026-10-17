@@ -10,6 +10,7 @@ import { deleteOriginal, hasOriginal, originalPath } from "./originals.js";
 import { extractDocument, slideSegmentsFromText } from "./ingestion.js";
 import { loadUrl } from "./urlLoader.js";
 import { scheduleTopicRefresh } from "./topics.js";
+import { scheduleMapRefresh } from "./knowledgeMap.js";
 
 export async function assertCapacity(notebookId, adding) {
   const count = await countSources(notebookId);
@@ -47,6 +48,7 @@ export async function removeSource(id) {
   await Promise.all([deleteVectorStore(id), deleteSourceText(id), deleteOriginal(source)]);
   refreshNotebookOverview(source.notebookId);
   scheduleTopicRefresh(source.notebookId, source.unitId);
+  scheduleMapRefresh(source.notebookId);
   return source;
 }
 

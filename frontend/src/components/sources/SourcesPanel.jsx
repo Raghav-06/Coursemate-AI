@@ -74,7 +74,25 @@ function PaperBadge({ source }) {
   );
 }
 
-function SourceRow({ source, hasUnits, canEdit, active, onOpen, onToggle, onRename, onMove, onReprocess, onRemove, onSetKind, onAnalyse }) {
+const KIND_LABELS = { material: "notes", syllabus: "the syllabus", past_paper: "a past paper" };
+
+// Nano's guess that a source is a different kind (the user decides).
+function KindSuggestion({ source, onSetKind, onDismiss }) {
+  return (
+    <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11px] leading-4 text-ink-3" onClick={(e) => e.stopPropagation()}>
+      <Icon name="auto_awesome" size={13} className="text-accent" />
+      Looks like {KIND_LABELS[source.suggestedKind]} —
+      <button type="button" className="font-semibold text-accent hover:underline" onClick={() => onSetKind(source.id, source.suggestedKind)}>
+        mark it
+      </button>
+      <button type="button" className="hover:underline" onClick={() => onDismiss(source.id)}>
+        dismiss
+      </button>
+    </p>
+  );
+}
+
+function SourceRow({ source, hasUnits, canEdit, active, onOpen, onToggle, onRename, onMove, onReprocess, onRemove, onSetKind, onAnalyse, onDismissKind }) {
   const [icon, color] = sourceIcon(source);
   const processing = source.status === "processing";
   const failed = source.status === "error";
@@ -106,6 +124,14 @@ function SourceRow({ source, hasUnits, canEdit, active, onOpen, onToggle, onRena
         {processing && source.progressNote && <p className="mt-0.5 text-[11px] leading-4 text-ink-3 truncate">{source.progressNote}</p>}
         {failed && <p className="text-xs text-danger/80 truncate">{source.error}</p>}
         {paper && !processing && !failed && <PaperBadge source={source} />}
+        {source.kind === "syllabus" && !processing && !failed && (
+          <p className="text-[11px] leading-4">
+            <span className="px-1.5 rounded bg-accent-soft text-accent-soft-fg font-semibold">Syllabus</span>
+          </p>
+        )}
+        {canEdit && onSetKind && onDismissKind && source.suggestedKind && source.suggestedKind !== source.kind && !processing && (
+          <KindSuggestion source={source} onSetKind={onSetKind} onDismiss={onDismissKind} />
+        )}
       </div>
       <Menu
         buttonClassName="w-8! h-8! opacity-0 group-hover:opacity-100 focus:opacity-100 max-lg:opacity-100"
@@ -114,9 +140,9 @@ function SourceRow({ source, hasUnits, canEdit, active, onOpen, onToggle, onRena
           canEdit && hasUnits && { label: "Move to unit", icon: "drive_file_move", onClick: () => onMove(source) },
           source.url && { label: "Open original link", icon: "open_in_new", onClick: () => window.open(source.url, "_blank", "noopener") },
           canEdit && !processing && { label: "Re-process", icon: "refresh", onClick: () => onReprocess(source.id) },
-          canEdit && onSetKind && !failed && (paper
-            ? { label: "Mark as course material", icon: "menu_book", onClick: () => onSetKind(source.id, "material") }
-            : { label: "Mark as past paper", icon: "history_edu", onClick: () => onSetKind(source.id, "past_paper") }),
+          canEdit && onSetKind && !failed && source.kind !== "material" && { label: "Mark as notes", icon: "menu_book", onClick: () => onSetKind(source.id, "material") },
+          canEdit && onSetKind && !failed && source.kind !== "syllabus" && { label: "Mark as syllabus", icon: "checklist", onClick: () => onSetKind(source.id, "syllabus") },
+          canEdit && onSetKind && !failed && !paper && { label: "Mark as past paper", icon: "history_edu", onClick: () => onSetKind(source.id, "past_paper") },
           canEdit && paper && source.status === "ready" && source.paperStatus !== "pending" && onAnalyse && { label: "Find questions again", icon: "manage_search", onClick: () => onAnalyse(source.id) },
           canEdit && { label: "Remove source", icon: "delete", danger: true, onClick: () => onRemove(source) },
         ]}
@@ -171,6 +197,7 @@ export default function SourcesPanel({
   onMove,
   onReprocess,
   onSetKind,
+  onDismissKind,
   onAnalyse,
   onRemove,
   onCreateUnit,
@@ -207,7 +234,7 @@ export default function SourcesPanel({
       return next;
     });
 
-  const rowProps = { hasUnits: units.length > 0, canEdit, onOpen, onToggle, onRename: setRenaming, onMove: setMoving, onReprocess, onRemove: setRemoving, onSetKind, onAnalyse };
+  const rowProps = { hasUnits: units.length > 0, canEdit, onOpen, onToggle, onRename: setRenaming, onMove: setMoving, onReprocess, onRemove: setRemoving, onSetKind, onAnalyse, onDismissKind };
 
   return (
     <section className="flex flex-col min-h-0 w-full" aria-label="Units and sources">

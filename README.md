@@ -144,6 +144,31 @@ Every model call is logged in `ai_calls` (user, course, tier, model, task, laten
 code — never the prompt). `npm run check-api` tests chat, embeddings and each tier (plain text and
 JSON); `/health` and *Settings → AI & privacy* show the tier models and hosts (never keys).
 
+### Exam profiles and the knowledge map
+
+Each course can name its exam (*Knowledge map → Choose exam*): **JEE Main** (MCQ +4/−1, numerical
++4/0), **JEE Advanced** (single correct, one-or-more correct with partial marking, integer/numerical,
+matching), **NEET** (MCQ +4/−1), **GATE** (MCQ 1/2 marks with −1/3 / −2/3, MSQ and NAT without
+negative marking), **UPSC Prelims** (MCQ, −1/3 of the marks), **UPSC Mains** (10/15-mark descriptive)
+or **University** (custom subjects; MCQ, one-word, 2/5/10-mark descriptive). Profiles are plain data
+in `backend/src/config/examProfiles.js`; marks are computed in `services/marking.js`.
+
+Sources are **notes**, the **syllabus** or **past papers** (picked in *Add sources*). After an upload
+is processed, Nano guesses which it is and the sources list offers "Looks like the syllabus — mark
+it" (nothing changes unless you click).
+
+The **knowledge map** (Ultra) is built from the syllabus first, then the notes and past papers:
+subject → chapter → topic → subtopic, with prerequisite links (cycles and self-links are dropped)
+and an exam weight per node — from how often and for how many marks past-paper questions land on it
+(Nano places each question on a node, choosing among the five most similar by embeddings), or the
+model's high/medium/low estimate when there are no papers. It rebuilds on demand and when the
+course's sources or exam change; nodes keep their ids when their names match, so progress stays.
+Topic nodes are linked to the course topics of the same name, so quizzes and flashcards on those
+topics count too. Mastery per node (attempts, accuracy, recency-weighted score, last practised)
+rolls up to chapters and subjects; the tree and the prerequisite graph are coloured not started /
+weak (< 50%) / OK / strong (≥ 75%). Clicking a node shows where your sources cover it, its past-paper
+questions, your history, what to learn first, and *Practise this* / *Ask in chat*.
+
 ## 1. Prerequisites
 
 - Node.js 20+
@@ -384,6 +409,11 @@ React (5173) ──/auth, /api──▶ Express (3000) ──▶ PostgreSQL
 | GET | `/api/notebooks/:id/exam-insights` | Past papers, and topics / units ranked by frequency, marks and years |
 | GET | `/api/notebooks/:id/past-paper-questions?unitId=&topicId=&year=&sourceId=` | Past-paper questions with citations to the answer |
 | PATCH | `/api/notebooks/:id/past-paper-questions/:questionId` | Fix a question's topic or unit `{ topicId?, unitId? }` |
+| GET | `/api/exam-profiles` | Exam profiles (JEE Main/Advanced, NEET, GATE, UPSC Prelims/Mains, University): subjects, formats, marking, mock pattern |
+| GET / PUT | `/api/notebooks/:id/exam-profile` | The course's exam `{ examType, subjects?, name? }` (PUT: editors) |
+| GET | `/api/notebooks/:id/knowledge-map` | The map: status, nodes (level, weight, syllabus ref, your mastery, past-paper count), prerequisite edges |
+| POST | `/api/notebooks/:id/knowledge-map/rebuild` | Rebuild now with Ultra (editors; 202) |
+| GET | `/api/notebooks/:id/knowledge-map/nodes/:nodeId` | One node: cited passages, past-paper questions, mastery history, prerequisites and dependants |
 | POST | `/api/sources/:id/analyse` | Extract and map a past paper's questions again (202) |
 | GET/POST | `/api/notebooks/:id/exams` | Your exams in a course / add one `{ name, examDate: "YYYY-MM-DD", unitIds? }` |
 | GET/PATCH/DELETE | `/api/exams/:examId` | Exam with its plan (`items`, `today`, `missedCount`) / edit / delete |

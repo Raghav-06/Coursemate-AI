@@ -81,6 +81,10 @@ async function main() {
       ["PATCH", `/api/notebooks/${id}`],
       ["DELETE", `/api/notebooks/${id}`],
       ["POST", `/api/notebooks/${id}/invites`],
+      ["GET", `/api/notebooks/${id}/exam-profile`],
+      ["PUT", `/api/notebooks/${id}/exam-profile`],
+      ["GET", `/api/notebooks/${id}/knowledge-map`],
+      ["POST", `/api/notebooks/${id}/knowledge-map/rebuild`],
     ]) {
       check(`outsider ${method} ${path.replace(id, ":id")}`, (await call("outsider", method, path, method === "GET" || method === "DELETE" ? undefined : { title: "x", email: "a@b.invalid", role: "viewer" })).status, 404);
     }
@@ -108,6 +112,8 @@ async function main() {
       ["PATCH", `/api/decks/${deck.id}`, { title: "D" }],
       ["DELETE", `/api/decks/${deck.id}`],
       ["POST", `/api/notebooks/${id}/invites`, { email: "a@b.invalid", role: "viewer" }],
+      ["PUT", `/api/notebooks/${id}/exam-profile`, { examType: "neet" }],
+      ["POST", `/api/notebooks/${id}/knowledge-map/rebuild`],
     ]) {
       check(`viewer ${method} ${path.replace(id, ":id")}`, (await call("viewer", method, path, body)).status, 403);
     }
@@ -117,6 +123,8 @@ async function main() {
     // Editor: manages sources, units and decks; not members or deletion.
     check("editor adds a unit", (await call("editor", "POST", `/api/notebooks/${id}/units`, { title: "Unit 2" })).status, 201);
     check("editor renames the source", (await call("editor", "PATCH", `/api/sources/${source.id}`, { title: "Renamed" })).status, 200);
+    check("editor sets the exam profile", (await call("editor", "PUT", `/api/notebooks/${id}/exam-profile`, { examType: "jee_main" })).status, 200);
+    check("viewer reads the knowledge map", (await call("viewer", "GET", `/api/notebooks/${id}/knowledge-map`)).status, 200);
     check("editor renames the deck", (await call("editor", "PATCH", `/api/decks/${deck.id}`, { title: "Deck 2" })).status, 200);
     check("editor can't invite", (await call("editor", "POST", `/api/notebooks/${id}/invites`, { email: "a@b.invalid", role: "viewer" })).status, 403);
     check("editor can't delete the course", (await call("editor", "DELETE", `/api/notebooks/${id}`)).status, 403);

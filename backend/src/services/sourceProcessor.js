@@ -6,6 +6,8 @@ import { embeddingModelId } from "./embeddings.js";
 import { refreshNotebookOverview } from "./notebookOverview.js";
 import { scheduleTopicRefresh } from "./topics.js";
 import { analysePaper } from "./pastPapers.js";
+import { scheduleMapRefresh } from "./knowledgeMap.js";
+import { suggestKind } from "./sourceKind.js";
 import { getSource, updateSource } from "../db/store.js";
 
 const GUIDE_SAMPLE_CHARS = 24_000;
@@ -96,10 +98,16 @@ export async function processSource(sourceId, load, { reprocess = false, languag
       console.warn(`Source guide failed for ${sourceId}: ${err.message}`);
     }
 
-    const source = await getSource(sourceId);
+    let source = await getSource(sourceId);
+    // Nano checks whether this looks like a syllabus, notes or a past paper (a suggestion only).
+    if (source && !reprocess) {
+      await suggestKind(source, text);
+      source = await getSource(sourceId);
+    }
     if (source) {
       refreshNotebookOverview(source.notebookId, { language });
       scheduleTopicRefresh(source.notebookId, source.unitId);
+      scheduleMapRefresh(source.notebookId);
       if (source.kind === "past_paper") analysePaper(sourceId);
     }
   } catch (err) {

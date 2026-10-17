@@ -505,3 +505,67 @@ CREATE TABLE IF NOT EXISTS ai_calls (
 );
 CREATE INDEX IF NOT EXISTS ai_calls_user_idx ON ai_calls (user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS ai_calls_notebook_idx ON ai_calls (notebook_id, created_at DESC);
+
+-- ---- Exam profiles and knowledge map ---------------------------------------------
+
+-- The exam a course prepares for (see src/config/examProfiles.js) and the
+-- course's own settings for it, e.g. { "subjects": ["Physics"] }. NULL = not set.
+ALTER TABLE notebooks ADD COLUMN IF NOT EXISTS exam_type TEXT;
+ALTER TABLE notebooks ADD COLUMN IF NOT EXISTS exam_settings JSONB NOT NULL DEFAULT '{}';
+
+-- Sources can also be the syllabus (kind: material = notes | syllabus |
+-- past_paper). suggested_kind: what the Nano model thinks an upload is, when
+-- that differs from its kind (cleared once the user picks or dismisses).
+ALTER TABLE sources ADD COLUMN IF NOT EXISTS suggested_kind TEXT;
+
+-- The course's knowledge map: subject → chapter → topic → subtopic. Ids stay
+-- stable across rebuilds where names match, so progress stays attached.
+-- topic_id links a node to the course topic of the same name (quizzes and
+-- flashcards on that topic count towards the node).
+CREATE TABLE IF NOT EXISTS km_nodes (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  notebook_id    UUID NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
+  parent_id      UUID REFERENCES km_nodes(id) ON DELETE CASCADE,
+  level          TEXT NOT NULL CHECK (level IN ('subject', 'chapter', 'topic', 'subtopic')),
+  name           TEXT NOT NULL,
+  description    TEXT,
+  weight         REAL,                      -- exam weight 0-1 (NULL = unknown)
+  weight_source  TEXT,                      -- past_papers | model
+  syllabus_ref   TEXT,                      -- e.g. "Unit 3.2" as the syllabus numbers it
+  topic_id       UUID REFERENCES topics(id) ON DELETE SET NULL,
+  unit_id        UUID REFERENCES units(id) ON DELETE SET NULL,
+  position       INTEGER NOT NULL DEFAULT 0,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS km_nodes_notebook_idx ON km_nodes (notebook_id, parent_id, position);
+
+-- Prerequisite links: from_node must be understood before to_node.
+CREATE TABLE IF NOT EXISTS km_edges (
+  notebook_id  UUID NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
+  from_node    UUID NOT NULL REFERENCES km_nodes(id) ON DELETE CASCADE,
+  to_node      UUID NOT NULL REFERENCES km_nodes(id) ON DELETE CASCADE,
+  kind         TEXT NOT NULL DEFAULT 'prerequisite',
+  PRIMARY KEY (from_node, to_node, kind)
+);
+CREATE INDEX IF NOT EXISTS km_edges_notebook_idx ON km_edges (notebook_id);
+
+-- When each course's map was built, and from which sources (signature).
+CREATE TABLE IF NOT EXISTS km_maps (
+  notebook_id  UUID PRIMARY KEY REFERENCES notebooks(id) ON DELETE CASCADE,
+  status       TEXT NOT NULL DEFAULT 'pending',   -- pending | ready | error
+  signature    TEXT,
+  error        TEXT,
+  built_at     TIMESTAMPTZ,
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Past-paper questions are also placed on the map (Nano picks the node).
+ALTER TABLE past_paper_questions ADD COLUMN IF NOT EXISTS node_id UUID REFERENCES km_nodes(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS past_paper_questions_node_idx ON past_paper_questions (node_id);
+
+-- Mastery evidence can be about a map node (practice questions) as well as a
+-- topic; a removed node keeps its events (node_id becomes NULL).
+ALTER TABLE topic_events ALTER COLUMN topic_id DROP NOT NULL;
+ALTER TABLE topic_events ADD COLUMN IF NOT EXISTS node_id UUID REFERENCES km_nodes(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS topic_events_node_idx ON topic_events (user_id, node_id, created_at DESC);

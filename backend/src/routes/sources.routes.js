@@ -87,7 +87,8 @@ sourcesRouter.post(
 
 // body: { title?, selected?, unitId?, kind?, examName?, examYear? } — `selected` is your own
 // chat selection (any member); the rest needs editor: unitId moves the source to a unit
-// (null/"general" = General); kind switches between course material and past paper.
+// (null/"general" = General); kind: material (notes) | syllabus | past_paper;
+// dismissKindSuggestion: true hides the suggested kind.
 sourcesRouter.patch(
   "/:id",
   asyncHandler(async (req, res) => {
@@ -96,7 +97,7 @@ sourcesRouter.patch(
       await setSourcesSelected(req.user.id, [req.source.id], selected);
       req.source.selected = selected;
     }
-    const editing = ["title", "unitId", "kind", "examName", "examYear"].some((key) => req.body?.[key] !== undefined);
+    const editing = ["title", "unitId", "kind", "examName", "examYear", "dismissKindSuggestion"].some((key) => req.body?.[key] !== undefined);
     if (!editing) return res.json(req.source);
     assertRole(req.source.role, "editor");
 
@@ -105,6 +106,8 @@ sourcesRouter.patch(
     if (cleanTitle) Object.assign(patch, { title: cleanTitle, titleIsPlaceholder: false });
     const unit = await resolveUnitId(req.source.notebookId, unitId);
     if (unit !== undefined) patch.unitId = unit;
+    // Picking a kind, or dismissing the suggested one, clears the suggestion.
+    if (req.body?.kind !== undefined || req.body?.dismissKindSuggestion === true) patch.suggestedKind = null;
     const kindFields = sourceKindFields(req.body);
     let updated = await updateSource(req.params.id, patch);
     if (Object.keys(kindFields).length) updated = await setSourceKind({ ...req.source, ...patch }, kindFields);

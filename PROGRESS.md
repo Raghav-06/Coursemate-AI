@@ -11,8 +11,8 @@ analysis, exams + revision plans, streaks) instead of duplicating it.
 | # | Stage | Status |
 |---|-------|--------|
 | 1 | Nano/Super/Ultra model tiers | ✅ done |
-| 2 | Exam profiles and knowledge map | ⏳ next |
-| 3 | Self-checked practice question generation | ☐ |
+| 2 | Exam profiles and knowledge map | ✅ done |
+| 3 | Self-checked practice question generation | ⏳ next |
 | 4 | Timed practice sessions | ☐ |
 | 5 | Mistake diagnosis agent | ☐ |
 | 6 | Weekly plan and daily replanning | ☐ |
@@ -67,6 +67,60 @@ settings…"), as agreed.
   `generate_questions` super `429`, `grade_objective` nano `invalid_json` ×3 (retries), wrong Ultra key
   → message "Check MODEL_ULTRA_API_KEY" and `401`; `/health` shows tier models/hosts and no keys.
   Frontend build + oxlint: 0 errors (2 existing warnings).
+
+### 2. Exam profiles and knowledge map ✅
+- `config/examProfiles.js`: 7 profiles as data (subjects, formats with type/marks/negative/partial/
+  typical seconds, mock pattern per subject or whole paper); `courseProfile`, `cleanExamSettings`,
+  `profileList`. `services/marking.js` (`marksFor`, `scoreOf`): negative marking, JEE Advanced
+  partial marking, GATE MSQ all-or-nothing, descriptive half marks.
+- DB: `notebooks.exam_type`, `notebooks.exam_settings` (subjects, name); `sources.suggested_kind`;
+  `km_nodes` (parent, level subject|chapter|topic|subtopic, name, description, weight 0-1,
+  weight_source past_papers|model, syllabus_ref, topic_id → topics, unit_id, position), `km_edges`
+  (from → to prerequisite), `km_maps` (status, signature, error, built_at);
+  `past_paper_questions.node_id`; `topic_events.node_id` (topic_id now nullable). Queries in
+  `db/knowledgeMap.js`.
+- Source kinds: `material` (shown as "Notes") | `syllabus` | `past_paper`. The syllabus is used in
+  chat but not by generators (`resolveSources` `includeSyllabus`), nor for unit topic extraction.
+  `services/sourceKind.js`: Nano classifies new uploads → `suggested_kind` when it differs (≥ 0.6
+  confidence); PATCH `kind` or `dismissKindSuggestion` clears it.
+- `services/knowledgeMap.js`: Ultra build (syllabus ≤ 20k chars, 16 note passages, ≤ 60 past-paper
+  questions, course units and topics, exam subjects) → `parseMap` (dedupe per level, caps 8/30/20/10,
+  ≤ 500 nodes, subject names snapped to the profile's, prerequisites resolved by name, self links
+  and cycles dropped) → link chapters to units and topic nodes to course topics → `replaceMap`
+  (ids kept by level + name, preferring the same parent) → weights → Nano tagging of past-paper
+  questions (5 embedding candidates; invalid answer → most similar, null → untagged) → weights from
+  count + marks per level. Rebuilt on demand, and (debounced 5 s) when sources/kinds/exam change
+  once a map exists or a syllabus is present; papers analysed later are tagged then.
+  `nodeMastery` (own events + linked topic's, recency-weighted, rolled up by attempts),
+  `courseMap`, `nodeDetail` (MMR passages for the node path, past-paper questions in its subtree,
+  history, prerequisites/dependants).
+- Routes (`routes/knowledgeMap.routes.js`): `GET /api/exam-profiles`, `GET|PUT
+  /api/notebooks/:id/exam-profile` (PUT editors), `GET /:id/knowledge-map`, `POST
+  /:id/knowledge-map/rebuild` (editors), `GET /:id/knowledge-map/nodes/:nodeId` (node must belong to
+  the course). check-access extended (outsider 404 ×4, viewer 403 on PUT profile and rebuild, editor
+  sets the profile, viewer reads the map).
+- UI: course tool "Knowledge map" (sidebar + mobile bar, now 7 items): exam line + Choose/Change
+  exam dialog (profiles, subjects or custom subjects, formats with marking), Rebuild, pending /
+  error / empty states ("Add the syllabus", "Build from current sources"), Tree (collapsible,
+  mastery dot, syllabus ref, weight bars, PYQ count, score) | Prerequisites (layered SVG graph,
+  scrolls inside its box on phones), legend and topic counts; node slide-over with mastery +
+  history bars, Learn first / Builds towards (navigate), cited passages (open the source viewer),
+  past-paper questions, Practise this (quiz on the linked topic for now; Stage 3 switches it to
+  generated questions) and Ask in chat. Add sources: Notes / Syllabus / Past papers. Sources list:
+  Syllabus badge, "Looks like … — mark it / dismiss", Mark as notes / syllabus / past paper.
+- Tested (curl, mock AI): profile validation (unknown exam, subjects not a list → 400; outsider →
+  404); 3 sources → Nano suggested "syllabus" for the syllabus only; marking it as syllabus built
+  the map (Ultra once): 18 nodes, "physics" → "Physics", duplicate topic, subtopic equal to its
+  topic and empty subject dropped, 3 edges kept of 6 (cycle, self link and unknown name dropped),
+  syllabus refs kept, 5 topic nodes linked to course topics; tagging: Q1 → "Range" subtopic, Q2's
+  invalid letter → most similar ("Friction"), Q3 null → untagged; weights from past papers. Mastery:
+  Friction 2 topic events (1 then 0) + Static friction 2 node events (0, 0) → Friction 0.23 (4
+  answers), rolled up to chapter and subject; viewer sees 0 attempts (personal). Forced rebuild kept
+  all 18 ids and the history. Node detail: ancestors, prerequisite Newton laws, the paper question,
+  2 citations. Bad / foreign node id → 404. ai_calls show classify_source / tag_topics on nano,
+  build_knowledge_map on ultra. Marking unit checks (16 cases) pass. check-access passes. Build +
+  oxlint 0 errors. UI (headless Chromium): map light desktop, node detail dark, prerequisites graph
+  mobile, exam dialog mobile dark; no page errors, no horizontal page scroll.
 
 ## Earlier upgrade (done)
 

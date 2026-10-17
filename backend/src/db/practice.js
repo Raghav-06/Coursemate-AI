@@ -81,13 +81,14 @@ export async function deleteUnitTopics(notebookId, unitId) {
 
 export async function addTopicEvents(userId, events) {
   for (const e of events) {
-    if (!e.topicId) continue;
-    await query("INSERT INTO topic_events (user_id, topic_id, kind, score, weight) VALUES ($1, $2, $3, $4, $5)", [
+    if (!e.topicId && !e.nodeId) continue;
+    await query("INSERT INTO topic_events (user_id, topic_id, kind, score, weight, node_id) VALUES ($1, $2, $3, $4, $5, $6)", [
       userId,
-      e.topicId,
+      e.topicId ?? null,
       e.kind,
       Math.max(0, Math.min(1, e.score)),
       e.weight ?? 1,
+      e.nodeId ?? null,
     ]);
   }
 }

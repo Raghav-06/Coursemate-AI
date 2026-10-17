@@ -21,6 +21,7 @@ function toQuestion(r) {
     unitId: r.unit_id ?? null,
     topicId: r.topic_id ?? null,
     topic: r.topic_name ?? null,
+    nodeId: r.node_id ?? null,
     similarity: r.similarity === null || r.similarity === undefined ? null : Number(r.similarity),
     citations: r.citations ?? [],
     createdAt: iso(r.created_at),

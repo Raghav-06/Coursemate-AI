@@ -183,6 +183,14 @@ export const api = {
   },
   updatePastPaperQuestion: (id, questionId, patch) => request(`/api/notebooks/${id}/past-paper-questions/${questionId}`, { method: "PATCH", body: patch }),
 
+  // Exam-prep agent: exam profile (course setting) and knowledge map
+  examProfiles: () => request("/api/exam-profiles"),
+  getExamProfile: (id) => request(`/api/notebooks/${id}/exam-profile`),
+  setExamProfile: (id, body) => request(`/api/notebooks/${id}/exam-profile`, { method: "PUT", body }),
+  knowledgeMap: (id) => request(`/api/notebooks/${id}/knowledge-map`),
+  rebuildKnowledgeMap: (id) => request(`/api/notebooks/${id}/knowledge-map/rebuild`, { method: "POST" }),
+  mapNode: (id, nodeId) => request(`/api/notebooks/${id}/knowledge-map/nodes/${nodeId}`),
+
   listMessages: (id) => request(`/api/notebooks/${id}/messages`),
   clearMessages: (id) => request(`/api/notebooks/${id}/messages`, { method: "DELETE" }),
 

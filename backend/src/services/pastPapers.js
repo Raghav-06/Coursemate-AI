@@ -4,6 +4,8 @@ import { cosineSimilarity, ensureCurrentEmbeddings, loadMergedStore } from "./ve
 import { readSourceText } from "./sourceText.js";
 import { cleanText, firstNumber } from "./studyContext.js";
 import { refreshUnitTopics, scheduleTopicRefresh } from "./topics.js";
+import { scheduleMapRefresh, tagPaperQuestions } from "./knowledgeMap.js";
+import { getMapStatus } from "../db/knowledgeMap.js";
 import { getSource, listSources, listUnits, updateSource } from "../db/store.js";
 import { listTopics } from "../db/practice.js";
 import { deletePaperQuestions, listPaperQuestions, replacePaperQuestions } from "../db/pastPapers.js";
@@ -14,7 +16,7 @@ import { deletePaperQuestions, listPaperQuestions, replacePaperQuestions } from 
 // where the answer is (citations) and the likely unit, and the model confirms
 // the topic from a short list of candidates.
 
-export const SOURCE_KINDS = ["material", "past_paper"];
+export const SOURCE_KINDS = ["material", "syllabus", "past_paper"];
 const WINDOW_CHARS = 14_000;
 const MAX_QUESTIONS = 200;
 const CITATIONS_PER_QUESTION = 3;
@@ -244,6 +246,10 @@ export function analysePaper(sourceId) {
       if (!current || current.kind !== "past_paper") return; // deleted or changed meanwhile
       await replacePaperQuestions(source.notebookId, sourceId, mapped);
       await updateSource(sourceId, { paperStatus: "ready", paperError: null, ...(!current.examYear && year ? { examYear: year } : {}) });
+      // Place the new questions on the knowledge map (and update its weights).
+      if ((await getMapStatus(source.notebookId))?.status === "ready") {
+        await tagPaperQuestions(source.notebookId, { sourceId }).catch((err) => console.warn(`Tagging paper ${sourceId} failed: ${err.message}`));
+      }
     } catch (err) {
       console.warn(`Past-paper analysis failed for ${sourceId}: ${err.message}`);
       await updateSource(sourceId, { paperStatus: "error", paperError: String(err.message).slice(0, 500) });
@@ -271,8 +277,9 @@ export async function setSourceKind(source, { kind, examName, examYear }) {
   }
   const updated = await updateSource(source.id, patch);
   if (changed) {
-    if (kind === "material") await deletePaperQuestions(source.id);
+    if (kind !== "past_paper") await deletePaperQuestions(source.id);
     scheduleTopicRefresh(source.notebookId, source.unitId);
+    scheduleMapRefresh(source.notebookId);
     if (kind === "past_paper" && source.status === "ready") analysePaper(source.id);
   }
   return updated;

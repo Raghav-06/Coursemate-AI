@@ -35,6 +35,7 @@ import { coursePastPaperRoutes } from "./pastPapers.routes.js";
 import { courseExamRoutes } from "./exams.routes.js";
 import { courseMemberRoutes } from "./members.routes.js";
 import { courseBattleRoutes } from "./battles.routes.js";
+import { courseKnowledgeMapRoutes } from "./knowledgeMap.routes.js";
 import { recordActivity } from "../db/exams.js";
 import { responseLanguage } from "../services/language.js";
 import { getCoursePreferences, updateCoursePreferences } from "../db/preferences.js";
@@ -343,6 +344,7 @@ notebooksRouter.post(
       sourceIds: idList(req.body?.sourceIds, { name: "sourceIds" }),
       unitIds,
       includePastPapers,
+      includeSyllabus: true,
     });
     if (sources.length === 0) {
       throw httpError(409, unitIds?.length ? "No selected, ready sources in the chosen units." : "Select at least one ready source to chat with.");
@@ -435,3 +437,7 @@ courseExamRoutes(notebooksRouter);
 
 courseMemberRoutes(notebooksRouter);
 courseBattleRoutes(notebooksRouter);
+
+// ---- Exam profile and knowledge map ----------------------------------------------------
+
+courseKnowledgeMapRoutes(notebooksRouter);
