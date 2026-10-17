@@ -195,6 +195,18 @@ export const api = {
   listBankQuestions: (id, nodeId) => request(`/api/notebooks/${id}/questions${nodeId ? `?nodeId=${nodeId}` : ""}`),
   getQuestion: (questionId, reveal = false) => request(`/api/questions/${questionId}${reveal ? "?reveal=1" : ""}`),
   reportQuestion: (questionId, body) => request(`/api/questions/${questionId}/report`, { method: "POST", body }),
+  createSession: (id, body) => request(`/api/notebooks/${id}/sessions`, { method: "POST", body }),
+  listSessions: (id) => request(`/api/notebooks/${id}/sessions`),
+  getSession: (sessionId) => request(`/api/sessions/${sessionId}`),
+  startSession: (sessionId) => request(`/api/sessions/${sessionId}/start`, { method: "POST" }),
+  saveSessionAnswer: (sessionId, position, body) => request(`/api/sessions/${sessionId}/answers/${position}`, { method: "PUT", body }),
+  uploadWorking: (sessionId, position, file) => {
+    const form = new FormData();
+    form.append("image", file);
+    return request(`/api/sessions/${sessionId}/answers/${position}/working`, { method: "POST", form });
+  },
+  finishSession: (sessionId) => request(`/api/sessions/${sessionId}/finish`, { method: "POST" }),
+  sessionResults: (sessionId) => request(`/api/sessions/${sessionId}/results`),
 
   listMessages: (id) => request(`/api/notebooks/${id}/messages`),
   clearMessages: (id) => request(`/api/notebooks/${id}/messages`, { method: "DELETE" }),

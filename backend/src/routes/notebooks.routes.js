@@ -37,6 +37,7 @@ import { courseMemberRoutes } from "./members.routes.js";
 import { courseBattleRoutes } from "./battles.routes.js";
 import { courseKnowledgeMapRoutes } from "./knowledgeMap.routes.js";
 import { courseQuestionRoutes } from "./questions.routes.js";
+import { courseSessionRoutes } from "./sessions.routes.js";
 import { recordActivity } from "../db/exams.js";
 import { responseLanguage } from "../services/language.js";
 import { getCoursePreferences, updateCoursePreferences } from "../db/preferences.js";
@@ -443,3 +444,4 @@ courseBattleRoutes(notebooksRouter);
 
 courseKnowledgeMapRoutes(notebooksRouter);
 courseQuestionRoutes(notebooksRouter);
+courseSessionRoutes(notebooksRouter);

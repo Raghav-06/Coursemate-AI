@@ -68,6 +68,12 @@ async function main() {
       [id]
     );
     const bankId = bankRows[0].id;
+    const ownerId = (await query("SELECT id FROM users WHERE LOWER(email) = LOWER($1)", [emails[0]])).rows[0].id;
+    const { rows: sessionRows } = await query(
+      "INSERT INTO practice_sessions (notebook_id, user_id, kind, title) VALUES ($1, $2, 'drill', 'Access check') RETURNING id",
+      [id, ownerId]
+    );
+    const sessionId = sessionRows[0].id;
 
     // Sharing: existing accounts are added straight away.
     check("owner invites editor", (await call("owner", "POST", `/api/notebooks/${id}/invites`, { email: emails[1], role: "editor" })).status, 201);
@@ -95,6 +101,10 @@ async function main() {
       ["POST", `/api/notebooks/${id}/questions/generate`],
       ["GET", `/api/questions/${bankId}`],
       ["POST", `/api/questions/${bankId}/report`],
+      ["GET", `/api/notebooks/${id}/sessions`],
+      ["POST", `/api/notebooks/${id}/sessions`],
+      ["GET", `/api/sessions/${sessionId}`],
+      ["POST", `/api/sessions/${sessionId}/finish`],
     ]) {
       check(`outsider ${method} ${path.replace(id, ":id")}`, (await call("outsider", method, path, method === "GET" || method === "DELETE" ? undefined : { title: "x", email: "a@b.invalid", role: "viewer" })).status, 404);
     }
@@ -134,6 +144,9 @@ async function main() {
     check("editor adds a unit", (await call("editor", "POST", `/api/notebooks/${id}/units`, { title: "Unit 2" })).status, 201);
     check("editor renames the source", (await call("editor", "PATCH", `/api/sources/${source.id}`, { title: "Renamed" })).status, 200);
     check("editor sets the exam profile", (await call("editor", "PUT", `/api/notebooks/${id}/exam-profile`, { examType: "jee_main" })).status, 200);
+    check("viewer can't open the owner's practice session (personal)", (await call("viewer", "GET", `/api/sessions/${sessionId}`)).status, 404);
+    check("viewer can't answer in it", (await call("viewer", "PUT", `/api/sessions/${sessionId}/answers/0`, { answer: null })).status, 404);
+    check("owner opens their session", (await call("owner", "GET", `/api/sessions/${sessionId}`)).status, 200);
     check("viewer sees a bank question", (await call("viewer", "GET", `/api/questions/${bankId}`)).status, 200);
     check("viewer reads the knowledge map", (await call("viewer", "GET", `/api/notebooks/${id}/knowledge-map`)).status, 200);
     check("editor renames the deck", (await call("editor", "PATCH", `/api/decks/${deck.id}`, { title: "Deck 2" })).status, 200);

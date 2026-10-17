@@ -7,6 +7,7 @@ import AnswerWriting from "./AnswerWriting";
 import ExplainBack from "./ExplainBack";
 import BattlesTab from "../battle/BattlesTab";
 import ExamPractice from "../exam/ExamPractice";
+import SessionPlayer from "../exam/SessionPlayer";
 
 function ScorePill({ quiz }) {
   if (quiz.lastScore === null) return <span className="text-xs text-ink-3">Not taken</span>;
@@ -38,6 +39,7 @@ export default function PracticePanel({ notebook, units, sources, onOpenCitation
   const [answerPreset, setAnswerPreset] = useState(null);
   const [explainPreset, setExplainPreset] = useState(null);
   const [examPreset, setExamPreset] = useState(null);
+  const [sessionId, setSessionId] = useState(null); // practice session being taken
   const handledIntent = useRef(null); // StrictMode runs effects twice
 
   const load = useCallback(
@@ -103,6 +105,18 @@ export default function PracticePanel({ notebook, units, sources, onOpenCitation
     }
   };
 
+  if (sessionId) {
+    return (
+      <SessionPlayer
+        key={sessionId}
+        sessionId={sessionId}
+        onExit={() => setSessionId(null)}
+        onOpenCitation={onOpenCitation}
+        onFinished={onActivity}
+      />
+    );
+  }
+
   if (playing) {
     return (
       <QuizPlayer
@@ -144,7 +158,7 @@ export default function PracticePanel({ notebook, units, sources, onOpenCitation
         </div>
 
         {tab === "exam" ? (
-          <ExamPractice notebook={notebook} onOpenCitation={onOpenCitation} preset={examPreset} onPresetUsed={() => setExamPreset(null)} />
+          <ExamPractice notebook={notebook} onOpenCitation={onOpenCitation} preset={examPreset} onPresetUsed={() => setExamPreset(null)} onPlay={setSessionId} />
         ) : tab === "battle" ? (
           <BattlesTab notebook={notebook} units={units} sources={sources} />
         ) : tab === "explain" ? (

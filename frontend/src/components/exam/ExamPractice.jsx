@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api";
-import { Icon, Menu, Spinner, toast } from "../ui";
+import { Icon, Menu, Spinner, timeAgo, toast } from "../ui";
 import Markdown, { MathText } from "../Markdown";
 import QuestionBody, { TYPE_LABEL, marksLabel } from "./QuestionBody";
 import GenerateQuestionsDialog from "./GenerateQuestionsDialog";
 import ReportDialog from "./ReportDialog";
+import SessionSetupDialog, { SESSION_TYPES } from "./SessionSetupDialog";
 
 const JOB_POLL_MS = 2000;
 
@@ -82,7 +83,31 @@ function QuestionCard({ question, nodeName, onOpenCitation, onReport }) {
  * generated for knowledge-map topics. `preset` ({ nodeIds }) opens the
  * generator for those nodes.
  */
-export default function ExamPractice({ notebook, onOpenCitation, preset, onPresetUsed }) {
+const STATUS_LABEL = { preparing: "Preparing", ready: "Not started", active: "In progress", grading: "Grading", finished: "Finished", error: "Failed" };
+
+function SessionRow({ session, onOpen }) {
+  const share = session.maxScore ? Math.max(0, session.score) / session.maxScore : null;
+  return (
+    <button type="button" onClick={() => onOpen(session.id)} className="w-full flex items-center gap-3 p-3 pl-4 rounded-2xl border border-line bg-panel hover:bg-panel-2 text-left">
+      <Icon name={SESSION_TYPES.find((t) => t.kind === session.kind)?.icon ?? "quiz"} size={22} className="text-accent shrink-0" />
+      <span className="flex-1 min-w-0">
+        <span className="block text-sm font-medium truncate">{session.title}</span>
+        <span className="block text-xs text-ink-3 truncate">
+          {session.questionCount} questions{session.durationSeconds ? ` · ${Math.round(session.durationSeconds / 60)} min` : ""} · {timeAgo(session.createdAt)}
+        </span>
+      </span>
+      {session.status === "finished" ? (
+        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full tabular-nums ${share >= 0.6 ? "bg-success/15 text-success" : "bg-panel-3 text-ink-2"}`}>
+          {session.score}/{session.maxScore}
+        </span>
+      ) : (
+        <span className="text-xs text-ink-3">{STATUS_LABEL[session.status]}</span>
+      )}
+    </button>
+  );
+}
+
+export default function ExamPractice({ notebook, onOpenCitation, preset, onPresetUsed, onPlay }) {
   const [map, setMap] = useState(null);
   const [profile, setProfile] = useState(null);
   const [bank, setBank] = useState(null);
@@ -90,6 +115,8 @@ export default function ExamPractice({ notebook, onOpenCitation, preset, onPrese
   const [generating, setGenerating] = useState(null); // { nodeIds }
   const [job, setJob] = useState(null);
   const [reporting, setReporting] = useState(null);
+  const [setup, setSetup] = useState(null); // { kind, nodeIds }
+  const [sessions, setSessions] = useState(null);
   const handled = useRef(null);
 
   const loadBank = useCallback(() => api.listBankQuestions(notebook.id).then(setBank, (err) => setError(err.message)), [notebook.id]);
@@ -97,13 +124,15 @@ export default function ExamPractice({ notebook, onOpenCitation, preset, onPrese
     api.knowledgeMap(notebook.id).then(setMap, (err) => setError(err.message));
     api.getExamProfile(notebook.id).then(setProfile, () => {});
     loadBank();
+    api.listSessions(notebook.id).then(setSessions, () => setSessions([]));
   }, [notebook.id, loadBank]);
 
   useEffect(() => {
     if (!preset || handled.current === preset) return;
     handled.current = preset;
     onPresetUsed?.();
-    if (preset.nodeIds?.length) setGenerating({ nodeIds: preset.nodeIds });
+    if (preset.session) setSetup({ kind: preset.session, nodeIds: preset.nodeIds ?? [] });
+    else if (preset.nodeIds?.length) setGenerating({ nodeIds: preset.nodeIds });
   }, [preset, onPresetUsed]);
 
   useEffect(() => {
@@ -142,6 +171,34 @@ export default function ExamPractice({ notebook, onOpenCitation, preset, onPrese
           <Icon name="add" size={20} /> New questions
         </button>
       </div>
+
+      {!noMap && map && (
+        <section className="flex flex-col gap-3">
+          <h3 className="text-sm font-semibold">Practice sessions</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {SESSION_TYPES.map((t) => (
+              <button key={t.kind} type="button" onClick={() => setSetup({ kind: t.kind, nodeIds: [] })} className="flex items-start gap-3 p-4 rounded-2xl border border-line bg-panel hover:bg-panel-2 text-left">
+                <span className="w-10 h-10 rounded-xl bg-panel-2 text-accent flex items-center justify-center shrink-0">
+                  <Icon name={t.icon} size={22} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">{t.title}</span>
+                  <span className="block text-xs text-ink-3 leading-5">{t.text}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+          {sessions?.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <h3 className="text-sm font-semibold mt-2">Your sessions</h3>
+              {sessions.slice(0, 8).map((s) => (
+                <SessionRow key={s.id} session={s} onOpen={onPlay} />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+      <h3 className="text-sm font-semibold mt-2">Question bank</h3>
 
       {job?.status === "running" && (
         <div className="rounded-2xl border border-line p-4 flex flex-col gap-2" aria-live="polite">
@@ -196,6 +253,17 @@ export default function ExamPractice({ notebook, onOpenCitation, preset, onPrese
           initialNodeIds={generating.nodeIds}
           onClose={() => setGenerating(null)}
           onStarted={setJob}
+        />
+      )}
+      {setup && (
+        <SessionSetupDialog
+          notebookId={notebook.id}
+          kind={setup.kind}
+          nodes={nodes}
+          profile={profile?.profile}
+          initialNodeIds={setup.nodeIds}
+          onClose={() => setSetup(null)}
+          onCreated={(s) => onPlay(s.id)}
         />
       )}
       {reporting && <ReportDialog question={reporting} onClose={() => setReporting(null)} onReported={(q) => setBank((b) => ({ ...b, questions: b.questions.filter((x) => x.id !== q.id) }))} />}

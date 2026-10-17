@@ -13,8 +13,8 @@ analysis, exams + revision plans, streaks) instead of duplicating it.
 | 1 | Nano/Super/Ultra model tiers | ✅ done |
 | 2 | Exam profiles and knowledge map | ✅ done |
 | 3 | Self-checked practice question generation | ✅ done |
-| 4 | Timed practice sessions | ⏳ next |
-| 5 | Mistake diagnosis agent | ☐ |
+| 4 | Timed practice sessions | ✅ done |
+| 5 | Mistake diagnosis agent | ⏳ next |
 | 6 | Weekly plan and daily replanning | ☐ |
 | 7 | Demo course, AI usage panel and docs | ☐ |
 
@@ -163,6 +163,61 @@ settings…"), as agreed.
   generate_questions / self_check on super. check-access: outsider 404 on list, generate, question,
   report; viewer can read a question. Build + oxlint 0 errors. UI: bank with revealed numerical
   question rendering LaTeX + cited solution (light), generator dialog from the map (mobile dark).
+
+### 4. Timed practice sessions ✅
+- DB: `practice_sessions` (kind drill|mixed|sectional|mock, exam_type, title, node_ids, duration,
+  status preparing|ready|active|grading|finished|error, settings {count, instantFeedback, minutes},
+  started/finished, score, max_score), `session_questions` (position, bank question, section),
+  `session_answers` (answer JSONB, attempted, correct, fraction, marks, time_spent_ms,
+  time_remaining_s, answer_changes, confidence, working_text, working_ocr, grading JSONB, locked,
+  answered_at). Queries in `db/sessions.js`.
+- `services/sessions.js`: `planSession` (drill/mixed/sectional: `pickFormats` mix; sectional timed at
+  the pattern's seconds per question; mock: per subject × the course's subject nodes, or the whole
+  pattern), `prepare` (bank questions of the same exam type and format whose nodes are in scope,
+  unseen first; shortfall → generation per format and scope on its top-priority topics, chunks of
+  10, then re-pick; fewer questions → time scaled), clock (`remainingSeconds`, auto-submit on any
+  read/write after time-up), `cleanAnswer` per type, `saveAnswer` (answer-change counter, time left
+  when answered, time spent clamped to elapsed + 5 s, confidence, working text; `check` grades and
+  locks in drills only), `finishSession` (status claim so one submit wins, graded with concurrency 4,
+  a grading failure scores 0 with the reason, totals, topic events per node + linked topic, activity
+  "practice"), `sessionView`, `sessionResults` (summary, per section, rows).
+- `services/sessionGrading.js`: `parseNumber` ("3,500", "3e8", "3×10^8", "1/2", "3.5 km"), unit
+  aliases; code for options (incl. JEE Advanced partial / GATE MSQ via `marksFor`), matching,
+  numbers in the key's unit, exact one-word; Nano (`grade_objective`) for other units / typed units /
+  near-miss words; Super (`grade_descriptive`) marks the rubric with the question's cited passages
+  (awarded clamped to each point, half marks, invalid [n] stripped); written answers under 60% count
+  as wrong.
+- Routes `routes/sessions.routes.js` (personal: only the session's user; others 404): create
+  (validated kind, ≤ 5 nodes on the map, counts per kind, minutes 0-240, needs a map and notes),
+  list, get, start, save answer, working photo (images ≤ 10 MB, OCR, temp file removed), finish,
+  results.
+- UI: Exam practice → Practice sessions (4 cards → setup dialog: topics / subject-or-chapter chips,
+  question count, timer for mixed; mock shows the pattern), Your sessions list (score or status).
+  Session player: preparing progress, intro (count, timer, marking), header with countdown (red in
+  the last minute) and Submit, question palette (answered / checked right-wrong / current), question
+  with section, type and marking, confidence chips, "How I solved it" (text + photo), drill Check
+  with result and solution, Previous / Next, autosave (600 ms; time every 20 s and on navigation),
+  auto-submit at 0. Results: score with marking + negative marks, accuracy, attempted, time vs
+  expected, per-section table, question rows (status, node, confidence, changes, time bar vs
+  expected, marks) expanding to the answer vs key, rubric points, feedback and solution.
+- Tested (curl): bad kind / drill without topics / count 50 / minutes 999 → 400; answer before start
+  → 409; drill from the bank (4 MCQ + 1 numerical); invalid option id, two options for single
+  correct, confidence "maybe" → 400 (nothing saved); answer → change count 0 → 1 after a different
+  answer, time spent clamped to elapsed; check → −1 marks, key + solution returned, locked (second
+  change → 409); "3464 cm" checked → Nano correct, +4; position 9 → 404; keys revealed only for
+  checked questions; results before submit → 409; finish → 3/17 (−1, +4, blanks 0); second finish
+  is a no-op; answering after → 409; another user → 404; practice topic events and activity
+  recorded. Sectional (5 Q) → 720 s at 144 s/question; check in a timed test → 409; clock moved back
+  2 h → next answer 409 and the session was auto-submitted (time used capped at the duration). JEE
+  Main full mock → 25 questions (20 MCQ + 5 numerical), 60 min, section Physics. Mixed on a topic
+  with no bank questions → generated and self-checked during preparing. Fix during testing: bank
+  questions are now matched by exam type too (a JEE Advanced "mcq" worth 3 had been picked for JEE
+  Main). University drill: one-word "Friction force" → Nano correct (+1); 2-mark answer marked by the
+  rubric (model's 9 and 1.3 clamped to 1 and 1, invalid citations dropped) → 2/2; a weak 5-mark
+  answer → 0 and wrong. Photo of working → OCR text stored (vision call logged); .txt → 400.
+  check-access: outsider 404 on list/create/get/finish; a co-member gets 404 on someone else's
+  session. Build + oxlint 0 errors. UI: intro, active question with KaTeX options (light), resumed
+  session on question 5 with answered Q1 in the palette (mobile dark), results (dark).
 
 ## Earlier upgrade (done)
 

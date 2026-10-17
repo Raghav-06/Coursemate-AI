@@ -612,3 +612,62 @@ CREATE TABLE IF NOT EXISTS question_reports (
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS question_reports_question_idx ON question_reports (question_id);
+
+-- ---- Practice sessions and attempts --------------------------------------------------
+
+-- A personal practice session: topic drill, mixed practice, timed sectional
+-- test or full mock in the exam pattern. Questions come from the bank (topped
+-- up by generation while status = preparing).
+CREATE TABLE IF NOT EXISTS practice_sessions (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  notebook_id       UUID NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
+  user_id           UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  kind              TEXT NOT NULL,                 -- drill | mixed | sectional | mock
+  exam_type         TEXT,
+  title             TEXT NOT NULL,
+  node_ids          UUID[] NOT NULL DEFAULT '{}',
+  duration_seconds  INTEGER,                       -- NULL = untimed
+  status            TEXT NOT NULL DEFAULT 'ready', -- preparing | ready | active | grading | finished | error
+  error             TEXT,
+  settings          JSONB NOT NULL DEFAULT '{}',   -- { count, formats, instantFeedback, plan… }
+  started_at        TIMESTAMPTZ,
+  finished_at       TIMESTAMPTZ,
+  score             REAL,
+  max_score         REAL,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS practice_sessions_user_idx ON practice_sessions (notebook_id, user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS session_questions (
+  session_id   UUID NOT NULL REFERENCES practice_sessions(id) ON DELETE CASCADE,
+  position     INTEGER NOT NULL,
+  question_id  UUID NOT NULL REFERENCES bank_questions(id) ON DELETE CASCADE,
+  section      TEXT,
+  PRIMARY KEY (session_id, position)
+);
+
+-- What the student did on each question: the answer, marks (with negative
+-- marking), time spent, the test clock when they answered, answer changes,
+-- confidence and optional working — the signals the mistake diagnosis uses.
+CREATE TABLE IF NOT EXISTS session_answers (
+  session_id        UUID NOT NULL REFERENCES practice_sessions(id) ON DELETE CASCADE,
+  position          INTEGER NOT NULL,
+  question_id       UUID NOT NULL REFERENCES bank_questions(id) ON DELETE CASCADE,
+  answer            JSONB,
+  attempted         BOOLEAN NOT NULL DEFAULT FALSE,
+  correct           BOOLEAN,
+  fraction          REAL,                          -- share of full marks earned (0-1)
+  marks             REAL,
+  time_spent_ms     INTEGER NOT NULL DEFAULT 0,
+  time_remaining_s  INTEGER,                       -- on the test clock when last answered
+  answer_changes    INTEGER NOT NULL DEFAULT 0,
+  confidence        TEXT,                          -- sure | unsure | guess
+  working_text      TEXT,
+  working_ocr       TEXT,                          -- text read from a photo of the working
+  grading           JSONB,                         -- { by: code|nano|super, reason, points, feedback, citations }
+  locked            BOOLEAN NOT NULL DEFAULT FALSE, -- checked in a drill (no more changes)
+  answered_at       TIMESTAMPTZ,
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (session_id, position)
+);
+CREATE INDEX IF NOT EXISTS session_answers_question_idx ON session_answers (question_id);

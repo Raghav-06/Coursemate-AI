@@ -187,6 +187,26 @@ solver's answer and the reasons are stored in `bank_questions.verification`. *Re
 `question_reports`. Questions, options, solutions, quizzes and chat render LaTeX (remark-math +
 rehype-katex).
 
+### Timed practice sessions
+
+*Exam practice* offers four session types: **topic drill** (chosen topics, check each answer with its
+solution), **mixed practice** (weak and high-weight topics first, optional timer), **timed sectional
+test** (one subject or chapter, at the exam's time per question) and **full mock** (the profile's
+question count, duration and marking — e.g. JEE Main Physics: 20 MCQ + 5 numerical in 60 minutes).
+Sessions take verified questions from the bank (fresh ones first, same exam's marking); anything
+missing is generated and self-checked while the session shows "Preparing".
+
+For every question the session records the answer, correctness, marks (negative marking
+included), time spent, the time left on the test clock when answered, its position, how many times
+the answer changed, optional confidence (sure / unsure / guess) and optional "how I solved it" —
+text, or a photo of the working read by the vision model. The clock runs on the server: a timed
+session submits itself when time is up. **Grading:** options, integers, matching and numbers in the
+key's unit are graded in code; a number in another unit (or with its unit typed in) and near-miss
+one-word answers go to Nano; written answers are marked against the rubric by Super, citing the
+passages. Results show the score with the exam's marking, accuracy, attempted, time used vs
+expected, per-section marks, and per question your time against the expected time and the full
+solution. Graded answers feed mastery on their map nodes.
+
 ## 1. Prerequisites
 
 - Node.js 20+
@@ -437,6 +457,14 @@ React (5173) ──/auth, /api──▶ Express (3000) ──▶ PostgreSQL
 | GET | `/api/notebooks/:id/questions?nodeId=&format=` | The course's verified questions (no keys) and bank stats |
 | GET | `/api/questions/:questionId?reveal=1` | One question (with `reveal=1`: key, solution, verification) |
 | POST | `/api/questions/:questionId/report` | Report a problem `{ reason, note? }` — hides it |
+| POST | `/api/notebooks/:id/sessions` | New session `{ kind: drill\|mixed\|sectional\|mock, nodeIds?, count?, minutes? }` → 202 (preparing) |
+| GET | `/api/notebooks/:id/sessions` | Your sessions in the course |
+| GET | `/api/sessions/:sessionId` | Session with questions (keys only once checked/submitted), your answers, time left |
+| POST | `/api/sessions/:sessionId/start` | Start the clock |
+| PUT | `/api/sessions/:sessionId/answers/:position` | Save `{ answer?, timeSpentMs?, confidence?, workingText?, check? }` |
+| POST | `/api/sessions/:sessionId/answers/:position/working` | Photo of your working (multipart `image`) → OCR |
+| POST | `/api/sessions/:sessionId/finish` | Submit and grade → results |
+| GET | `/api/sessions/:sessionId/results` | Score, accuracy, time vs expected, per-question solutions |
 | POST | `/api/sources/:id/analyse` | Extract and map a past paper's questions again (202) |
 | GET/POST | `/api/notebooks/:id/exams` | Your exams in a course / add one `{ name, examDate: "YYYY-MM-DD", unitIds? }` |
 | GET/PATCH/DELETE | `/api/exams/:examId` | Exam with its plan (`items`, `today`, `missedCount`) / edit / delete |
