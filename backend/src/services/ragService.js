@@ -55,7 +55,7 @@ export async function answerQuestion({ sources, question, history = [], language
     ["human", `Source passages:\n\n${context || "(no passages found)"}\n\nQuestion: ${question}`],
   ];
 
-  return { citations, stream: streamCompletion(messages, { language }) };
+  return { citations, stream: streamCompletion(messages, { language, task: "chat" }) };
 }
 
 // Non-streaming convenience for the CLI script.

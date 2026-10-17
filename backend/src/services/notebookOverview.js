@@ -29,7 +29,7 @@ async function generateOverview(notebookId, language) {
   const overview = await completeJson(
     "You organize courses for college students. Given the study material in a course, produce: a short, specific course title (max 8 words, no quotes); one emoji that fits the subject; a 3-5 sentence summary that synthesizes ALL sources together, with key terms in **bold** markdown; and exactly 3 insightful questions a student could ask about these sources (each under 20 words).",
     `${context}\n\nReturn JSON: {"title": string, "emoji": string, "summary": string, "questions": string[]}`,
-    { language }
+    { language, task: "course_overview", notebookId }
   );
 
   const patch = {

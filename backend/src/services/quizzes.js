@@ -57,7 +57,7 @@ export async function generateQuizQuestions({ sources, topics, focusTopics = [],
       (focusTopics.length ? `Only ask about these topics: ${focusTopics.map((t) => t.name).join("; ")}.\n` : "") +
       `Write exactly ${count} questions.\n${DIFFICULTY_GUIDE[difficulty]}\n\n` +
       'Return JSON: {"questions": [{"question": string, "options": [string, string, string, string], "answer": number, "explanation": string, "topic": string, "passage": number}]}',
-    { language }
+    { language, task: "quiz" }
   );
 
   const raw = Array.isArray(out?.questions) ? out.questions : Array.isArray(out) ? out : [];

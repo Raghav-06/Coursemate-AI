@@ -45,7 +45,7 @@ export async function reviewExplanation({ sources, prompt, explanation, topics, 
       (topicList ? `Course topics:\n${topicList}\n\n` : "") +
       `What the student explains: ${prompt}\n\nStudent's explanation:\n"""\n${explanation}\n"""\n\n` +
       'Return JSON: {"summary": string, "correctPoints": [{"point": string, "passages": number[]}], "gaps": [{"point": string, "passages": number[]}], "misconceptions": [{"point": string, "passages": number[]}], "clarity": number, "accuracy": number, "followUp": string, "topic": string (from the course topics)}',
-    { language }
+    { language, task: "explain" }
   );
 
   const valid = new Set(passages.map((p) => p.number));

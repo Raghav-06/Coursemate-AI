@@ -1,8 +1,77 @@
-# CourseMate AI upgrade — progress
+# CourseMate AI — progress
+
+## Exam-prep agent (current work)
+
+Adding an exam-prep **agent** for Indian competitive and university exams (JEE, NEET, GATE, UPSC,
+university): knowledge map, self-checked practice questions, mistake diagnosis and daily
+replanning, on three model tiers (Nano / Super / Ultra). 7 stages, each verified, committed and
+pushed before the next. It **extends** what exists (units, topics, topic mastery, quizzes, past-paper
+analysis, exams + revision plans, streaks) instead of duplicating it.
+
+| # | Stage | Status |
+|---|-------|--------|
+| 1 | Nano/Super/Ultra model tiers | ✅ done |
+| 2 | Exam profiles and knowledge map | ⏳ next |
+| 3 | Self-checked practice question generation | ☐ |
+| 4 | Timed practice sessions | ☐ |
+| 5 | Mistake diagnosis agent | ☐ |
+| 6 | Weekly plan and daily replanning | ☐ |
+| 7 | Demo course, AI usage panel and docs | ☐ |
+
+Before stage 1, the uncommitted shared-provider work that was in the tree (AI_PROVIDER / LLM_*
+settings, failing interrupted sources on boot) was committed on its own ("Shared AI provider
+settings…"), as agreed.
+
+### Test harness (rebuild in the session scratchpad if it's gone)
+- PostgreSQL 16 scratch cluster: `initdb -D <scratch>/pg/data -U postgres -A trust`, started on port
+  55432 (`pg_ctl -o "-p 55432"`), database `cm`.
+- Mock OpenAI-compatible API (`<scratch>/mock/server.mjs` + `rules.mjs`, reloaded on change): chat
+  (incl. streaming), embeddings (hashed bag of words, 128 dims). Port 18080 plain; port 18081
+  requires key `nvapi-test` and prefixes every reply with a `<think>…</think>` block (stands in for a
+  reasoning model on another endpoint). `log.jsonl` records model, stream, system-prompt start,
+  temperature, max_tokens and the key's last 6 chars for every request.
+- Backend runs from a Linux copy (`rsync` of `backend/src` + `npm ci` there; `/mnt/d` is very slow)
+  on port 3100 with every setting exported (`env.sh`): `AI_PROVIDER=custom` → mock, `MODEL_NANO_MODEL=
+  mock-nano`, `MODEL_SUPER_MODEL=mock-super` (same endpoint), `MODEL_ULTRA_*` on the 18081 mock with
+  its own key, `MODEL_ULTRA_SYSTEM_PREFIX="detailed thinking on"`, `MODEL_ULTRA_TEMPERATURE=default`.
+  Test users are inserted with a scrypt hash and signed in with `/auth/login` (cookie jar).
+- Frontend: Linux copy with `npm ci`, `src` rsynced in, `vite build` + `oxlint src`.
+
+### 1. Nano/Super/Ultra model tiers ✅
+- Config (`config/index.js`): `ai.tiers.{nano,super,ultra}` from `MODEL_<TIER>_BASE_URL / _API_KEY /
+  _MODEL / _TEMPERATURE / _MAX_TOKENS / _SYSTEM_PREFIX`; empty = the LLM settings (key reused only
+  when the base URL is the LLM one, or local); `default` for temperature/max tokens = provider's
+  choice; a base URL without a key is reported at startup. `aiSummary().tiers` (model, host, local,
+  inherited, reasoningPrefix) → `/health` `tiers` and `ai.tiers`.
+- `services/modelRouter.js`: the one task → tier map (`TASK_TIERS`), `tierFor(task)`,
+  `modelSettings(tier)`. Existing features were given task names; quizzes, written questions and
+  written-answer grading now run on Super, past-paper topic mapping on Nano; chat, guides,
+  overviews, topics, flashcards, explain-it-back and OCR stay on the default LLM.
+- `llm.js`: `complete` / `completeJson` / `streamCompletion` take `{ tier }` or `{ task }` (plus
+  `language`, optional `userId` / `notebookId`); one cached `ChatOpenAI` per tier; the tier's system
+  prefix goes first; a leading `<think>…</think>` is stripped (also while streaming); provider
+  errors name the tier's settings (e.g. "Check MODEL_ULTRA_API_KEY"); a prose reply to a JSON request
+  now counts as invalid JSON (was parsed into a bare string by jsonrepair) and is retried.
+- `ai_calls` table + `db/aiCalls.js` (`logAiCall`, `flushAiLog`, `aiUsage`): every chat/JSON/stream,
+  vision and transcription call → user, course, tier, model, task, latency, ok, error code
+  (`429`, `401`, `timeout`, `network`, `invalid_json`, `missing_key`…), never prompt text. Who/which
+  course comes from `services/aiContext.js` (AsyncLocalStorage per /api request; the `:id` course
+  loader fills in the course; background jobs started by a request inherit it).
+- `npm run check-api` also tests each tier (plain text + JSON `{"sum": 42}`) and exits non-zero if a
+  tier fails. Settings → AI & privacy lists the three tiers.
+- Tested: check-api against the mocks → Nano/Super on 18080 (models mock-nano / mock-super,
+  temperatures 0 / 0.3), Ultra on 18081 with its own key, "detailed thinking on" first in the system
+  prompt, no temperature sent, max_tokens 8000, `<think>` block removed from text and JSON; backend
+  boots and migrates (fresh DB, then again on restart); ingestion + chat on a course logged
+  `source_guide`, `topics`, `course_overview`, `chat` with the user and course; forced failures logged
+  `generate_questions` super `429`, `grade_objective` nano `invalid_json` ×3 (retries), wrong Ultra key
+  → message "Check MODEL_ULTRA_API_KEY" and `401`; `/health` shows tier models/hosts and no keys.
+  Frontend build + oxlint: 0 errors (2 existing warnings).
+
+## Earlier upgrade (done)
 
 Turning CourseMate AI into a study and exam-prep app for college courses (10 stages, built in order;
-each stage is verified, committed and pushed before the next). This file is the checklist for
-resuming the work in a new conversation.
+each stage is verified, committed and pushed before the next).
 
 | # | Stage | Status |
 |---|-------|--------|

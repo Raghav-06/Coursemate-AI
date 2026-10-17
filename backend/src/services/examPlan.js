@@ -75,7 +75,7 @@ async function orderTopics(exam, ranked, language) {
     const out = await completeJson(
       ORDER_PROMPT,
       `Exam: ${exam.name}\n\nTopics:\n${listing}\n\nReturn JSON: {"order": [topic numbers], "tips": [{"topic": number, "tip": string}]}`,
-      { language }
+      { language, task: "plan_order" }
     );
     const seen = new Set();
     const order = [];

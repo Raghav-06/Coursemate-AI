@@ -37,7 +37,7 @@ export async function generateCards({ sources, count, difficulty, focus, topics 
       (topicList ? `Course topics:\n${topicList}\n\n` : "") +
       `Write exactly ${count} flashcards${focus ? ` for "${focus}"` : ""}.\n${DIFFICULTY_GUIDE[difficulty]}\n\n` +
       'Return JSON: {"cards": [{"front": string, "back": string, "topic": string, "passage": number}]}',
-    { language }
+    { language, task: "flashcards" }
   );
 
   const raw = Array.isArray(out?.cards) ? out.cards : Array.isArray(out) ? out : [];

@@ -73,7 +73,8 @@ export async function extractQuestions(text) {
     const out = await completeJson(
       EXTRACT_PROMPT,
       `Exam paper text:\n"""\n${window}\n"""\n\n` +
-        'Return JSON: {"year": number | null, "questions": [{"number": string, "text": string, "marks": number | null, "section": string | null}]}'
+        'Return JSON: {"year": number | null, "questions": [{"number": string, "text": string, "marks": number | null, "section": string | null}]}',
+      { task: "past_paper_extract" }
     );
     year ??= cleanYear(out?.year);
     const raw = Array.isArray(out?.questions) ? out.questions : Array.isArray(out) ? out : [];
@@ -114,7 +115,8 @@ async function confirmTopics(items) {
     try {
       const out = await completeJson(
         CONFIRM_PROMPT,
-        `${listing}\n\nReturn JSON: {"answers": [{"question": number, "topic": "A" | "B" | … | null}]}`
+        `${listing}\n\nReturn JSON: {"answers": [{"question": number, "topic": "A" | "B" | … | null}]}`,
+        { task: "past_paper_topics" }
       );
       for (const answer of Array.isArray(out?.answers) ? out.answers : []) {
         const index = firstNumber(answer?.question) - 1;

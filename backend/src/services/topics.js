@@ -48,7 +48,8 @@ async function extractTopics(unitTitle, sources) {
   if (passages.length === 0) return [];
   const out = await completeJson(
     TOPIC_PROMPT,
-    `Unit: ${unitTitle}\n\nSource passages:\n\n${formatPassages(passages)}\n\nReturn JSON: {"topics": [{"name": string, "description": string}]}`
+    `Unit: ${unitTitle}\n\nSource passages:\n\n${formatPassages(passages)}\n\nReturn JSON: {"topics": [{"name": string, "description": string}]}`,
+    { task: "topics" }
   );
   const raw = Array.isArray(out?.topics) ? out.topics : Array.isArray(out) ? out : [];
   const seen = new Set();

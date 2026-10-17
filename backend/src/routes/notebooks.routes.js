@@ -40,6 +40,7 @@ import { responseLanguage } from "../services/language.js";
 import { getCoursePreferences, updateCoursePreferences } from "../db/preferences.js";
 import { scheduleTopicRefresh } from "../services/topics.js";
 import { deleteUnitTopics } from "../db/practice.js";
+import { setAiNotebook } from "../services/aiContext.js";
 
 export const notebooksRouter = Router();
 
@@ -56,6 +57,7 @@ const DEFAULT_EMOJIS = ["📓", "📘", "📗", "📙", "📕", "🧠", "🔬", 
 notebooksRouter.param("id", async (req, _res, next, id) => {
   try {
     req.notebook = isUuid(id) ? await getNotebook(id, req.user.id) : null;
+    if (req.notebook) setAiNotebook(req.notebook.id);
     next(req.notebook ? undefined : httpError(404, "Course not found."));
   } catch (err) {
     next(err);

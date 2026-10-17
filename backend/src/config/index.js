@@ -148,6 +148,39 @@ const ai = {
 ai.chatModel = ai.chat.model;
 ai.embeddingModel = ai.embedding.model;
 
+// ---- Model tiers: Nano (quick judgement), Super (writing exam content),
+// Ultra (deep reasoning). Each is its own OpenAI-compatible endpoint; empty
+// settings fall back to the LLM ones above, so with nothing set every tier is
+// the LLM model. Which task uses which tier: src/services/modelRouter.js.
+export const TIERS = ["nano", "super", "ultra"];
+// "default" in a TEMPERATURE / MAX_TOKENS setting = let the provider decide.
+const tierNum = (v, fallback) => (v !== undefined && /^default$/i.test(v.trim()) ? undefined : optNum(v) ?? fallback);
+
+function tierSettings(tier) {
+  const prefix = `MODEL_${tier.toUpperCase()}`;
+  const ownUrl = trimSlash(env[`${prefix}_BASE_URL`]);
+  const baseUrl = ownUrl || llm.baseUrl;
+  const ownKey = env[`${prefix}_API_KEY`];
+  const apiKey = ownKey || (baseUrl === llm.baseUrl ? llm.apiKey : undefined) || (isLocal(baseUrl) ? "not-needed" : undefined);
+  const model = env[`${prefix}_MODEL`] || llmModel;
+  if (ownUrl && !apiKey) aiProblems.push(`AI: ${prefix}_BASE_URL is set but ${prefix}_API_KEY is empty.`);
+  return {
+    tier,
+    baseUrl,
+    apiKey,
+    keyName: ownKey || baseUrl !== llm.baseUrl ? `${prefix}_API_KEY` : llm.keyName,
+    model,
+    temperature: tierNum(env[`${prefix}_TEMPERATURE`], ai.chat.temperature),
+    maxTokens: tierNum(env[`${prefix}_MAX_TOKENS`], ai.chat.maxTokens),
+    // A line put before the system prompt, e.g. "detailed thinking on" or
+    // "/no_think" for models that switch reasoning with one.
+    systemPrefix: (env[`${prefix}_SYSTEM_PREFIX`] ?? "").trim() || null,
+    // True when nothing was set for this tier (it is the LLM model).
+    inherited: !ownUrl && !env[`${prefix}_MODEL`],
+  };
+}
+ai.tiers = Object.fromEntries(TIERS.map((t) => [t, tierSettings(t)]));
+
 export const config = {
   env: process.env.NODE_ENV || "development",
   isProduction,
@@ -267,6 +300,12 @@ export function aiSummary() {
         : entry(embedding.model, embedding.baseUrl, { provider: "openai-compatible" }),
     vision: entry(vision.model, vision.baseUrl),
     transcription: entry(transcribe.model, transcribe.baseUrl),
+    tiers: Object.fromEntries(
+      TIERS.map((t) => {
+        const s = config.ai.tiers[t];
+        return [t, entry(s.model, s.baseUrl, { inherited: s.inherited, reasoningPrefix: Boolean(s.systemPrefix) })];
+      })
+    ),
   };
 }
 

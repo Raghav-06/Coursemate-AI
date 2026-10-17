@@ -3,14 +3,22 @@ import { AIMessage, HumanMessage, SystemMessage } from "@langchain/core/messages
 import { jsonrepair } from "jsonrepair";
 import { config } from "../config/index.js";
 import { languageInstruction } from "./language.js";
+import { modelSettings, tierFor } from "./modelRouter.js";
+import { currentAiContext } from "./aiContext.js";
+import { logAiCall } from "../db/aiCalls.js";
 
 // Chat goes through LangChain's ChatOpenAI, which works with any provider that
 // exposes an OpenAI-compatible chat completions API (the AI_PROVIDER / LLM_PROVIDER
 // default URL, or AI_BASE_URL / LLM_BASE_URL), e.g. OpenAI, Anthropic, Gemini,
 // Groq, OpenRouter, Mistral, Hugging Face or Ollama.
+//
+// Calls name their `task`; modelRouter.js maps it to a tier (Nano / Super /
+// Ultra, each its own endpoint and model) or the default LLM model. `tier`
+// picks one directly. Every call is logged in ai_calls (no prompt text).
 const { chat } = config.ai;
 const REQUEST_TIMEOUT_MS = 180_000;
 const MISSING_KEY = "MISSING_API_KEY";
+const INVALID_JSON = "INVALID_JSON";
 
 function httpError(status, message) {
   return Object.assign(new Error(message), { status });
@@ -25,20 +33,33 @@ export function assertApiKey() {
   }
 }
 
-let chatModel = null;
-function getChatModel() {
-  assertApiKey();
-  chatModel ??= new ChatOpenAI({
-    model: chat.model,
-    apiKey: chat.apiKey,
-    configuration: { baseURL: chat.baseUrl },
-    ...(chat.temperature !== undefined && { temperature: chat.temperature }),
-    ...(chat.maxTokens !== undefined && { maxTokens: chat.maxTokens }),
-    timeout: REQUEST_TIMEOUT_MS,
-    maxRetries: 2,
-    streamUsage: false,
-  });
-  return chatModel;
+const envPrefix = (s) => (s.tier === "default" ? "LLM" : `MODEL_${s.tier.toUpperCase()}`);
+
+// One cached client per tier ("default" = the LLM settings).
+const chatModels = new Map();
+function getChatModel(s) {
+  if (s.tier === "default") assertApiKey();
+  else if (!s.apiKey) {
+    throw Object.assign(httpError(503, `${s.keyName} is not set (the ${s.tier} model tier). Add it to backend/.env and restart the server.`), {
+      code: MISSING_KEY,
+    });
+  }
+  if (!chatModels.has(s.tier)) {
+    chatModels.set(
+      s.tier,
+      new ChatOpenAI({
+        model: s.model,
+        apiKey: s.apiKey,
+        configuration: { baseURL: s.baseUrl },
+        ...(s.temperature !== undefined && { temperature: s.temperature }),
+        ...(s.maxTokens !== undefined && { maxTokens: s.maxTokens }),
+        timeout: REQUEST_TIMEOUT_MS,
+        maxRetries: 2,
+        streamUsage: false,
+      })
+    );
+  }
+  return chatModels.get(s.tier);
 }
 
 // The codebase passes messages as [role, content] tuples (system | human | ai).
@@ -48,20 +69,61 @@ const toMessages = (messages) => messages.map(([role, content]) => new (MESSAGE_
 const textOf = (content) =>
   typeof content === "string" ? content : Array.isArray(content) ? content.map((p) => p?.text ?? "").join("") : "";
 
+// Reasoning models (e.g. Nemotron with thinking on) may put their reasoning
+// in <think>…</think> before the answer; only the answer is used.
+const stripThinking = (text) => text.replace(/^\s*<think>[\s\S]*?(<\/think>|$)/, "");
+
+const hostOf = (url) => {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
+};
+
 // Turns provider errors into a clear message for the UI.
-function explain(err) {
+function explain(err, s = { tier: "default", ...chat }) {
   const status = err.status ?? err.response?.status;
   // First line only: LangChain appends a troubleshooting link after a blank line.
   const detail = String(err.error?.message ?? err.message ?? "").split("\n")[0].slice(0, 300);
+  const prefix = envPrefix(s);
   const hint =
     status === 401 || status === 403
-      ? ` Check ${chat.keyName}.`
+      ? ` Check ${s.keyName}.`
       : status === 400 || status === 404 || status === 422
-        ? ` Is "${chat.model}" a chat model served at ${chat.baseUrl}? Check LLM_MODEL and AI_PROVIDER / AI_BASE_URL.`
+        ? s.tier === "default"
+          ? ` Is "${s.model}" a chat model served at ${s.baseUrl}? Check LLM_MODEL and AI_PROVIDER / AI_BASE_URL.`
+          : ` Is "${s.model}" a chat model served at ${s.baseUrl}? Check ${prefix}_MODEL and ${prefix}_BASE_URL.`
         : status === 402 || status === 429
           ? " The provider rejected the request for quota, credits or rate limits."
           : "";
-  return httpError(502, `Chat request to ${config.ai.provider} failed${status ? ` (${status})` : ""}: ${detail}${hint}`);
+  const what = s.tier === "default" ? "Chat request" : `${s.tier[0].toUpperCase()}${s.tier.slice(1)} model request`;
+  return httpError(502, `${what} to ${hostOf(s.baseUrl)} failed${status ? ` (${status})` : ""}: ${detail}${hint}`);
+}
+
+// Short, prompt-free code for ai_calls.error_code.
+function errorCode(err) {
+  if (err.aiErrorCode) return err.aiErrorCode;
+  if (err.code === MISSING_KEY) return "missing_key";
+  if (err.code === INVALID_JSON) return "invalid_json";
+  const status = err.status ?? err.response?.status;
+  if (status && status !== 502) return String(status);
+  if (/timeout|timed out|aborted/i.test(`${err.name} ${err.message}`)) return "timeout";
+  if (/ECONNREFUSED|ENOTFOUND|fetch failed|Connection error/i.test(err.message ?? "")) return "network";
+  return "error";
+}
+
+/** Settings and log fields of a call from its options. */
+function callSetup({ tier, task = "other", userId, notebookId } = {}) {
+  const s = modelSettings(tier ?? tierFor(task));
+  const context = currentAiContext();
+  return { s, log: { tier: s.tier, model: s.model, task, userId: userId ?? context.userId, notebookId: notebookId ?? context.notebookId } };
+}
+
+/** The system prompt as a tier sends it: its prefix line (if any), then the prompt and language instruction. */
+function systemFor(s, system, language) {
+  const localized = withLanguage(system, language);
+  return s.systemPrefix ? `${s.systemPrefix}\n${localized}` : localized;
 }
 
 /**
@@ -73,34 +135,90 @@ export function withLanguage(system, language) {
   return instruction ? `${system}\n\n${instruction}` : system;
 }
 
-/** One-shot completion: system + user prompt → text. `language`: the response language. */
-export async function complete(system, user, { language } = {}) {
+/**
+ * One call: system + user prompt → text (parsed by `parse` when given, so a
+ * reply that can't be parsed is logged as failed). Logs it in ai_calls.
+ */
+async function invoke(system, user, options, parse) {
+  const { s, log } = callSetup(options);
+  const started = Date.now();
+  let failure = null;
   try {
-    const result = await getChatModel().invoke(toMessages([["system", withLanguage(system, language)], ["human", user]]));
-    return textOf(result.content).trim();
+    let text;
+    try {
+      const result = await getChatModel(s).invoke(toMessages([["system", systemFor(s, system, options.language)], ["human", user]]));
+      text = stripThinking(textOf(result.content)).trim();
+    } catch (err) {
+      if (err.code === MISSING_KEY) throw err;
+      throw Object.assign(explain(err, s), { aiErrorCode: errorCode(err) });
+    }
+    return parse ? parse(text) : text;
   } catch (err) {
-    if (err.code === MISSING_KEY) throw err;
-    throw explain(err);
+    failure = err;
+    throw err;
+  } finally {
+    logAiCall({ ...log, latencyMs: Date.now() - started, ok: !failure, errorCode: failure ? errorCode(failure) : null });
   }
 }
 
+/**
+ * One-shot completion: system + user prompt → text. Options: `language` (the
+ * response language), `task` (see modelRouter.js) or `tier`, and optionally
+ * `userId` / `notebookId` for the log (default: the request's).
+ */
+export async function complete(system, user, options = {}) {
+  return invoke(system, user, options);
+}
+
 /** Streams text deltas for a list of [role, content] messages (the language applies to the system message). */
-export async function* streamCompletion(messages, { language } = {}) {
-  let stream;
+export async function* streamCompletion(messages, options = {}) {
+  const { s, log } = callSetup({ task: "chat", ...options });
+  const started = Date.now();
+  let failure = null;
   try {
-    const localized = messages.map(([role, content], i) => (i === 0 && role === "system" ? [role, withLanguage(content, language)] : [role, content]));
-    stream = await getChatModel().stream(toMessages(localized));
-  } catch (err) {
-    if (err.code === MISSING_KEY) throw err;
-    throw explain(err);
-  }
-  try {
-    for await (const chunk of stream) {
-      const text = textOf(chunk.content);
-      if (text) yield text;
+    let stream;
+    try {
+      const localized = messages.map(([role, content], i) => (i === 0 && role === "system" ? [role, systemFor(s, content, options.language)] : [role, content]));
+      stream = await getChatModel(s).stream(toMessages(localized));
+    } catch (err) {
+      if (err.code === MISSING_KEY) throw err;
+      throw Object.assign(explain(err, s), { aiErrorCode: errorCode(err) });
+    }
+    // Hide a leading <think>…</think> block from reasoning models.
+    let head = "";
+    let thinking = null; // null = undecided, true = inside the block, false = answer
+    try {
+      for await (const chunk of stream) {
+        let text = textOf(chunk.content);
+        if (!text) continue;
+        if (thinking !== false) {
+          head += text;
+          if (thinking === null) {
+            const trimmed = head.trimStart();
+            if (trimmed.length < 7 && "<think>".startsWith(trimmed)) continue;
+            thinking = trimmed.startsWith("<think>");
+          }
+          if (thinking) {
+            const end = head.indexOf("</think>");
+            if (end === -1) continue;
+            thinking = false;
+            text = head.slice(end + 8).replace(/^\s+/, "");
+          } else {
+            thinking = false;
+            text = head;
+          }
+          if (!text) continue;
+        }
+        yield text;
+      }
+    } catch (err) {
+      throw Object.assign(explain(err, s), { aiErrorCode: errorCode(err) });
     }
   } catch (err) {
-    throw explain(err);
+    failure = err;
+    throw err;
+  } finally {
+    logAiCall({ ...log, latencyMs: Date.now() - started, ok: !failure, errorCode: failure ? errorCode(failure) : null });
   }
 }
 
@@ -142,6 +260,9 @@ function explainVision(err) {
 /** Sends images (data URLs) with a prompt to the vision model; returns its text. */
 export async function completeVision(system, prompt, imageUrls) {
   const model = getVisionModel();
+  const context = currentAiContext();
+  const started = Date.now();
+  let failure = null;
   try {
     const result = await model.invoke([
       new SystemMessage(system),
@@ -149,9 +270,21 @@ export async function completeVision(system, prompt, imageUrls) {
         content: [{ type: "text", text: prompt }, ...imageUrls.map((url) => ({ type: "image_url", image_url: { url } }))],
       }),
     ]);
-    return textOf(result.content).trim();
+    return stripThinking(textOf(result.content)).trim();
   } catch (err) {
+    failure = err;
     throw explainVision(err);
+  } finally {
+    logAiCall({
+      tier: "vision",
+      model: config.ai.vision.model,
+      task: "ocr",
+      userId: context.userId,
+      notebookId: context.notebookId,
+      latencyMs: Date.now() - started,
+      ok: !failure,
+      errorCode: failure ? errorCode(failure) : null,
+    });
   }
 }
 
@@ -180,7 +313,8 @@ function parseJsonLoose(text) {
       try {
         const value = parse(candidate);
         if (isObject(value)) return value;
-        fallback ??= { value };
+        // A bare list is usable; a bare string or number (jsonrepair turns prose into one) is not.
+        if (Array.isArray(value)) fallback ??= { value };
       } catch {
         // try the next candidate
       }
@@ -191,19 +325,27 @@ function parseJsonLoose(text) {
 }
 
 // Asks for a JSON object and parses it, retrying because smaller models
-// occasionally emit a truncated or malformed object.
+// occasionally emit a truncated or malformed object. Options as complete().
 const JSON_ATTEMPTS = 3;
-export async function completeJson(system, user, { language } = {}) {
+const parseOrFlag = (text) => {
+  try {
+    return parseJsonLoose(text);
+  } catch (err) {
+    throw Object.assign(err, { code: INVALID_JSON });
+  }
+};
+export async function completeJson(system, user, options = {}) {
   let lastError;
   for (let attempt = 0; attempt < JSON_ATTEMPTS; attempt++) {
     try {
-      const text = await complete(
-        `${withLanguage(system, language)}
+      return await invoke(
+        `${withLanguage(system, options.language)}
 
 Respond with a single valid JSON object and nothing else — no prose, no markdown code fences.`,
-        user
+        user,
+        { ...options, language: undefined },
+        parseOrFlag
       );
-      return parseJsonLoose(text);
     } catch (err) {
       if (err.status) throw err; // HTTP/config errors won't fix themselves on retry
       lastError = err;

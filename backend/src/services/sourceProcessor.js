@@ -19,7 +19,7 @@ async function generateSourceGuide(title, text, language) {
   const guide = await completeJson(
     "You write concise source guides for a college course's study material. Summaries are 3-5 sentences, written in plain prose with the most important terms in **bold** markdown. Key topics are 4-8 short noun phrases (2-5 words) that appear in the source.",
     `Source title: ${title}\n\nSource text:\n${sample}\n\nReturn JSON: {"summary": string, "topics": string[]}`,
-    { language }
+    { language, task: "source_guide" }
   );
   return {
     summary: String(guide.summary ?? "").trim(),

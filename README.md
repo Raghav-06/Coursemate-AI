@@ -116,7 +116,33 @@ The older `CHAT_API_KEY`, `CHAT_BASE_URL` and `CHAT_MODEL` names are still read.
 LocalAI…) — no API keys are needed for `localhost` — and nothing you upload leaves the computer
 running the backend; the AI & privacy panel then says "on this computer" for each model. Small local
 models write weaker flashcards and grades than large hosted ones, and `npm run check-api` tests the
-chat and embedding settings before you start.
+chat, embedding and model-tier settings before you start.
+
+## Exam-prep agent: Nano, Super and Ultra models
+
+The exam-prep agent (for JEE, NEET, GATE, UPSC and university exams) splits its work across three
+model **tiers**, each its own OpenAI-compatible endpoint, so cheap fast models do the frequent
+small jobs and the strongest model does the thinking. With nothing configured, every tier is your
+`LLM_MODEL`.
+
+| Tier | Does | Why this tier |
+|------|------|---------------|
+| **Nano** | grading objective answers that need judgement (numeric with units/tolerance, one-word, matching), tagging questions and attempts with topics, classifying uploads (syllabus / notes / past paper), mapping past-paper questions to topics | many short calls with a small, checkable output — speed and cost matter most |
+| **Super** | generating practice questions, answer keys and solutions, the independent **self-check solve**, grading descriptive answers, quizzes and written questions, daily replanning | writing correct exam content needs a capable model, and the self-check doubles those calls |
+| **Ultra** | mistake diagnosis (the specific misconception), building the knowledge map, the weekly plan | few calls that reason over the whole course or a student's history |
+
+Settings (each falls back to the LLM ones when empty): `MODEL_NANO_BASE_URL`, `MODEL_NANO_API_KEY`,
+`MODEL_NANO_MODEL`, and the same for `SUPER` and `ULTRA`; optional `MODEL_<TIER>_TEMPERATURE`,
+`MODEL_<TIER>_MAX_TOKENS` (empty = the LLM value, `default` = the provider's) and
+`MODEL_<TIER>_SYSTEM_PREFIX` — a line put before the system prompt, for models that switch reasoning
+with one (Nemotron: `detailed thinking on`, or `/think` / `/no_think`). A leading `<think>…</think>`
+block in a reply is dropped. `.env.example` shows NVIDIA's endpoint
+(`https://integrate.api.nvidia.com/v1`) with Nemotron Nano / Super / Ultra — copy the exact model IDs
+from build.nvidia.com. The task → tier map is one table in `backend/src/services/modelRouter.js`.
+
+Every model call is logged in `ai_calls` (user, course, tier, model, task, latency, ok, error
+code — never the prompt). `npm run check-api` tests chat, embeddings and each tier (plain text and
+JSON); `/health` and *Settings → AI & privacy* show the tier models and hosts (never keys).
 
 ## 1. Prerequisites
 
@@ -161,6 +187,7 @@ See `backend/src/db/schema.sql`.
 | `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL` | Any provider above, or `huggingface` (feature extraction), plus the model. Empty provider / key / URL = the `AI_*` ones; set `EMBEDDING_PROVIDER` and `EMBEDDING_API_KEY` when the main provider has no embeddings API (Anthropic, Groq, DeepSeek, xAI). |
 | `VISION_*` (optional) | A model that accepts images, for photos of notes and scanned PDFs. Empty = the `AI_*` settings and `LLM_MODEL` (fine for gpt-4o-mini, Gemini, Claude). |
 | `TRANSCRIBE_*` (optional) | Speech-to-text for lecture recordings: `TRANSCRIBE_PROVIDER=openai` + `whisper-1`, or `groq` + `whisper-large-v3-turbo`. Empty = the `AI_*` settings. |
+| `MODEL_NANO_*`, `MODEL_SUPER_*`, `MODEL_ULTRA_*` (optional) | The exam-prep agent's model tiers (base URL, key, model, plus optional temperature, max tokens, system prefix). Empty = the LLM settings. See [Exam-prep agent](#exam-prep-agent-nano-super-and-ultra-models). |
 
 ## 5. Run it
 
@@ -168,7 +195,7 @@ See `backend/src/db/schema.sql`.
 # terminal 1
 cd backend
 npm install
-npm run check-api     # optional: verifies your API key(s) + both models
+npm run check-api     # optional: verifies your API key(s), chat, embeddings and the Nano/Super/Ultra tiers
 npm run dev           # http://localhost:3000
 
 # terminal 2
@@ -386,7 +413,7 @@ If you host the frontend on a different domain from the API, set `VITE_API_URL` 
 
 ```bash
 npm run db:migrate                                   # create/update tables
-npm run check-api                                    # test API key(s) + models
+npm run check-api                                    # test API key(s), models and tiers
 npm run check-access                                 # prove shared-course access control (throwaway users)
 npm run create-database -- you@gmail.com file.pdf    # ingest files into a new notebook for a user
 npm run cli-chat -- <notebookId>                     # chat in the terminal

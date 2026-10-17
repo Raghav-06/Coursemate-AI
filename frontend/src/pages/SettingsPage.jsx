@@ -25,15 +25,22 @@ const AI_ROWS = [
   ["transcription", "Transcription", "Lecture recordings", "mic"],
 ];
 
+// The exam-prep agent's model tiers (see modelRouter.js on the server).
+const TIER_ROWS = [
+  ["nano", "Nano tier", "Grading numeric and one-word answers, tagging topics, sorting uploads", "bolt"],
+  ["super", "Super tier", "Writing and self-checking practice questions, descriptive grading, daily replanning", "edit_note"],
+  ["ultra", "Ultra tier", "Mistake diagnosis, the knowledge map, the weekly plan", "psychology"],
+];
+
 // Which models the server uses and where your notes go (from /health; no keys).
 function AiPrivacy({ ai }) {
   if (!ai) return <p className="text-sm text-ink-3">The server didn't report its models.</p>;
-  const allLocal = AI_ROWS.every(([key]) => ai[key]?.local);
+  const rows = [...AI_ROWS.map((r) => [...r, ai[r[0]]]), ...TIER_ROWS.map((r) => [...r, ai.tiers?.[r[0]]])].filter(([, , , , m]) => m);
+  const allLocal = rows.every(([, , , , m]) => m.local);
   return (
     <>
       <ul className="flex flex-col divide-y divide-line/70">
-        {AI_ROWS.map(([key, label, use, icon]) => {
-          const m = ai[key];
+        {rows.map(([key, label, use, icon, m]) => {
           return (
             <li key={key} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
               <span className="w-9 h-9 shrink-0 rounded-xl bg-panel-2 text-ink-2 flex items-center justify-center">
@@ -47,7 +54,10 @@ function AiPrivacy({ ai }) {
                 <p className="text-sm font-mono text-ink truncate" title={m?.model}>
                   {m?.model ?? "—"}
                 </p>
-                <p className={`text-xs truncate ${m?.local ? "text-success" : "text-ink-3"}`}>{m ? (m.local ? "on this computer" : m.host) : ""}</p>
+                <p className={`text-xs truncate ${m?.local ? "text-success" : "text-ink-3"}`}>
+                  {m ? (m.local ? "on this computer" : m.host) : ""}
+                  {m?.inherited ? " · same as chat" : ""}
+                </p>
               </div>
             </li>
           );

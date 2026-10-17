@@ -31,7 +31,7 @@ export async function generateWrittenQuestions({ sources, topics, focusTopics = 
       (topicList ? `Course topics:\n${topicList}\n\n` : "") +
       `Write ${count} different questions worth ${marks} marks each.\n${MARK_GUIDE[marks]}\n\n` +
       'Return JSON: {"questions": [{"question": string, "topic": string}]}',
-    { language }
+    { language, task: "written_questions" }
   );
   const raw = Array.isArray(out?.questions) ? out.questions : Array.isArray(out) ? out : [];
   const seen = new Set();
@@ -85,7 +85,7 @@ export async function gradeAnswer({ sources, question, marks, answer, topics, la
       (topicList ? `Course topics:\n${topicList}\n\n` : "") +
       `Question (${marks} marks): ${question}\n\nStudent's answer:\n"""\n${answer}\n"""\n\n` +
       `Return JSON: {"score": number (0-${marks}), "correctPoints": [{"point": string, "passages": number[]}], "missingPoints": [{"point": string, "passages": number[]}], "mistakes": [{"point": string, "passages": number[]}], "modelAnswer": string, "topic": string (from the course topics)}`,
-    { language }
+    { language, task: "grade_answer" }
   );
 
   const valid = new Set(passages.map((p) => p.number));

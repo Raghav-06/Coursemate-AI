@@ -2,6 +2,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { config } from "../config/index.js";
 import { formatTimestamp, splitAudio } from "./media.js";
+import { currentAiContext } from "./aiContext.js";
+import { logAiCall } from "../db/aiCalls.js";
 
 // Lecture recordings → timestamped transcript. ffmpeg extracts and
 // compresses the audio and splits it below the provider's upload limit; each
@@ -31,7 +33,32 @@ function explain(status, detail) {
   return httpError(502, `Transcription failed${status ? ` (${status})` : ""}: ${String(detail).slice(0, 300)}${hint}`);
 }
 
+// Each piece is one logged AI call (tier "transcribe").
 async function transcribePiece(file) {
+  const context = currentAiContext();
+  const started = Date.now();
+  let failure = null;
+  try {
+    return await requestPiece(file);
+  } catch (err) {
+    failure = err;
+    throw err;
+  } finally {
+    const status = failure?.message?.match(/\((\d{3})\)/)?.[1];
+    logAiCall({
+      tier: "transcribe",
+      model: config.ai.transcribe.model,
+      task: "transcribe",
+      userId: context.userId,
+      notebookId: context.notebookId,
+      latencyMs: Date.now() - started,
+      ok: !failure,
+      errorCode: failure ? status ?? (failure.status === 503 ? "missing_key" : "error") : null,
+    });
+  }
+}
+
+async function requestPiece(file) {
   const { baseUrl, apiKey, model } = config.ai.transcribe;
   if (!apiKey) throw httpError(503, "Transcribing recordings needs TRANSCRIBE_API_KEY (or AI_API_KEY) in backend/.env.");
 

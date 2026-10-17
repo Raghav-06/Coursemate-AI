@@ -20,6 +20,7 @@ import { configurePassport, googleConfigured } from "./auth/passport.js";
 import { pool } from "./db/pool.js";
 import { emailConfigured } from "./services/mailer.js";
 import { aiSummary, config } from "./config/index.js";
+import { aiContextMiddleware } from "./services/aiContext.js";
 
 export function createApp() {
   const app = express();
@@ -64,6 +65,8 @@ export function createApp() {
       apiKeyConfigured: Boolean(config.ai.apiKey),
       apiKeyName: config.ai.apiKeyName,
       chatModel: config.ai.chatModel,
+      // Nano / Super / Ultra tier models (names and hosts only).
+      tiers: aiSummary().tiers,
       visionModel: config.ai.vision.model,
       transcribeModel: config.ai.transcribe.model,
       uploadMaxMb: config.limits.uploadMaxMb,
@@ -78,7 +81,7 @@ export function createApp() {
   app.use("/auth", authRouter);
 
   // Everything under /api needs a signed-in user.
-  app.use("/api", requireAuth, timezone);
+  app.use("/api", requireAuth, timezone, aiContextMiddleware);
   app.use("/api/notebooks", notebooksRouter);
   app.use("/api/sources", sourcesRouter);
   app.use("/api/arxiv", arxivRouter);

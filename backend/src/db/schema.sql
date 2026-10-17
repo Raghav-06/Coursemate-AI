@@ -487,3 +487,21 @@ CREATE TABLE IF NOT EXISTS battle_players (
   PRIMARY KEY (battle_id, user_id)
 );
 CREATE INDEX IF NOT EXISTS battle_players_user_idx ON battle_players (user_id);
+
+-- ---- AI calls -------------------------------------------------------------------
+-- One row per model call (never the prompt): which tier (nano | super | ultra |
+-- default | vision | transcribe) and model did which task, latency and outcome.
+CREATE TABLE IF NOT EXISTS ai_calls (
+  id           BIGSERIAL PRIMARY KEY,
+  user_id      UUID REFERENCES users(id) ON DELETE CASCADE,
+  notebook_id  UUID REFERENCES notebooks(id) ON DELETE SET NULL,
+  tier         TEXT NOT NULL,
+  model        TEXT,
+  task         TEXT NOT NULL,
+  latency_ms   INTEGER NOT NULL,
+  ok           BOOLEAN NOT NULL,
+  error_code   TEXT,                       -- e.g. 429, timeout, invalid_json, missing_key
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS ai_calls_user_idx ON ai_calls (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS ai_calls_notebook_idx ON ai_calls (notebook_id, created_at DESC);
