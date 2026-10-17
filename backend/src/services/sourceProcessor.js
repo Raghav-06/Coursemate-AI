@@ -72,7 +72,7 @@ export async function processSource(sourceId, load, { reprocess = false, languag
       const progress = 30 + Math.round(fraction * 60);
       if (progress - lastReported >= 10) {
         lastReported = progress;
-        updateSource(sourceId, { progress });
+        updateSource(sourceId, { progress }).catch(() => {});
       }
     });
 
@@ -103,11 +103,12 @@ export async function processSource(sourceId, load, { reprocess = false, languag
       if (source.kind === "past_paper") analysePaper(sourceId);
     }
   } catch (err) {
+    // Runs in the background, so a failed status write must not crash the server.
     await updateSource(
       sourceId,
       reprocess
         ? { status: "ready", progress: 100, progressNote: null, error: `Re-processing failed: ${err.message}` }
         : { status: "error", progress: 100, progressNote: null, error: err.message }
-    );
+    ).catch((writeErr) => console.error(`Could not record the failure of source ${sourceId}: ${writeErr.message}`));
   }
 }

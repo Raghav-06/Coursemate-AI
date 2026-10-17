@@ -96,17 +96,23 @@ languages.
 ## Any AI provider — or fully local
 
 CourseMate talks to models through LangChain and plain OpenAI-compatible APIs, so you choose where
-your notes go. Each job has its own setting in `backend/.env`, and *Settings → AI & privacy* in the
-app shows which models the server uses (never the keys):
+your notes go. Set one provider for everything — `AI_PROVIDER` (`openai`, `anthropic`, `gemini`,
+`groq`, `openrouter`, `mistral`, `together`, `deepseek`, `xai`, `huggingface`, `ollama`, `lmstudio`,
+or `custom` with `AI_BASE_URL`), `AI_API_KEY` and `LLM_MODEL` — and the base URL is filled in for
+you. Any job can use a different provider with its own `<JOB>_PROVIDER`, `<JOB>_API_KEY` and
+`<JOB>_BASE_URL`. *Settings → AI & privacy* in the app shows which models the server uses (never
+the keys):
 
-| Job | Settings | Hosted examples | Local examples |
+| Job | Settings (empty = the shared `AI_*` ones) | Hosted examples | Local examples |
 |-----|----------|-----------------|----------------|
-| Chat, guides, flashcards, quizzes, grading, plans | `CHAT_BASE_URL`, `CHAT_MODEL`, `CHAT_API_KEY` | OpenAI, Anthropic, Gemini, Groq, OpenRouter, Mistral… | Ollama `http://localhost:11434/v1` (`llama3.1`, `qwen2.5`), LM Studio `http://localhost:1234/v1` |
-| Search (embeddings) | `EMBEDDING_PROVIDER`, `EMBEDDING_BASE_URL`, `EMBEDDING_MODEL` | OpenAI `text-embedding-3-small`, Gemini, Mistral, Hugging Face | Ollama `nomic-embed-text`, LM Studio |
-| Reading photos / scans | `VISION_BASE_URL`, `VISION_MODEL`, `VISION_API_KEY` (default: chat) | `gpt-4o-mini`, Gemini, Claude | Ollama `qwen2.5vl`, `llava`, `llama3.2-vision` |
-| Transcribing lectures | `TRANSCRIBE_BASE_URL`, `TRANSCRIBE_MODEL`, `TRANSCRIBE_API_KEY` | OpenAI `whisper-1`, Groq `whisper-large-v3-turbo` | any local server with an OpenAI-compatible `/audio/transcriptions` (e.g. faster-whisper-server, LocalAI) |
+| LLM: chat, guides, flashcards, quizzes, grading, plans | `LLM_MODEL`, `LLM_PROVIDER`, `LLM_API_KEY`, `LLM_BASE_URL` | OpenAI, Anthropic, Gemini, Groq, OpenRouter, Mistral… | Ollama (`llama3.1`, `qwen2.5`), LM Studio |
+| Search (embeddings) | `EMBEDDING_MODEL`, `EMBEDDING_PROVIDER`, `EMBEDDING_API_KEY`, `EMBEDDING_BASE_URL` | OpenAI `text-embedding-3-small`, Gemini, Mistral, Hugging Face | Ollama `nomic-embed-text`, LM Studio |
+| Reading photos / scans | `VISION_MODEL` (default: `LLM_MODEL`), `VISION_PROVIDER`, `VISION_API_KEY`, `VISION_BASE_URL` | `gpt-4o-mini`, Gemini, Claude | Ollama `qwen2.5vl`, `llava`, `llama3.2-vision` |
+| Transcribing lectures | `TRANSCRIBE_MODEL`, `TRANSCRIBE_PROVIDER`, `TRANSCRIBE_API_KEY`, `TRANSCRIBE_BASE_URL` | OpenAI `whisper-1`, Groq `whisper-large-v3-turbo` | any local server with an OpenAI-compatible `/audio/transcriptions` (e.g. faster-whisper-server, LocalAI) |
 
-**Keeping notes on your machine:** point every base URL at a local server (Ollama, LM Studio,
+The older `CHAT_API_KEY`, `CHAT_BASE_URL` and `CHAT_MODEL` names are still read.
+
+**Keeping notes on your machine:** point every job at a local server (Ollama, LM Studio,
 LocalAI…) — no API keys are needed for `localhost` — and nothing you upload leaves the computer
 running the backend; the AI & privacy panel then says "on this computer" for each model. Small local
 models write weaker flashcards and grades than large hosted ones, and `npm run check-api` tests the
@@ -151,10 +157,10 @@ See `backend/src/db/schema.sql`.
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | From step 3 (skip if you only want email sign-in) |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | Your email provider's SMTP settings. Leave `SMTP_HOST` empty in development and the codes are printed in the backend console instead. |
 | `SESSION_SECRET` | `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"` |
-| `CHAT_API_KEY`, `CHAT_BASE_URL`, `CHAT_MODEL` | Your provider's API key, its OpenAI-compatible base URL, and a chat model. `.env.example` lists the URLs for common providers. |
-| `VISION_*` (optional) | A model that accepts images, for photos of notes and scanned PDFs. Empty = the chat settings (fine for gpt-4o-mini, Gemini, Claude). |
-| `TRANSCRIBE_BASE_URL`, `TRANSCRIBE_API_KEY`, `TRANSCRIBE_MODEL` (optional) | Speech-to-text for lecture recordings: OpenAI (`https://api.openai.com/v1`, `whisper-1`) or Groq (`https://api.groq.com/openai/v1`, `whisper-large-v3-turbo`). Empty URL / key = the chat ones. |
-| `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL` | `openai` (any OpenAI-compatible embeddings API) or `huggingface`, plus the model. `EMBEDDING_API_KEY` / `EMBEDDING_BASE_URL` default to the chat ones; set them when embeddings come from a different provider (Anthropic, Groq, DeepSeek and xAI have no embeddings API). |
+| `AI_PROVIDER`, `AI_API_KEY`, `LLM_MODEL` | Your provider's name (`.env.example` lists them, with their URLs and example models), its API key, and a chat model. `AI_BASE_URL` overrides the URL (required for `custom`). |
+| `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL` | Any provider above, or `huggingface` (feature extraction), plus the model. Empty provider / key / URL = the `AI_*` ones; set `EMBEDDING_PROVIDER` and `EMBEDDING_API_KEY` when the main provider has no embeddings API (Anthropic, Groq, DeepSeek, xAI). |
+| `VISION_*` (optional) | A model that accepts images, for photos of notes and scanned PDFs. Empty = the `AI_*` settings and `LLM_MODEL` (fine for gpt-4o-mini, Gemini, Claude). |
+| `TRANSCRIBE_*` (optional) | Speech-to-text for lecture recordings: `TRANSCRIBE_PROVIDER=openai` + `whisper-1`, or `groq` + `whisper-large-v3-turbo`. Empty = the `AI_*` settings. |
 
 ## 5. Run it
 
@@ -248,11 +254,11 @@ React (5173) ──/auth, /api──▶ Express (3000) ──▶ PostgreSQL
   `npm rebuild ffmpeg-static`.
 - **Chat:** MMR retrieval over the selected sources → the model answers with `[n]` citations,
   streamed to the browser via Server-Sent Events. History is stored in `messages`.
-- **AI through LangChain:** chat uses LangChain's `ChatOpenAI` class pointed at `CHAT_BASE_URL`,
+- **AI through LangChain:** chat uses LangChain's `ChatOpenAI` class pointed at the provider's URL,
   which works with any OpenAI-compatible API (OpenAI, Anthropic, Gemini, Groq, OpenRouter, Mistral,
   Together, DeepSeek, xAI, Hugging Face, Ollama, LM Studio…). Embeddings use `OpenAIEmbeddings`
-  (any OpenAI-compatible embeddings API) or `HuggingFaceInferenceEmbeddings`, picked by
-  `EMBEDDING_PROVIDER`. Chat and embeddings can use different providers and keys.
+  (any OpenAI-compatible embeddings API) or `HuggingFaceInferenceEmbeddings` (when
+  `EMBEDDING_PROVIDER` is `huggingface`). Every job can use a different provider and key.
 - **Spaced repetition:** decks and cards belong to the course; each user's SM-2 state lives in
   `card_reviews` (ease 2.5, interval, repetitions, due date, lapses) and every rating in
   `review_log`. The browser sends its timezone (`X-Timezone`) so "today" is the user's day.

@@ -22,7 +22,7 @@ function explain(status, detail) {
     status === 401 || status === 403
       ? " Check TRANSCRIBE_API_KEY."
       : status === 404 || status === 400 || status === 422
-        ? ` Is "${model}" a speech-to-text model served at ${baseUrl}? Set TRANSCRIBE_BASE_URL and TRANSCRIBE_MODEL (e.g. OpenAI whisper-1 or Groq whisper-large-v3-turbo).`
+        ? ` Is "${model}" a speech-to-text model served at ${baseUrl}? Set TRANSCRIBE_PROVIDER (or TRANSCRIBE_BASE_URL) and TRANSCRIBE_MODEL (e.g. OpenAI whisper-1 or Groq whisper-large-v3-turbo).`
         : status === 413
           ? " The audio piece was too large for the provider; lower TRANSCRIBE_MAX_MB."
           : status === 402 || status === 429
@@ -33,7 +33,7 @@ function explain(status, detail) {
 
 async function transcribePiece(file) {
   const { baseUrl, apiKey, model } = config.ai.transcribe;
-  if (!apiKey) throw httpError(503, "Transcribing recordings needs TRANSCRIBE_API_KEY (or CHAT_API_KEY) in backend/.env.");
+  if (!apiKey) throw httpError(503, "Transcribing recordings needs TRANSCRIBE_API_KEY (or AI_API_KEY) in backend/.env.");
 
   for (let attempt = 0; ; attempt++) {
     const form = new FormData();

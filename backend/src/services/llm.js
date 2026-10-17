@@ -5,8 +5,9 @@ import { config } from "../config/index.js";
 import { languageInstruction } from "./language.js";
 
 // Chat goes through LangChain's ChatOpenAI, which works with any provider that
-// exposes an OpenAI-compatible chat completions API (CHAT_BASE_URL), e.g.
-// OpenAI, Anthropic, Gemini, Groq, OpenRouter, Mistral, Hugging Face or Ollama.
+// exposes an OpenAI-compatible chat completions API (the AI_PROVIDER / LLM_PROVIDER
+// default URL, or AI_BASE_URL / LLM_BASE_URL), e.g. OpenAI, Anthropic, Gemini,
+// Groq, OpenRouter, Mistral, Hugging Face or Ollama.
 const { chat } = config.ai;
 const REQUEST_TIMEOUT_MS = 180_000;
 const MISSING_KEY = "MISSING_API_KEY";
@@ -54,9 +55,9 @@ function explain(err) {
   const detail = String(err.error?.message ?? err.message ?? "").split("\n")[0].slice(0, 300);
   const hint =
     status === 401 || status === 403
-      ? " Check CHAT_API_KEY."
+      ? ` Check ${chat.keyName}.`
       : status === 400 || status === 404 || status === 422
-        ? ` Is "${chat.model}" a chat model served at ${chat.baseUrl}? Check CHAT_MODEL and CHAT_BASE_URL.`
+        ? ` Is "${chat.model}" a chat model served at ${chat.baseUrl}? Check LLM_MODEL and AI_PROVIDER / AI_BASE_URL.`
         : status === 402 || status === 429
           ? " The provider rejected the request for quota, credits or rate limits."
           : "";
@@ -109,7 +110,7 @@ let visionModel = null;
 function getVisionModel() {
   const { vision } = config.ai;
   if (!vision.apiKey) {
-    throw httpError(503, "Reading images needs a vision model: set VISION_API_KEY (or CHAT_API_KEY) in backend/.env.");
+    throw httpError(503, "Reading images needs a vision model: set VISION_API_KEY (or AI_API_KEY) in backend/.env.");
   }
   visionModel ??= new ChatOpenAI({
     model: vision.model,
@@ -131,7 +132,7 @@ function explainVision(err) {
     status === 401 || status === 403
       ? " Check VISION_API_KEY."
       : status === 400 || status === 404 || status === 415 || status === 422
-        ? ` "${vision.model}" at ${vision.baseUrl} may not accept images — set VISION_MODEL (and VISION_BASE_URL) to a vision model.`
+        ? ` "${vision.model}" at ${vision.baseUrl} may not accept images — set VISION_MODEL (and VISION_PROVIDER / VISION_BASE_URL) to a vision model.`
         : status === 402 || status === 429
           ? " The provider rejected the request for quota, credits or rate limits."
           : "";

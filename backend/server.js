@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import { createApp } from "./src/app.js";
 import { config, configProblems } from "./src/config/index.js";
 import { migrate, pool } from "./src/db/pool.js";
+import { failInterruptedSources } from "./src/db/store.js";
 
 async function main() {
   await fs.mkdir(config.paths.uploadDir, { recursive: true });
@@ -12,6 +13,8 @@ async function main() {
   try {
     await migrate();
     console.log("🐘 Connected to PostgreSQL — schema is up to date");
+    const interrupted = await failInterruptedSources();
+    if (interrupted) console.warn(`⚠️  ${interrupted} source(s) were mid-processing when the server stopped — marked as failed; re-process them.`);
   } catch (err) {
     console.error(`❌ Could not connect to PostgreSQL: ${err.message}`);
     console.error("   Check DATABASE_URL (or PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE) in backend/.env");

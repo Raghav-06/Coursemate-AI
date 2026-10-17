@@ -8,10 +8,14 @@ const num = (v, fallback) => (v === undefined || v === "" || Number.isNaN(Number
 const isProduction = process.env.NODE_ENV === "production";
 
 // ---- AI (any provider via LangChain) -------------------------------------------
-// Chat talks to any OpenAI-compatible API (OpenAI, Anthropic, Gemini, Groq,
-// OpenRouter, Mistral, Together, DeepSeek, Hugging Face, Ollama…). Embeddings
-// use an OpenAI-compatible API too, or Hugging Face's feature-extraction API.
-// See src/services/llm.js and embeddings.js.
+// Every AI job (LLM, embeddings, vision, transcription) talks to an
+// OpenAI-compatible API (OpenAI, Anthropic, Gemini, Groq, OpenRouter, Mistral,
+// Together, DeepSeek, xAI, Hugging Face, Ollama, LM Studio…); embeddings can
+// also use Hugging Face's feature-extraction API. AI_PROVIDER / AI_API_KEY /
+// AI_BASE_URL are shared by all jobs; each job can override them with its own
+// <JOB>_PROVIDER / <JOB>_API_KEY / <JOB>_BASE_URL (JOB = LLM, EMBEDDING, VISION,
+// TRANSCRIBE). See src/services/llm.js and embeddings.js.
+const env = process.env;
 const trimSlash = (v) => (v ? v.replace(/\/+$/, "") : v);
 const optNum = (v) => (v === undefined || v === "" || Number.isNaN(Number(v)) ? undefined : Number(v));
 // Local servers (Ollama, LM Studio, vLLM…) usually don't need an API key.
@@ -24,63 +28,121 @@ const hostOf = (url) => {
   }
 };
 
-const chatBaseUrl = trimSlash(process.env.CHAT_BASE_URL) || "https://api.openai.com/v1";
-const chatApiKey = process.env.CHAT_API_KEY || (isLocal(chatBaseUrl) ? "not-needed" : undefined);
+// OpenAI-compatible base URL of each known provider, so setting the provider
+// name is enough. Any other name ("custom") needs a base URL.
+const PROVIDER_URLS = {
+  openai: "https://api.openai.com/v1",
+  anthropic: "https://api.anthropic.com/v1",
+  gemini: "https://generativelanguage.googleapis.com/v1beta/openai",
+  google: "https://generativelanguage.googleapis.com/v1beta/openai",
+  groq: "https://api.groq.com/openai/v1",
+  openrouter: "https://openrouter.ai/api/v1",
+  mistral: "https://api.mistral.ai/v1",
+  together: "https://api.together.xyz/v1",
+  deepseek: "https://api.deepseek.com/v1",
+  xai: "https://api.x.ai/v1",
+  huggingface: "https://router.huggingface.co/v1",
+  ollama: "http://localhost:11434/v1",
+  lmstudio: "http://localhost:1234/v1",
+};
+const providerName = (v) => (v ? v.trim().toLowerCase().replace(/[\s_-]+/g, "") : "");
+const aiProblems = [];
 
-const embeddingProvider = (process.env.EMBEDDING_PROVIDER || "openai").toLowerCase();
-const embeddingBaseUrl =
-  trimSlash(process.env.EMBEDDING_BASE_URL) || (embeddingProvider === "openai" ? chatBaseUrl : undefined);
-const embeddingApiKey =
-  process.env.EMBEDDING_API_KEY ||
-  process.env.CHAT_API_KEY ||
-  (embeddingProvider === "openai" && isLocal(embeddingBaseUrl) ? "not-needed" : undefined);
+// Shared settings. CHAT_API_KEY / CHAT_BASE_URL are the older names, still read.
+const sharedProvider = providerName(env.AI_PROVIDER) || "openai";
+const sharedBaseUrl =
+  trimSlash(env.AI_BASE_URL) || trimSlash(env.CHAT_BASE_URL) || PROVIDER_URLS[sharedProvider];
+const sharedApiKey = env.AI_API_KEY || env.CHAT_API_KEY;
+if (!sharedBaseUrl) aiProblems.push(`AI: unknown AI_PROVIDER "${env.AI_PROVIDER}" — set AI_BASE_URL to its OpenAI-compatible URL.`);
+
+/**
+ * Resolves one job's provider, base URL and API key. Without overrides it uses
+ * the shared settings; the shared key is only sent to the shared base URL.
+ */
+function endpoint(prefix, legacyPrefix) {
+  const read = (name) => env[`${prefix}_${name}`] || (legacyPrefix ? env[`${legacyPrefix}_${name}`] : undefined);
+  const provider = providerName(read("PROVIDER")) || sharedProvider;
+  const ownProvider = provider !== sharedProvider;
+  const baseUrl = trimSlash(read("BASE_URL")) || (ownProvider ? PROVIDER_URLS[provider] : sharedBaseUrl);
+  if (!baseUrl && ownProvider) aiProblems.push(`AI: unknown ${prefix}_PROVIDER "${provider}" — set ${prefix}_BASE_URL.`);
+  const apiKey =
+    read("API_KEY") || (baseUrl === sharedBaseUrl ? sharedApiKey : undefined) || (isLocal(baseUrl) ? "not-needed" : undefined);
+  return { provider, baseUrl, apiKey, keyName: read("API_KEY") || baseUrl !== sharedBaseUrl ? `${prefix}_API_KEY` : "AI_API_KEY" };
+}
+
+const llm = endpoint("LLM", "CHAT");
+const llmModel = env.LLM_MODEL || env.CHAT_MODEL || (llm.provider === "openai" ? "gpt-4o-mini" : undefined);
+if (!llmModel && llm.baseUrl) aiProblems.push(`AI: set LLM_MODEL to a model offered by ${llm.provider}.`);
+
+// Embeddings: "huggingface" uses Hugging Face feature extraction (its base URL
+// is an optional dedicated Inference Endpoint); every other provider uses an
+// OpenAI-compatible /embeddings API.
+const embeddingProvider = providerName(env.EMBEDDING_PROVIDER) || sharedProvider;
+let embedding;
+if (embeddingProvider === "huggingface") {
+  embedding = {
+    provider: "huggingface",
+    baseUrl: trimSlash(env.EMBEDDING_BASE_URL) || undefined,
+    apiKey: env.EMBEDDING_API_KEY || (sharedProvider === "huggingface" ? sharedApiKey : undefined),
+    keyName: env.EMBEDDING_API_KEY || sharedProvider !== "huggingface" ? "EMBEDDING_API_KEY" : "AI_API_KEY",
+  };
+} else {
+  embedding = endpoint("EMBEDDING");
+}
+
+const NO_EMBEDDINGS = ["anthropic", "groq", "deepseek", "xai"];
+if (NO_EMBEDDINGS.includes(embedding.provider) && !env.EMBEDDING_BASE_URL) {
+  aiProblems.push(`AI: ${embedding.provider} has no embeddings API — set EMBEDDING_PROVIDER (and EMBEDDING_API_KEY) to another provider.`);
+}
+
+const vision = endpoint("VISION");
+const transcribe = endpoint("TRANSCRIBE");
 
 const ai = {
-  provider: hostOf(chatBaseUrl),
+  provider: hostOf(llm.baseUrl),
   // Reported to the UI when a key is missing.
-  apiKey: chatApiKey && embeddingApiKey ? chatApiKey : undefined,
-  apiKeyName: !chatApiKey ? "CHAT_API_KEY" : "EMBEDDING_API_KEY",
+  apiKey: llm.apiKey && embedding.apiKey ? llm.apiKey : undefined,
+  apiKeyName: !llm.apiKey ? llm.keyName : embedding.keyName,
+  problems: aiProblems,
   chat: {
-    apiKey: chatApiKey,
-    baseUrl: chatBaseUrl,
-    model: process.env.CHAT_MODEL || "gpt-4o-mini",
+    provider: llm.provider,
+    apiKey: llm.apiKey,
+    keyName: llm.keyName,
+    baseUrl: llm.baseUrl,
+    model: llmModel,
     // Empty = let the provider decide (some reasoning models reject these).
-    temperature: optNum(process.env.CHAT_TEMPERATURE),
-    maxTokens: optNum(process.env.CHAT_MAX_TOKENS),
+    temperature: optNum(env.LLM_TEMPERATURE ?? env.CHAT_TEMPERATURE),
+    maxTokens: optNum(env.LLM_MAX_TOKENS ?? env.CHAT_MAX_TOKENS),
   },
   embedding: {
-    provider: embeddingProvider, // openai (any OpenAI-compatible /embeddings API) | huggingface
-    apiKey: embeddingApiKey,
+    provider: embedding.provider, // huggingface, or any OpenAI-compatible provider
+    apiKey: embedding.apiKey,
     // For huggingface this is an optional dedicated Inference Endpoint URL.
-    baseUrl: embeddingBaseUrl,
-    model: process.env.EMBEDDING_MODEL || "text-embedding-3-small",
-    dimensions: optNum(process.env.EMBEDDING_DIMENSIONS),
-    batchSize: num(process.env.EMBEDDING_BATCH_SIZE, 32),
+    baseUrl: embedding.baseUrl,
+    model: env.EMBEDDING_MODEL || "text-embedding-3-small",
+    dimensions: optNum(env.EMBEDDING_DIMENSIONS),
+    batchSize: num(env.EMBEDDING_BATCH_SIZE, 32),
   },
-};
-// Reading handwritten notes, photos and scanned PDFs: any OpenAI-compatible
-// chat model that accepts images. Defaults to the chat settings.
-const visionBaseUrl = trimSlash(process.env.VISION_BASE_URL) || chatBaseUrl;
-ai.vision = {
-  baseUrl: visionBaseUrl,
-  apiKey: process.env.VISION_API_KEY || (visionBaseUrl === chatBaseUrl ? chatApiKey : undefined) || (isLocal(visionBaseUrl) ? "not-needed" : undefined),
-  model: process.env.VISION_MODEL || ai.chat.model,
-  // Scanned PDF pages read per source (each page is one vision request).
-  maxPages: num(process.env.VISION_MAX_PAGES, 60),
-};
-
-// Lecture recordings: an OpenAI-compatible /audio/transcriptions API (OpenAI
-// whisper-1, Groq whisper-large-v3-turbo, a local faster-whisper server…).
-const transcribeBaseUrl = trimSlash(process.env.TRANSCRIBE_BASE_URL) || chatBaseUrl;
-ai.transcribe = {
-  baseUrl: transcribeBaseUrl,
-  apiKey:
-    process.env.TRANSCRIBE_API_KEY ||
-    (transcribeBaseUrl === chatBaseUrl ? chatApiKey : undefined) ||
-    (isLocal(transcribeBaseUrl) ? "not-needed" : undefined),
-  model: process.env.TRANSCRIBE_MODEL || "whisper-1",
-  // Audio is split into pieces below the provider's upload limit (OpenAI and Groq: 25 MB).
-  maxMb: num(process.env.TRANSCRIBE_MAX_MB, 24),
+  // Reading handwritten notes, photos and scanned PDFs: any OpenAI-compatible
+  // chat model that accepts images. Defaults to the LLM settings.
+  vision: {
+    provider: vision.provider,
+    baseUrl: vision.baseUrl,
+    apiKey: vision.apiKey,
+    model: env.VISION_MODEL || llmModel,
+    // Scanned PDF pages read per source (each page is one vision request).
+    maxPages: num(env.VISION_MAX_PAGES, 60),
+  },
+  // Lecture recordings: an OpenAI-compatible /audio/transcriptions API (OpenAI
+  // whisper-1, Groq whisper-large-v3-turbo, a local faster-whisper server…).
+  transcribe: {
+    provider: transcribe.provider,
+    baseUrl: transcribe.baseUrl,
+    apiKey: transcribe.apiKey,
+    model: env.TRANSCRIBE_MODEL || "whisper-1",
+    // Audio is split into pieces below the provider's upload limit (OpenAI and Groq: 25 MB).
+    maxMb: num(env.TRANSCRIBE_MAX_MB, 24),
+  },
 };
 
 ai.chatModel = ai.chat.model;
@@ -221,6 +283,7 @@ export function configProblems() {
   if (!config.email.smtp.host) {
     problems.push("Email: SMTP_HOST is not set — verification codes will be printed to this console instead of emailed.");
   }
+  problems.push(...config.ai.problems);
   if (!sessionSecret) problems.push("Sessions: set SESSION_SECRET to a long random string.");
   return problems;
 }

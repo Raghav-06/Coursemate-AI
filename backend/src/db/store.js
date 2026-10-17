@@ -462,6 +462,17 @@ export async function updateSource(id, patch) {
   return toSource(rows[0]);
 }
 
+/**
+ * Sources left "processing" when the server stopped mid-run never finish; on
+ * startup they become errors so they can be re-processed. Returns how many.
+ */
+export async function failInterruptedSources() {
+  const { rowCount } = await query(
+    "UPDATE sources SET status = 'error', progress = 100, progress_note = NULL, error = 'Processing was interrupted because the server stopped. Re-process this source to try again.' WHERE status = 'processing'"
+  );
+  return rowCount;
+}
+
 /** Marks a source as processing unless it already is; false if it was (so only one run starts). */
 export async function claimSourceForProcessing(id) {
   const { rowCount } = await query(

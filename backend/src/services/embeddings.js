@@ -3,11 +3,11 @@ import { HuggingFaceInferenceEmbeddings } from "@langchain/community/embeddings/
 import { config } from "../config/index.js";
 import { assertApiKey } from "./llm.js";
 
-// Embeddings go through LangChain. EMBEDDING_PROVIDER picks the client:
-//   openai      — any OpenAI-compatible /embeddings API (OpenAI, Gemini, Mistral,
-//                 Together, Voyage, Jina, Ollama, LM Studio…) at EMBEDDING_BASE_URL
+// Embeddings go through LangChain. EMBEDDING_PROVIDER (default: AI_PROVIDER) picks the client:
 //   huggingface — Hugging Face feature extraction (hf-inference, or a dedicated
 //                 Inference Endpoint when EMBEDDING_BASE_URL is set)
+//   any other   — an OpenAI-compatible /embeddings API (OpenAI, Gemini, Mistral,
+//                 Together, Voyage, Jina, Ollama, LM Studio…) at its base URL
 const { embedding } = config.ai;
 
 function normalize(vector) {
@@ -36,20 +36,15 @@ function createClient() {
       maxRetries: 5, // LangChain backs off on 429 / cold-start 503s
     });
   }
-  if (embedding.provider === "openai") {
-    return new OpenAIEmbeddings({
-      apiKey: embedding.apiKey,
-      model: embedding.model,
-      configuration: { baseURL: embedding.baseUrl },
-      ...(embedding.dimensions && { dimensions: embedding.dimensions }),
-      // Plain floats: many OpenAI-compatible servers don't support base64.
-      encodingFormat: "float",
-      batchSize: embedding.batchSize,
-      maxRetries: 5,
-    });
-  }
-  throw Object.assign(new Error(`Unknown EMBEDDING_PROVIDER "${embedding.provider}" (use "openai" or "huggingface").`), {
-    status: 500,
+  return new OpenAIEmbeddings({
+    apiKey: embedding.apiKey,
+    model: embedding.model,
+    configuration: { baseURL: embedding.baseUrl },
+    ...(embedding.dimensions && { dimensions: embedding.dimensions }),
+    // Plain floats: many OpenAI-compatible servers don't support base64.
+    encodingFormat: "float",
+    batchSize: embedding.batchSize,
+    maxRetries: 5,
   });
 }
 
@@ -67,7 +62,7 @@ function explain(err) {
     .slice(0, 300);
   const hint =
     status === 401 || status === 403
-      ? " Check EMBEDDING_API_KEY (or CHAT_API_KEY if you share one key)."
+      ? " Check EMBEDDING_API_KEY (or AI_API_KEY if you share one key)."
       : status === 404 || status === 400 || status === 422
         ? ` Is "${embedding.model}" an embedding model served by this provider? Check EMBEDDING_MODEL and EMBEDDING_BASE_URL.`
         : "";

@@ -5,7 +5,7 @@ Setup, environment variables, Google OAuth and the API reference are in the
 
 ```bash
 npm install
-# fill in .env (DATABASE_URL, GOOGLE_CLIENT_ID/SECRET, SESSION_SECRET, SMTP_*, CHAT_API_KEY / CHAT_BASE_URL / CHAT_MODEL, EMBEDDING_*)
+# fill in .env (DATABASE_URL, GOOGLE_CLIENT_ID/SECRET, SESSION_SECRET, SMTP_*, AI_PROVIDER / AI_API_KEY / LLM_MODEL, EMBEDDING_*)
 npm run dev
 ```
 
