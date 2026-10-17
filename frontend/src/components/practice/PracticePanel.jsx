@@ -6,6 +6,7 @@ import NewQuizDialog from "./NewQuizDialog";
 import AnswerWriting from "./AnswerWriting";
 import ExplainBack from "./ExplainBack";
 import BattlesTab from "../battle/BattlesTab";
+import ExamPractice from "../exam/ExamPractice";
 
 function ScorePill({ quiz }) {
   if (quiz.lastScore === null) return <span className="text-xs text-ink-3">Not taken</span>;
@@ -18,15 +19,16 @@ function ScorePill({ quiz }) {
 }
 
 /**
- * Practice: multiple-choice quizzes, answer writing, explain-it-back and
+ * Practice: exam practice (self-checked questions in the exam's pattern), multiple-choice quizzes, answer writing, explain-it-back and
  * quiz battles with classmates.
  * `intent` starts something right away: { kind: "quiz", topicIds, unitIds?,
  * count? } makes and plays a quiz on those topics (or units); { kind:
- * "answer", question, marks, … } opens answer writing; { kind: "explain",
+ * "answer", question, marks, … } opens answer writing; { kind: "exam", nodeIds }
+ * opens exam practice generating for those knowledge-map nodes; { kind: "explain",
  * topicId?, prompt? } opens explain-it-back.
  */
 export default function PracticePanel({ notebook, units, sources, onOpenCitation, intent, onIntentUsed, onActivity }) {
-  const [tab, setTab] = useState("quiz");
+  const [tab, setTab] = useState("exam");
   const [quizzes, setQuizzes] = useState(null);
   const [error, setError] = useState(null);
   const [playing, setPlaying] = useState(null); // quiz
@@ -35,6 +37,7 @@ export default function PracticePanel({ notebook, units, sources, onOpenCitation
   const [deleting, setDeleting] = useState(null);
   const [answerPreset, setAnswerPreset] = useState(null);
   const [explainPreset, setExplainPreset] = useState(null);
+  const [examPreset, setExamPreset] = useState(null);
   const handledIntent = useRef(null); // StrictMode runs effects twice
 
   const load = useCallback(
@@ -57,6 +60,12 @@ export default function PracticePanel({ notebook, units, sources, onOpenCitation
     if (!intent || handledIntent.current === intent) return;
     handledIntent.current = intent;
     onIntentUsed?.();
+    if (intent.kind === "exam") {
+      setPlaying(null);
+      setTab("exam");
+      setExamPreset(intent);
+      return;
+    }
     if (intent.kind === "explain") {
       setPlaying(null);
       setTab("explain");
@@ -124,6 +133,7 @@ export default function PracticePanel({ notebook, units, sources, onOpenCitation
               value={tab}
               onChange={setTab}
               options={[
+                ["exam", "Exam practice"],
                 ["quiz", "Quizzes"],
                 ["answer", "Answer writing"],
                 ["explain", "Explain it back"],
@@ -133,7 +143,9 @@ export default function PracticePanel({ notebook, units, sources, onOpenCitation
           </div>
         </div>
 
-        {tab === "battle" ? (
+        {tab === "exam" ? (
+          <ExamPractice notebook={notebook} onOpenCitation={onOpenCitation} preset={examPreset} onPresetUsed={() => setExamPreset(null)} />
+        ) : tab === "battle" ? (
           <BattlesTab notebook={notebook} units={units} sources={sources} />
         ) : tab === "explain" ? (
           <ExplainBack notebookId={notebook.id} onOpenCitation={onOpenCitation} preset={explainPreset} onPresetUsed={() => setExplainPreset(null)} onDone={onActivity} />

@@ -12,8 +12,8 @@ analysis, exams + revision plans, streaks) instead of duplicating it.
 |---|-------|--------|
 | 1 | Nano/Super/Ultra model tiers | ✅ done |
 | 2 | Exam profiles and knowledge map | ✅ done |
-| 3 | Self-checked practice question generation | ⏳ next |
-| 4 | Timed practice sessions | ☐ |
+| 3 | Self-checked practice question generation | ✅ done |
+| 4 | Timed practice sessions | ⏳ next |
 | 5 | Mistake diagnosis agent | ☐ |
 | 6 | Weekly plan and daily replanning | ☐ |
 | 7 | Demo course, AI usage panel and docs | ☐ |
@@ -121,6 +121,48 @@ settings…"), as agreed.
   build_knowledge_map on ultra. Marking unit checks (16 cases) pass. check-access passes. Build +
   oxlint 0 errors. UI (headless Chromium): map light desktop, node detail dark, prerequisites graph
   mobile, exam dialog mobile dark; no page errors, no horizontal page scroll.
+
+### 3. Self-checked practice question generation ✅
+- DB: `bank_questions` (notebook, node_ids UUID[] + GIN index, exam_type, format id, type, difficulty,
+  stem, options, answer JSONB, solution, citations, expected_seconds, marks, negative, verified,
+  verification {status, attempts, solverAnswer, reasons, history[]}, quality_flags, hidden,
+  created_by); `question_reports` (question, user, reason, note). Queries in `db/questionBank.js`.
+- `services/questionGen.js`: `profileFor` (course profile, else University), `pickFormats` (requested
+  formats in turn, else the mock pattern's mix by largest remainder), one Super generation call for
+  all slots, `normaliseQuestion` (validators; MCQ options shuffled and re-lettered A-D; numeric
+  tolerance capped at 5%, integer formats exact; rubric scaled to the format's marks; invalid [n]
+  stripped; citations = passages cited), `selfCheck` (separate Super call, `task: self_check`, sees
+  only stem/options/passages; descriptive → rubric support check ≥ 80% of marks), `compareAnswer`,
+  regeneration of one slot with the rejection reason (≤ 2 retries), concurrency 4. Rejected
+  questions are stored hidden (verified false); questions that never validated are discarded.
+- `services/questionJobs.js`: in-memory jobs (≤ 2 running per user, 1 h TTL) → insert → verified ids.
+- Routes `routes/questions.routes.js`: generate (members; nodes must be on the course map; count
+  1-15; formats must belong to the profile), job polling (owner of the job only), bank list (no keys),
+  `GET /api/questions/:id` (`?reveal=1` adds key/solution/verification), report (hides + logs).
+- Frontend: `remark-math`, `rehype-katex`, `katex` (CSS imported in Markdown.jsx); `MathText` inline
+  renderer for options/explanations (quiz player too); long display equations scroll inside their
+  block. Practice gets an "Exam practice" tab (default): header card, New questions → dialog
+  (NodePicker by chapter with mastery dots and weights, 5/10/15, difficulty, formats), job progress
+  bar, bank list (type, difficulty, marks with negative, ~time, node, "self-checked"), expand →
+  `QuestionBody` (all six types) + Show answer & solution (key highlighted, rubric, cited solution),
+  Report a problem dialog. Map → Practise this opens the generator for that node.
+- Tested (curl, mock AI; the mock keeps each generated key and its solver answers from the stem,
+  deliberately returning malformed items and wrong solves): input validation (no nodes, count 16,
+  descriptive format on JEE Main, foreign node → 400); a 6-question JEE Main job → 6 verified, with
+  slot 2 rejected first by validators ("needs exactly 4 options", "options are not distinct") and
+  slot 3/6 rejected first by the solver, both regenerated and verified; a node whose question the
+  solver always gets wrong → discarded after 3 attempts (stored hidden, verified false, 3-entry
+  history); JEE Advanced single/multi(A,C)/integer(35, exact)/matching all verified with marks
+  3/−1, 4/−2, 4/0, 3/−1; University one-word, 2- and 5-mark descriptive (rubric 2/2/1 scaled to
+  1/1/0.5 for 2 marks); numerical without a unit → "unit missing" then fixed; a non-integer integer
+  answer → "answer must be an integer" (discarded). Validator unit cases: correct option text in the
+  stem, unparseable number, "the answer is 5 m" + invalid citation, MSQ with no correct option, MCQ
+  with 2 correct; `pickFormats` JEE Main 5 → 4 MCQ + 1 numerical; numeric compare within tolerance.
+  List hides keys; reveal shows key + solution with [99] stripped; bad report reason → 400; report →
+  hidden for everyone, flag `reported_wrong_key`, stats reported 1. ai_calls show
+  generate_questions / self_check on super. check-access: outsider 404 on list, generate, question,
+  report; viewer can read a question. Build + oxlint 0 errors. UI: bank with revealed numerical
+  question rendering LaTeX + cited solution (light), generator dialog from the map (mobile dark).
 
 ## Earlier upgrade (done)
 

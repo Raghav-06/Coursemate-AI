@@ -2,6 +2,9 @@ import { memo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 
 // Turns "[2]", "[1][3]" and "[1, 3]" into links the renderer below turns
 // into citation chips — only for numbers that match a real citation.
@@ -85,7 +88,8 @@ function Markdown({ text, citations = [], onOpenCitation, className = "" }) {
   return (
     <div className={`prose-cm ${className}`}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]}
         components={{
           a({ href, children }) {
             const match = href?.match(/^#cite-(\d+)$/);
@@ -107,6 +111,19 @@ function Markdown({ text, citations = [], onOpenCitation, className = "" }) {
 }
 
 export default memo(Markdown);
+
+const INLINE = { p: ({ children }) => <>{children}</> };
+
+/** Short text (an option, a one-line explanation) with Markdown and LaTeX, rendered inline. */
+export const MathText = memo(function MathText({ text, className = "" }) {
+  return (
+    <span className={`prose-inline ${className}`}>
+      <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]} components={INLINE}>
+        {text ?? ""}
+      </ReactMarkdown>
+    </span>
+  );
+});
 
 // Plain text of an answer for copy/export: drop citation markers.
 export function stripCitations(text) {

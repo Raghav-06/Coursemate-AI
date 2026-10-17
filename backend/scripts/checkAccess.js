@@ -62,6 +62,12 @@ async function main() {
     const deck = (await call("owner", "POST", `/api/notebooks/${id}/decks`, { title: "Deck" })).data;
     const source = (await call("owner", "POST", `/api/notebooks/${id}/sources/text`, { title: "Notes", text: "Some notes." })).data;
     check("owner created a course", course.role, "owner");
+    const { rows: bankRows } = await query(
+      `INSERT INTO bank_questions (notebook_id, format, type, difficulty, stem, answer, expected_seconds, marks, verified)
+       VALUES ($1, 'mcq', 'mcq_single', 'easy', 'Access check question?', '{"correct": ["A"]}', 60, 4, TRUE) RETURNING id`,
+      [id]
+    );
+    const bankId = bankRows[0].id;
 
     // Sharing: existing accounts are added straight away.
     check("owner invites editor", (await call("owner", "POST", `/api/notebooks/${id}/invites`, { email: emails[1], role: "editor" })).status, 201);
@@ -85,6 +91,10 @@ async function main() {
       ["PUT", `/api/notebooks/${id}/exam-profile`],
       ["GET", `/api/notebooks/${id}/knowledge-map`],
       ["POST", `/api/notebooks/${id}/knowledge-map/rebuild`],
+      ["GET", `/api/notebooks/${id}/questions`],
+      ["POST", `/api/notebooks/${id}/questions/generate`],
+      ["GET", `/api/questions/${bankId}`],
+      ["POST", `/api/questions/${bankId}/report`],
     ]) {
       check(`outsider ${method} ${path.replace(id, ":id")}`, (await call("outsider", method, path, method === "GET" || method === "DELETE" ? undefined : { title: "x", email: "a@b.invalid", role: "viewer" })).status, 404);
     }
@@ -124,6 +134,7 @@ async function main() {
     check("editor adds a unit", (await call("editor", "POST", `/api/notebooks/${id}/units`, { title: "Unit 2" })).status, 201);
     check("editor renames the source", (await call("editor", "PATCH", `/api/sources/${source.id}`, { title: "Renamed" })).status, 200);
     check("editor sets the exam profile", (await call("editor", "PUT", `/api/notebooks/${id}/exam-profile`, { examType: "jee_main" })).status, 200);
+    check("viewer sees a bank question", (await call("viewer", "GET", `/api/questions/${bankId}`)).status, 200);
     check("viewer reads the knowledge map", (await call("viewer", "GET", `/api/notebooks/${id}/knowledge-map`)).status, 200);
     check("editor renames the deck", (await call("editor", "PATCH", `/api/decks/${deck.id}`, { title: "Deck 2" })).status, 200);
     check("editor can't invite", (await call("editor", "POST", `/api/notebooks/${id}/invites`, { email: "a@b.invalid", role: "viewer" })).status, 403);

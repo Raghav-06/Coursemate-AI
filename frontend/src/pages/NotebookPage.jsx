@@ -438,10 +438,10 @@ export default function NotebookPage({ notebookId }) {
     }
   };
 
-  // "Practise this" on a knowledge-map node: a quiz on its course topic, else ask the chat.
+  // "Practise this" on a knowledge-map node: self-checked exam questions on it.
   const practiseNode = (node) => {
-    if (node.topicId) return quizOnTopics([{ id: node.topicId }]);
-    return askAboutTopic({ name: node.name, unitTitle: node.ancestors?.at(-1)?.name });
+    setPracticeIntent({ kind: "exam", nodeIds: [node.id] });
+    showView("practice");
   };
 
   const practiseQuestion = (q) => {

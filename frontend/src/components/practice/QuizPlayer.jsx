@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api";
-import Markdown from "../Markdown";
+import Markdown, { MathText } from "../Markdown";
 import { Icon, IconButton, Spinner, toast } from "../ui";
 import CitationLink from "../study/CitationLink";
 import MasteryBar from "../progress/MasteryBar";
@@ -59,7 +59,7 @@ function Summary({ review, onExit, onRetake, onOpenCitation }) {
             <div className="flex gap-2 text-sm font-medium">
               <Icon name={q.answer?.correct ? "check_circle" : "cancel"} filled size={20} className={q.answer?.correct ? "text-success shrink-0" : "text-danger shrink-0"} />
               <span>
-                {i + 1}. {q.question}
+                {i + 1}. <MathText text={q.question} />
               </span>
             </div>
             <p className="mt-2 pl-7 text-sm text-ink-2">
@@ -67,7 +67,7 @@ function Summary({ review, onExit, onRetake, onOpenCitation }) {
               {q.answer && !q.answer.correct && <span className="text-danger"> · you chose {q.options[q.answer.chosenIndex]}</span>}
               {!q.answer && <span className="text-ink-3"> · not answered</span>}
             </p>
-            {q.explanation && <p className="mt-1 pl-7 text-sm text-ink-3">{q.explanation}</p>}
+            {q.explanation && <p className="mt-1 pl-7 text-sm text-ink-3"><MathText text={q.explanation} /></p>}
             <div className="mt-2 pl-7">
               <CitationLink citation={q.citation} onOpen={onOpenCitation} />
             </div>
@@ -222,7 +222,7 @@ export default function QuizPlayer({ quiz, onExit, onRetake, onOpenCitation, onF
                       >
                         {isAnswer ? <Icon name="check" size={16} /> : isWrongPick ? <Icon name="close" size={16} /> : LETTERS[i]}
                       </span>
-                      <span className="pt-0.5">{option}</span>
+                      <span className="pt-0.5"><MathText text={option} /></span>
                     </button>
                   );
                 })}
@@ -230,7 +230,7 @@ export default function QuizPlayer({ quiz, onExit, onRetake, onOpenCitation, onF
               {result && (
                 <div className="mt-5 rounded-2xl bg-panel-2 p-4 animate-fade-in">
                   <p className={`text-sm font-semibold ${result.correct ? "text-success" : "text-danger"}`}>{result.correct ? "Correct!" : "Not quite."}</p>
-                  {result.explanation && <p className="mt-1 text-sm text-ink-2 leading-6">{result.explanation}</p>}
+                  {result.explanation && <p className="mt-1 text-sm text-ink-2 leading-6"><MathText text={result.explanation} /></p>}
                   <div className="mt-2">
                     <CitationLink citation={result.citation} onOpen={onOpenCitation} />
                   </div>

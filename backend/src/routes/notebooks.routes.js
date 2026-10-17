@@ -36,6 +36,7 @@ import { courseExamRoutes } from "./exams.routes.js";
 import { courseMemberRoutes } from "./members.routes.js";
 import { courseBattleRoutes } from "./battles.routes.js";
 import { courseKnowledgeMapRoutes } from "./knowledgeMap.routes.js";
+import { courseQuestionRoutes } from "./questions.routes.js";
 import { recordActivity } from "../db/exams.js";
 import { responseLanguage } from "../services/language.js";
 import { getCoursePreferences, updateCoursePreferences } from "../db/preferences.js";
@@ -441,3 +442,4 @@ courseBattleRoutes(notebooksRouter);
 // ---- Exam profile and knowledge map ----------------------------------------------------
 
 courseKnowledgeMapRoutes(notebooksRouter);
+courseQuestionRoutes(notebooksRouter);

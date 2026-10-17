@@ -169,6 +169,24 @@ rolls up to chapters and subjects; the tree and the prerequisite graph are colou
 weak (< 50%) / OK / strong (≥ 75%). Clicking a node shows where your sources cover it, its past-paper
 questions, your history, what to learn first, and *Practise this* / *Ask in chat*.
 
+### Self-checked practice questions
+
+*Practice → Exam practice* (or *Practise this* on a map node) generates questions for chosen map
+nodes in the exam's formats — single/multiple correct MCQs, numerical (value, tolerance, unit),
+matching lists, one-word, descriptive (model answer + rubric) — with difficulty, expected solve time,
+a step-by-step solution citing the notes as [n], node tags and the exam's marks. **Before a student
+sees a question:** code validators check it (4 distinct options, exactly the right number of correct
+ones, the number parses with a sane tolerance and has a unit, the stem doesn't give the answer away,
+at least one cited passage exists), then a **separate Super call solves it from the same passages
+without the key or solution**; it is accepted only if that answer matches (same options, number
+within tolerance, same matches/word; for descriptive questions the passages must support ≥ 80% of the
+rubric marks). A rejected question is rewritten with the reason (up to 2 retries) and otherwise
+dropped. Verified questions go to the course's bank (shared by its members); every attempt, the
+solver's answer and the reasons are stored in `bank_questions.verification`. *Report a problem*
+(wrong key / unclear / out of syllabus) hides a question for everyone and logs it in
+`question_reports`. Questions, options, solutions, quizzes and chat render LaTeX (remark-math +
+rehype-katex).
+
 ## 1. Prerequisites
 
 - Node.js 20+
@@ -414,6 +432,11 @@ React (5173) ──/auth, /api──▶ Express (3000) ──▶ PostgreSQL
 | GET | `/api/notebooks/:id/knowledge-map` | The map: status, nodes (level, weight, syllabus ref, your mastery, past-paper count), prerequisite edges |
 | POST | `/api/notebooks/:id/knowledge-map/rebuild` | Rebuild now with Ultra (editors; 202) |
 | GET | `/api/notebooks/:id/knowledge-map/nodes/:nodeId` | One node: cited passages, past-paper questions, mastery history, prerequisites and dependants |
+| POST | `/api/notebooks/:id/questions/generate` | Generate self-checked questions `{ nodeIds (1-5), count 1-15, formats?, difficulty? }` → 202 job |
+| GET | `/api/notebooks/:id/questions/jobs/:jobId` | Generation progress; the verified questions when done |
+| GET | `/api/notebooks/:id/questions?nodeId=&format=` | The course's verified questions (no keys) and bank stats |
+| GET | `/api/questions/:questionId?reveal=1` | One question (with `reveal=1`: key, solution, verification) |
+| POST | `/api/questions/:questionId/report` | Report a problem `{ reason, note? }` — hides it |
 | POST | `/api/sources/:id/analyse` | Extract and map a past paper's questions again (202) |
 | GET/POST | `/api/notebooks/:id/exams` | Your exams in a course / add one `{ name, examDate: "YYYY-MM-DD", unitIds? }` |
 | GET/PATCH/DELETE | `/api/exams/:examId` | Exam with its plan (`items`, `today`, `missedCount`) / edit / delete |

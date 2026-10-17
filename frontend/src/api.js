@@ -190,6 +190,11 @@ export const api = {
   knowledgeMap: (id) => request(`/api/notebooks/${id}/knowledge-map`),
   rebuildKnowledgeMap: (id) => request(`/api/notebooks/${id}/knowledge-map/rebuild`, { method: "POST" }),
   mapNode: (id, nodeId) => request(`/api/notebooks/${id}/knowledge-map/nodes/${nodeId}`),
+  generateQuestions: (id, body) => request(`/api/notebooks/${id}/questions/generate`, { method: "POST", body }),
+  questionJob: (id, jobId) => request(`/api/notebooks/${id}/questions/jobs/${jobId}`),
+  listBankQuestions: (id, nodeId) => request(`/api/notebooks/${id}/questions${nodeId ? `?nodeId=${nodeId}` : ""}`),
+  getQuestion: (questionId, reveal = false) => request(`/api/questions/${questionId}${reveal ? "?reveal=1" : ""}`),
+  reportQuestion: (questionId, body) => request(`/api/questions/${questionId}/report`, { method: "POST", body }),
 
   listMessages: (id) => request(`/api/notebooks/${id}/messages`),
   clearMessages: (id) => request(`/api/notebooks/${id}/messages`, { method: "DELETE" }),

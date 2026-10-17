@@ -368,3 +368,13 @@
     transition-duration: 1ms !important;
   }
 }
+
+/* KaTeX: long display equations scroll inside their block on phones. */
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0;
+}
+.prose-inline .katex {
+  font-size: 1.05em;
+}
