@@ -6,6 +6,8 @@ import { listNodes, nodeEvents } from "../db/knowledgeMap.js";
 import { insertBankQuestions, listBankQuestions } from "../db/questionBank.js";
 import { addTopicEvents } from "../db/practice.js";
 import { recordActivity } from "../db/exams.js";
+import { diagnoseSession } from "./diagnosis.js";
+import { sessionDiagnoses } from "../db/diagnoses.js";
 import {
   claimSession,
   createSession,
@@ -154,6 +156,22 @@ async function prepare(session, { notebook, userId, plan, language }) {
   }
 }
 
+/** A drill on given bank questions (follow-ups of a diagnosis, "Fix this"): ready at once. */
+export async function createQuestionDrill({ notebook, userId, questions, title }) {
+  const session = await createSession({
+    notebookId: notebook.id,
+    userId,
+    kind: "drill",
+    examType: profileFor(notebook).type,
+    title,
+    nodeIds: [...new Set(questions.flatMap((q) => q.nodeIds))].slice(0, 5),
+    status: "ready",
+    settings: { count: questions.length, instantFeedback: true, followUp: true },
+  });
+  await setSessionQuestions(session.id, questions.map((q) => ({ questionId: q.id, section: null })));
+  return { ...session, questionCount: questions.length };
+}
+
 /** Creates a session and starts preparing it (in the background). */
 export async function createPracticeSession({ notebook, userId, kind, chosen, count, minutes, language }) {
   const profile = profileFor(notebook);
@@ -269,6 +287,7 @@ export async function saveAnswer(session, position, body, { language } = {}) {
     const graded = await gradeAnswer(item.question, saved.answer, { language });
     saved = await updateAnswer(session.id, position, { ...graded, locked: true });
     await recordEvidence(session, [{ ...saved, question: item.question }]);
+    if (saved.correct === false) diagnoseSession(session, { language, positions: [position] });
     return { ...saved, key: item.question.answer, solution: item.question.solution };
   }
   return saved;
@@ -329,6 +348,8 @@ export async function finishSession(session, { tz, language } = {}) {
     await updateSession(session.id, { status: "finished", score, maxScore });
     const attempted = all.filter((a) => a.attempted).length;
     if (attempted && tz) await recordActivity(session.userId, tz, "practice", attempted);
+    // Why each wrong answer went wrong (in the background; results show it when ready).
+    diagnoseSession({ ...session, status: "finished", finishedAt: new Date().toISOString() }, { language });
   } catch (err) {
     await updateSession(session.id, { status: "active" });
     throw err;
@@ -356,11 +377,16 @@ export async function sessionView(session) {
 
 /** Results: score with the exam's marking, accuracy, time per question vs expected, and each solution. */
 export async function sessionResults(session) {
-  const [items, answers, nodes] = await Promise.all([sessionQuestions(session.id, { withKey: true }), sessionAnswers(session.id), listNodes(session.notebookId)]);
+  const [items, answers, nodes, diagnoses] = await Promise.all([
+    sessionQuestions(session.id, { withKey: true }),
+    sessionAnswers(session.id),
+    listNodes(session.notebookId),
+    sessionDiagnoses(session.id),
+  ]);
   const nodeName = new Map(nodes.map((n) => [n.id, n.name]));
   const rows = items.map(({ position, section, question }) => {
     const a = answers.find((x) => x.position === position);
-    return { position, section, question, ...a, nodeNames: question.nodeIds.map((id) => nodeName.get(id)).filter(Boolean) };
+    return { position, section, question, ...a, nodeNames: question.nodeIds.map((id) => nodeName.get(id)).filter(Boolean), diagnosis: diagnoses.find((d) => d.position === position) ?? null };
   });
   const attempted = rows.filter((r) => r.attempted);
   const correct = attempted.filter((r) => r.correct);

@@ -13,6 +13,7 @@ import PracticePanel from "../components/practice/PracticePanel";
 import ProgressPanel from "../components/progress/ProgressPanel";
 import ExamsPanel from "../components/exams/ExamsPanel";
 import KnowledgeMapPanel from "../components/map/KnowledgeMapPanel";
+import MistakesPanel from "../components/mistakes/MistakesPanel";
 import CourseLanguageDialog from "../components/CourseLanguageDialog";
 import ShareDialog from "../components/ShareDialog";
 
@@ -23,11 +24,12 @@ const NAV = [
   { key: "study", label: "Study", icon: "style" },
   { key: "practice", label: "Practice", icon: "quiz" },
   { key: "map", label: "Knowledge map", icon: "account_tree" },
+  { key: "mistakes", label: "Mistakes", icon: "troubleshoot" },
   { key: "exams", examsTab: "plan", label: "Exam plan", icon: "event_upcoming" },
   { key: "exams", examsTab: "papers", label: "Exam insights", icon: "history_edu" },
   { key: "progress", label: "Progress", icon: "insights" },
 ];
-const VIEWS = ["chat", "study", "practice", "progress", "exams", "map"];
+const VIEWS = ["chat", "study", "practice", "progress", "exams", "map", "mistakes"];
 // Mobile bottom bar: the course outline (sidebar) plus the main tools.
 const MOBILE_NAV = [
   { key: "outline", label: "Units", icon: "menu_book" },
@@ -35,8 +37,8 @@ const MOBILE_NAV = [
   NAV[1],
   NAV[2],
   { ...NAV[3], label: "Map" },
-  { ...NAV[4], label: "Exams" },
-  NAV[6],
+  { ...NAV[5], label: "Exams" },
+  NAV[7],
 ];
 
 // "#/notebook/<id>?view=study" opens a tool directly (e.g. from Home).
@@ -444,6 +446,12 @@ export default function NotebookPage({ notebookId }) {
     showView("practice");
   };
 
+  // A practice session started elsewhere (e.g. "Fix this" on the Mistakes dashboard).
+  const playSession = (sessionId) => {
+    setPracticeIntent({ kind: "session", sessionId });
+    showView("practice");
+  };
+
   const practiseQuestion = (q) => {
     const marks = q.marks === null ? 5 : q.marks <= 3 ? 2 : q.marks <= 7 ? 5 : 10;
     setPracticeIntent({ kind: "answer", question: q.text.slice(0, 1000), marks, topicId: q.topicId, unitIds: q.unitId ? [q.unitId] : [], origin: "past_paper" });
@@ -588,7 +596,13 @@ export default function NotebookPage({ notebookId }) {
     </section>
   );
 
-  const mainPanel = { study: studyPanel, practice: practicePanel, progress: progressPanel, exams: examsPanel, map: mapPanel }[view] ?? chatPanel;
+  const mistakesPanel = (
+    <section className="panel w-full">
+      <MistakesPanel notebook={notebook} onOpenCitation={openCitation} onPlaySession={playSession} />
+    </section>
+  );
+
+  const mainPanel = { study: studyPanel, practice: practicePanel, progress: progressPanel, exams: examsPanel, map: mapPanel, mistakes: mistakesPanel }[view] ?? chatPanel;
   const isActive = (item) => item.key === view && (!item.examsTab || item.examsTab === examsTab);
   const go = (item) => {
     if (item.examsTab) setExamsTab(item.examsTab);

@@ -228,6 +228,10 @@
     --success: 26 127 70;
     --mark: 255 225 138;
     --gold: 214 140 18;
+    /* Mistake categories (categorical, validated for CVD separation): concept gap, careless, time pressure */
+    --cat-1: 42 120 214;
+    --cat-2: 235 104 52;
+    --cat-3: 27 175 122;
     color-scheme: light;
   }
 
@@ -249,6 +253,9 @@
     --success: 118 214 150;
     --mark: 122 94 18;
     --gold: 246 190 80;
+    --cat-1: 57 135 229;
+    --cat-2: 217 89 38;
+    --cat-3: 25 158 112;
     color-scheme: dark;
   }
 

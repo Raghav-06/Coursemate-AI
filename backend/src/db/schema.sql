@@ -671,3 +671,39 @@ CREATE TABLE IF NOT EXISTS session_answers (
   PRIMARY KEY (session_id, position)
 );
 CREATE INDEX IF NOT EXISTS session_answers_question_idx ON session_answers (question_id);
+
+-- ---- Mistake diagnosis ------------------------------------------------------------
+
+-- Why an answer went wrong: concept_gap | careless_error | time_pressure, with
+-- the code-computed signals, the rule's suggestion, and the Ultra model's
+-- final call — the specific misconception, which prerequisite to revisit, a
+-- short cited explanation and two self-checked follow-up questions. Students
+-- can flag a diagnosis as not right (kept for review). Personal.
+CREATE TABLE IF NOT EXISTS diagnoses (
+  id                     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  notebook_id            UUID NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
+  user_id                UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  session_id             UUID NOT NULL REFERENCES practice_sessions(id) ON DELETE CASCADE,
+  position               INTEGER NOT NULL,
+  question_id            UUID REFERENCES bank_questions(id) ON DELETE SET NULL,
+  node_ids               UUID[] NOT NULL DEFAULT '{}',
+  status                 TEXT NOT NULL DEFAULT 'pending',   -- pending | ready | error
+  error                  TEXT,
+  category               TEXT,                              -- concept_gap | careless_error | time_pressure
+  confidence             REAL,
+  rule_category          TEXT,                              -- what the code rules suggested (NULL = unclear)
+  signals                JSONB NOT NULL DEFAULT '{}',
+  evidence               JSONB NOT NULL DEFAULT '[]',
+  misconception          TEXT,
+  revisit_node_id        UUID REFERENCES km_nodes(id) ON DELETE SET NULL,
+  explanation            TEXT,
+  citations              JSONB NOT NULL DEFAULT '[]',
+  followup_question_ids  UUID[] NOT NULL DEFAULT '{}',
+  marks_lost             REAL NOT NULL DEFAULT 0,
+  feedback               TEXT,                              -- NULL | not_right
+  feedback_note          TEXT,
+  feedback_at            TIMESTAMPTZ,
+  created_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (session_id, position)
+);
+CREATE INDEX IF NOT EXISTS diagnoses_user_idx ON diagnoses (notebook_id, user_id, created_at DESC);

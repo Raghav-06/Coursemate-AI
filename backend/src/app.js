@@ -19,6 +19,7 @@ import { battlesRouter } from "./routes/battles.routes.js";
 import { agentRouter } from "./routes/knowledgeMap.routes.js";
 import { questionsRouter } from "./routes/questions.routes.js";
 import { sessionsRouter } from "./routes/sessions.routes.js";
+import { diagnosesRouter } from "./routes/diagnoses.routes.js";
 import { configurePassport, googleConfigured } from "./auth/passport.js";
 import { pool } from "./db/pool.js";
 import { emailConfigured } from "./services/mailer.js";
@@ -93,6 +94,7 @@ export function createApp() {
   app.use("/api", examsRouter);
   app.use("/api", agentRouter);
   app.use("/api/questions", questionsRouter);
+  app.use("/api", diagnosesRouter);
   app.use("/api/sessions", sessionsRouter);
   app.use("/api/invites", invitesRouter);
   app.use("/api/battles", battlesRouter);

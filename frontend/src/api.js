@@ -207,6 +207,12 @@ export const api = {
   },
   finishSession: (sessionId) => request(`/api/sessions/${sessionId}/finish`, { method: "POST" }),
   sessionResults: (sessionId) => request(`/api/sessions/${sessionId}/results`),
+  sessionDiagnoses: (sessionId) => request(`/api/sessions/${sessionId}/diagnoses`),
+  getDiagnosis: (diagnosisId) => request(`/api/diagnoses/${diagnosisId}`),
+  diagnosisFeedback: (diagnosisId, feedback, note) => request(`/api/diagnoses/${diagnosisId}`, { method: "PATCH", body: { feedback, note } }),
+  retryDiagnosis: (diagnosisId) => request(`/api/diagnoses/${diagnosisId}/retry`, { method: "POST" }),
+  practiseDiagnosis: (diagnosisId) => request(`/api/diagnoses/${diagnosisId}/practice`, { method: "POST" }),
+  mistakes: (id) => request(`/api/notebooks/${id}/mistakes`),
 
   listMessages: (id) => request(`/api/notebooks/${id}/messages`),
   clearMessages: (id) => request(`/api/notebooks/${id}/messages`, { method: "DELETE" }),

@@ -62,6 +62,11 @@ export default function PracticePanel({ notebook, units, sources, onOpenCitation
     if (!intent || handledIntent.current === intent) return;
     handledIntent.current = intent;
     onIntentUsed?.();
+    if (intent.kind === "session") {
+      setTab("exam");
+      setSessionId(intent.sessionId);
+      return;
+    }
     if (intent.kind === "exam") {
       setPlaying(null);
       setTab("exam");
@@ -113,6 +118,7 @@ export default function PracticePanel({ notebook, units, sources, onOpenCitation
         onExit={() => setSessionId(null)}
         onOpenCitation={onOpenCitation}
         onFinished={onActivity}
+        onPlaySession={setSessionId}
       />
     );
   }

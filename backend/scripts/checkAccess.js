@@ -74,6 +74,11 @@ async function main() {
       [id, ownerId]
     );
     const sessionId = sessionRows[0].id;
+    const { rows: diagRows } = await query(
+      "INSERT INTO diagnoses (notebook_id, user_id, session_id, position, status, category) VALUES ($1, $2, $3, 0, 'ready', 'concept_gap') RETURNING id",
+      [id, ownerId, sessionId]
+    );
+    const diagnosisId = diagRows[0].id;
 
     // Sharing: existing accounts are added straight away.
     check("owner invites editor", (await call("owner", "POST", `/api/notebooks/${id}/invites`, { email: emails[1], role: "editor" })).status, 201);
@@ -105,6 +110,11 @@ async function main() {
       ["POST", `/api/notebooks/${id}/sessions`],
       ["GET", `/api/sessions/${sessionId}`],
       ["POST", `/api/sessions/${sessionId}/finish`],
+      ["GET", `/api/sessions/${sessionId}/diagnoses`],
+      ["GET", `/api/notebooks/${id}/mistakes`],
+      ["GET", `/api/diagnoses/${diagnosisId}`],
+      ["PATCH", `/api/diagnoses/${diagnosisId}`],
+      ["POST", `/api/diagnoses/${diagnosisId}/practice`],
     ]) {
       check(`outsider ${method} ${path.replace(id, ":id")}`, (await call("outsider", method, path, method === "GET" || method === "DELETE" ? undefined : { title: "x", email: "a@b.invalid", role: "viewer" })).status, 404);
     }
@@ -146,6 +156,8 @@ async function main() {
     check("editor sets the exam profile", (await call("editor", "PUT", `/api/notebooks/${id}/exam-profile`, { examType: "jee_main" })).status, 200);
     check("viewer can't open the owner's practice session (personal)", (await call("viewer", "GET", `/api/sessions/${sessionId}`)).status, 404);
     check("viewer can't answer in it", (await call("viewer", "PUT", `/api/sessions/${sessionId}/answers/0`, { answer: null })).status, 404);
+    check("viewer can't see the owner's diagnosis", (await call("viewer", "GET", `/api/diagnoses/${diagnosisId}`)).status, 404);
+    check("viewer's own mistakes dashboard is empty", (await call("viewer", "GET", `/api/notebooks/${id}/mistakes`)).data?.total, 0);
     check("owner opens their session", (await call("owner", "GET", `/api/sessions/${sessionId}`)).status, 200);
     check("viewer sees a bank question", (await call("viewer", "GET", `/api/questions/${bankId}`)).status, 200);
     check("viewer reads the knowledge map", (await call("viewer", "GET", `/api/notebooks/${id}/knowledge-map`)).status, 200);

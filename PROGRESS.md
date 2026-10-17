@@ -14,8 +14,8 @@ analysis, exams + revision plans, streaks) instead of duplicating it.
 | 2 | Exam profiles and knowledge map | ✅ done |
 | 3 | Self-checked practice question generation | ✅ done |
 | 4 | Timed practice sessions | ✅ done |
-| 5 | Mistake diagnosis agent | ⏳ next |
-| 6 | Weekly plan and daily replanning | ☐ |
+| 5 | Mistake diagnosis agent | ✅ done |
+| 6 | Weekly plan and daily replanning | ⏳ next |
 | 7 | Demo course, AI usage panel and docs | ☐ |
 
 Before stage 1, the uncommitted shared-provider work that was in the tree (AI_PROVIDER / LLM_*
@@ -218,6 +218,48 @@ settings…"), as agreed.
   check-access: outsider 404 on list/create/get/finish; a co-member gets 404 on someone else's
   session. Build + oxlint 0 errors. UI: intro, active question with KaTeX options (light), resumed
   session on question 5 with answered Q1 in the palette (mobile dark), results (dark).
+
+### 5. Mistake diagnosis agent ✅
+- DB: `diagnoses` (course, user, session + position unique, question, node_ids, status pending|ready|
+  error, category, confidence, rule_category, signals JSONB, evidence, misconception,
+  revisit_node_id, explanation, citations, followup_question_ids, marks_lost, feedback not_right +
+  note). Queries in `db/diagnoses.js` (incl. `recentNodeAnswers` for repeated misses).
+- `services/diagnosis.js`: `computeSignals` / `ruleCategory` (pure), Ultra call (`diagnose_mistake`)
+  with question, key, solution, answer, working (text + OCR), signals, rule suggestion and a numbered
+  neighbourhood (topic, prerequisites with mastery, chapter, siblings); validation (category falls
+  back to the rule's, confidence clamped, revisit by number, invalid [n] stripped, rule reasons kept
+  as evidence); concept gap → `diagnosis` topic event (score 0.3, weight 0.5) on the node to revisit;
+  2 follow-ups via `generateQuestions` (the original's format, easier for concept gaps). Runs in the
+  background after `finishSession` and after a wrong drill check (one job per session/positions,
+  concurrency 2). Ultra failure → rule's call kept as ready, else error (retry route).
+- `services/mistakes.js`: dashboard (8 weeks by category, totals, top misconceptions grouped by
+  normalised text, nodes by marks lost, recent, flagged count, advice per category).
+- Routes `routes/diagnoses.routes.js`: session diagnoses, get / feedback / retry / practice ("Fix
+  this": follow-up drill via `createQuestionDrill`, or a timed speed drill on the topic for time
+  pressure), course dashboard. All personal (other users 404).
+- UI: diagnosis card (category with colour + icon + label, confidence, misconception, evidence, revisit,
+  cited explanation, advice, Fix this, Not right) under each wrong answer in results and under a
+  wrong checked drill answer, with "Diagnosing…" polling; course tool "Mistakes" (sidebar; mobile via
+  the drawer): category tiles with advice, weekly stacked bar chart with hover tooltip and a table
+  view, top misconceptions (filter by category) and costly topics with Fix this, recent diagnoses
+  expanding to the card. Category colours are a categorical palette validated with the dataviz
+  validator in light and dark (CVD ΔE ≥ 9; the light aqua is below 3:1 contrast, so every use has
+  a label/legend and a table view).
+- Tested: rules unit cases (10: neutral, careless by speed / by "sure", not careless with few
+  attempts, time pressure by little time + guess, not without rushing, blank late in a timed test,
+  concept gap by weak prerequisite / by repeated misses, untimed late guess → unclear). End to end
+  with seeded mastery (Friction strong, Vectors weak): a mixed timed test → Q1 very fast + sure on
+  Friction → careless; Q9 at 50 s left, guessed → time pressure; Q8 answered in 3 s late in the test
+  → time pressure (rushed); an untimed drill with a normal-speed wrong answer on Projectile motion
+  → concept gap (weak prerequisite Vectors, 4 recent misses) with revisit Vectors and a diagnosis
+  topic event; confidence 1.7 → 1, citation [9] stripped, 2 follow-ups each. Feedback: bad value →
+  400, not_right with note → excluded from the dashboard (flagged 1), cleared again (fix during
+  testing: an untyped `$2` in the feedback UPDATE made Postgres reject it). Fix this → 2-question
+  follow-up drill (ready); time pressure → 7-minute speed drill (preparing). Wrong Ultra key →
+  diagnosis error with the key hint; retry after fixing → ready. Dashboard totals/weeks/
+  misconceptions/costly nodes as expected. check-access: outsider 404 ×5, co-member can't see
+  another's diagnosis, own dashboard empty. Build + oxlint 0 errors. UI: dashboard (light),
+  table view (mobile dark), results with a careless-error card (light).
 
 ## Earlier upgrade (done)
 

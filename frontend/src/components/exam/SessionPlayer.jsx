@@ -4,6 +4,8 @@ import { ConfirmDialog, Icon, IconButton, Spinner, toast } from "../ui";
 import Markdown from "../Markdown";
 import QuestionBody, { TYPE_LABEL, marksLabel } from "./QuestionBody";
 import SessionResults, { fmtTime } from "./SessionResults";
+import DiagnosisCard from "../mistakes/DiagnosisCard";
+import { ADVICE } from "../mistakes/categories";
 
 const POLL_MS = 2000;
 const SAVE_DELAY_MS = 600;
@@ -29,7 +31,7 @@ function Clock({ seconds, timed }) {
  * answer, confidence, working) → submit → results. `renderExtra(row)` adds
  * content under each result (the diagnosis).
  */
-export default function SessionPlayer({ sessionId, onExit, onOpenCitation, onFinished, renderResultExtra, resultsHeader }) {
+export default function SessionPlayer({ sessionId, onExit, onOpenCitation, onFinished, onPlaySession }) {
   const [view, setView] = useState(null);
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
@@ -40,6 +42,7 @@ export default function SessionPlayer({ sessionId, onExit, onOpenCitation, onFin
   const [submitting, setSubmitting] = useState(false);
   const [checking, setChecking] = useState(false);
   const [showWorking, setShowWorking] = useState(false);
+  const [diagnoses, setDiagnoses] = useState({ diagnosing: false, list: [] });
   const spent = useRef({}); // position → ms
   const enteredAt = useRef(Date.now());
   const saveTimer = useRef(null);
@@ -65,6 +68,27 @@ export default function SessionPlayer({ sessionId, onExit, onOpenCitation, onFin
     const t = setInterval(load, POLL_MS);
     return () => clearInterval(t);
   }, [view?.status, load]);
+
+  // Diagnoses arrive in the background after a submit (or a wrong drill check).
+  const loadDiagnoses = useCallback(
+    () => api.sessionDiagnoses(sessionId).then((r) => setDiagnoses({ diagnosing: r.diagnosing, list: r.diagnoses }), () => {}),
+    [sessionId]
+  );
+  const wantDiagnoses = Boolean(results) || Object.values(answers).some((x) => x.locked && x.correct === false);
+  useEffect(() => {
+    if (wantDiagnoses) loadDiagnoses();
+  }, [wantDiagnoses, loadDiagnoses]);
+  const stillDiagnosing = diagnoses.diagnosing || diagnoses.list.some((d) => d.status === "pending");
+  useEffect(() => {
+    if (!wantDiagnoses || !stillDiagnosing) return;
+    const t = setInterval(loadDiagnoses, 3000);
+    return () => clearInterval(t);
+  }, [wantDiagnoses, stillDiagnosing, loadDiagnoses]);
+  const diagnosisCard = (position, citations) => {
+    const d = diagnoses.list.find((x) => x.position === position);
+    if (!d) return null;
+    return <DiagnosisCard key={`${d.id}:${d.status}`} diagnosis={d} citations={citations} onOpenCitation={onOpenCitation} onPractise={onPlaySession ? (s) => onPlaySession(s.id) : undefined} advice={ADVICE} />;
+  };
 
   const active = view?.status === "active";
   const timed = Boolean(view?.durationSeconds);
@@ -197,7 +221,23 @@ export default function SessionPlayer({ sessionId, onExit, onOpenCitation, onFin
     return (
       <div className="h-full overflow-y-auto scroll-thin">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
-          <SessionResults results={results} onOpenCitation={onOpenCitation} onClose={onExit} renderExtra={renderResultExtra} header={resultsHeader?.(results)} />
+          <SessionResults
+            results={results}
+            onOpenCitation={onOpenCitation}
+            onClose={onExit}
+            renderExtra={(row) => diagnosisCard(row.position, row.question.citations)}
+            header={
+              stillDiagnosing ? (
+                <p className="flex items-center gap-2 rounded-xl bg-accent-soft text-accent-soft-fg text-sm px-4 py-3" aria-live="polite">
+                  <Spinner /> Diagnosing your mistakes — why each one went wrong and what to fix…
+                </p>
+              ) : diagnoses.list.length ? (
+                <p className="text-sm text-ink-2">
+                  {diagnoses.list.length} mistake{diagnoses.list.length === 1 ? "" : "s"} diagnosed — open a question to see why and what to practise.
+                </p>
+              ) : null
+            }
+          />
         </div>
       </div>
     );
@@ -375,6 +415,7 @@ export default function SessionPlayer({ sessionId, onExit, onOpenCitation, onFin
                 {q.solution && <Markdown text={q.solution} citations={q.citations} onOpenCitation={onOpenCitation} className="text-sm! mt-2" />}
               </div>
             )}
+            {locked && a.correct === false && diagnosisCard(item.position, q.citations)}
 
             <div className="flex flex-wrap items-center gap-2 pb-6">
               <button type="button" className="btn-ghost" onClick={() => go(item.position - 1)} disabled={item.position === 0}>

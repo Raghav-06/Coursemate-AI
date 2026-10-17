@@ -207,6 +207,32 @@ passages. Results show the score with the exam's marking, accuracy, attempted, t
 expected, per-section marks, and per question your time against the expected time and the full
 solution. Graded answers feed mastery on their map nodes.
 
+### Mistake diagnosis
+
+After a session is submitted (or a drill answer is checked wrong), every wrong answer — and every
+question the student worked on but left blank — is diagnosed as a **concept gap**, a **careless
+error** or **time pressure**:
+
+1. **Signals in code:** time spent vs expected (very fast < 0.35×, very slow > 1.6×), time left on
+   the clock when answered, position late in the test, confidence, answer changes, mastery of the
+   node and its prerequisites *before* the session, recent accuracy and repeated misses on it.
+2. **Rules for clear cases:** strong mastery + very fast or "sure" → careless; little time left (or
+   late in a timed test) + rushed or guessed → time pressure; repeated misses, a weak prerequisite
+   or weak mastery → concept gap.
+3. **Ultra decides**, given the question, key, solution, the answer and working (text or photo),
+   the signals, the rules' suggestion and the map neighbourhood: the final category and confidence,
+   the specific misconception in one sentence (e.g. "Treats static friction as always equal to μN"),
+   which prerequisite to revisit, a short explanation citing the notes, and evidence.
+4. **Super writes two follow-up questions** on the node to revisit (self-checked as in Stage 3).
+
+If Ultra fails, the rules' call is kept (or the diagnosis can be retried). Concept gaps add weak
+evidence to the node to revisit, so mastery and the plan pick it up. Students can mark a diagnosis
+"Not right" (kept for review, left out of the stats). The **Mistakes** dashboard shows the split by
+category, mistakes per week (chart or table), top misconceptions, the topics costing the most marks
+and recent diagnoses, each with **Fix this**: the follow-ups as a drill (concept gap, careless —
+untimed, with an accuracy checklist in the advice) or a timed speed drill at 75% of the expected
+time (time pressure).
+
 ## 1. Prerequisites
 
 - Node.js 20+
@@ -465,6 +491,11 @@ React (5173) ──/auth, /api──▶ Express (3000) ──▶ PostgreSQL
 | POST | `/api/sessions/:sessionId/answers/:position/working` | Photo of your working (multipart `image`) → OCR |
 | POST | `/api/sessions/:sessionId/finish` | Submit and grade → results |
 | GET | `/api/sessions/:sessionId/results` | Score, accuracy, time vs expected, per-question solutions |
+| GET | `/api/sessions/:sessionId/diagnoses` | The session's diagnoses (and whether more are running) |
+| GET / PATCH | `/api/diagnoses/:diagnosisId` | One diagnosis; PATCH `{ feedback: "not_right" \| null, note? }` |
+| POST | `/api/diagnoses/:diagnosisId/retry` | Re-run a failed diagnosis |
+| POST | `/api/diagnoses/:diagnosisId/practice` | "Fix this": a follow-up drill or a timed speed drill |
+| GET | `/api/notebooks/:id/mistakes` | Mistakes dashboard (by category and week, top misconceptions, costly topics) |
 | POST | `/api/sources/:id/analyse` | Extract and map a past paper's questions again (202) |
 | GET/POST | `/api/notebooks/:id/exams` | Your exams in a course / add one `{ name, examDate: "YYYY-MM-DD", unitIds? }` |
 | GET/PATCH/DELETE | `/api/exams/:examId` | Exam with its plan (`items`, `today`, `missedCount`) / edit / delete |
