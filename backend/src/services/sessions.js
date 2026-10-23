@@ -256,7 +256,12 @@ export async function saveAnswer(session, position, body, { language } = {}) {
   const item = items.find((i) => i.position === position);
   if (!item) throw Object.assign(new Error("That question isn't in this session."), { status: 404 });
   const current = (await sessionAnswers(session.id)).find((a) => a.position === position);
-  if (current.locked) throw Object.assign(new Error("This answer was already checked."), { status: 409 });
+  if (current.locked) {
+    // The player still reports time spent when leaving a checked question; nothing to change then.
+    const timeOnly = Object.keys(body).every((k) => k === "timeSpentMs");
+    if (timeOnly) return current;
+    throw Object.assign(new Error("This answer was already checked."), { status: 409 });
+  }
   const patch = {};
   if (body.answer !== undefined) {
     const answer = cleanAnswer(item.question, body.answer);
