@@ -5,7 +5,7 @@ import { nodeMastery, subtreeIds } from "./knowledgeMap.js";
 import { listNodes, nodeEvents } from "../db/knowledgeMap.js";
 import { insertBankQuestions, listBankQuestions } from "../db/questionBank.js";
 import { addTopicEvents } from "../db/practice.js";
-import { recordActivity } from "../db/exams.js";
+import { completeItemsForSession, recordActivity } from "../db/exams.js";
 import { diagnoseSession } from "./diagnosis.js";
 import { sessionDiagnoses } from "../db/diagnoses.js";
 import {
@@ -346,6 +346,7 @@ export async function finishSession(session, { tz, language } = {}) {
     const score = Math.round(all.reduce((s, a) => s + (a.marks ?? 0), 0) * 100) / 100;
     const maxScore = Math.round(items.reduce((s, i) => s + i.question.marks, 0) * 100) / 100;
     await updateSession(session.id, { status: "finished", score, maxScore });
+    await completeItemsForSession(session.id); // a plan task that started this session is done
     const attempted = all.filter((a) => a.attempted).length;
     if (attempted && tz) await recordActivity(session.userId, tz, "practice", attempted);
     // Why each wrong answer went wrong (in the background; results show it when ready).

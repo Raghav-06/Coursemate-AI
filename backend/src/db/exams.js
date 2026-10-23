@@ -20,6 +20,14 @@ function toExam(r) {
     examDate: day(r.exam_date),
     unitIds: r.unit_ids ?? [],
     planGeneratedAt: iso(r.plan_generated_at),
+    planKind: r.plan_kind ?? "revision",
+    studyMinutes: r.study_minutes ?? null,
+    sessionMinutes: r.session_minutes ?? 45,
+    restDay: r.rest_day ?? null,
+    timezone: r.timezone ?? null,
+    weekStart: day(r.week_start),
+    lastReplannedOn: day(r.last_replanned_on),
+    masterySnapshot: r.mastery_snapshot ?? null,
     createdAt: iso(r.created_at),
     ...(r.task_count !== undefined ? { taskCount: Number(r.task_count), doneCount: Number(r.done_count) } : {}),
   };
@@ -52,21 +60,66 @@ export async function getExam(id, userId) {
   return toExam(rows[0]);
 }
 
-export async function createExam({ notebookId, userId, name, examDate, unitIds }) {
+export async function createExam({ notebookId, userId, name, examDate, unitIds, planKind, studyMinutes, sessionMinutes, restDay, timezone }) {
   const { rows } = await query(
-    "INSERT INTO exams (notebook_id, user_id, name, exam_date, unit_ids) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-    [notebookId, userId, name, examDate, JSON.stringify(unitIds ?? [])]
+    `INSERT INTO exams (notebook_id, user_id, name, exam_date, unit_ids, plan_kind, study_minutes, session_minutes, rest_day, timezone)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+    [notebookId, userId, name, examDate, JSON.stringify(unitIds ?? []), planKind ?? "revision", studyMinutes ? JSON.stringify(studyMinutes) : null, sessionMinutes ?? 45, restDay ?? null, timezone ?? null]
   );
   return toExam(rows[0]);
 }
 
-export async function updateExam(id, { name, examDate, unitIds }) {
+export async function updateExam(id, { name, examDate, unitIds, planKind, studyMinutes, sessionMinutes, restDay, timezone }) {
   await query(
     `UPDATE exams SET name = COALESCE($2, name), exam_date = COALESCE($3::date, exam_date),
-                      unit_ids = COALESCE($4::jsonb, unit_ids), updated_at = NOW()
+                      unit_ids = COALESCE($4::jsonb, unit_ids), plan_kind = COALESCE($5, plan_kind),
+                      study_minutes = COALESCE($6::jsonb, study_minutes), session_minutes = COALESCE($7, session_minutes),
+                      rest_day = CASE WHEN $8 THEN $9 ELSE rest_day END, timezone = COALESCE($10, timezone), updated_at = NOW()
       WHERE id = $1`,
-    [id, name ?? null, examDate ?? null, unitIds === undefined ? null : JSON.stringify(unitIds)]
+    [
+      id,
+      name ?? null,
+      examDate ?? null,
+      unitIds === undefined ? null : JSON.stringify(unitIds),
+      planKind ?? null,
+      studyMinutes ? JSON.stringify(studyMinutes) : null,
+      sessionMinutes ?? null,
+      restDay !== undefined,
+      restDay ?? null,
+      timezone ?? null,
+    ]
   );
+}
+
+/** Weekly-plan bookkeeping: week start, last replan day, mastery snapshot. */
+export async function setPlanState(id, { weekStart, lastReplannedOn, masterySnapshot }) {
+  await query(
+    `UPDATE exams SET week_start = COALESCE($2::date, week_start), last_replanned_on = COALESCE($3::date, last_replanned_on),
+                      mastery_snapshot = COALESCE($4::jsonb, mastery_snapshot), plan_generated_at = NOW(), updated_at = NOW()
+      WHERE id = $1`,
+    [id, weekStart ?? null, lastReplannedOn ?? null, masterySnapshot ? JSON.stringify(masterySnapshot) : null]
+  );
+}
+
+/** Exams with a weekly plan that may need today's replan (for the daily job). */
+export async function weeklyExamsToReplan() {
+  const { rows } = await query(
+    `SELECT e.* FROM exams e WHERE e.plan_kind = 'weekly' AND e.week_start IS NOT NULL
+        AND e.exam_date >= (NOW() AT TIME ZONE COALESCE(e.timezone, 'UTC'))::date
+        AND (e.last_replanned_on IS NULL OR e.last_replanned_on < (NOW() AT TIME ZONE COALESCE(e.timezone, 'UTC'))::date)`
+  );
+  return rows.map(toExam);
+}
+
+// ---- Plan changes -----------------------------------------------------------------
+
+export async function addPlanChange(examId, { date, kind, lines, summary }) {
+  await query("INSERT INTO plan_changes (exam_id, change_date, kind, lines, summary) VALUES ($1, $2, $3, $4, $5)", [examId, date, kind, JSON.stringify(lines), summary ?? null]);
+}
+
+export async function listPlanChanges(examId, limit = 10) {
+  const { rows } = await query("SELECT * FROM plan_changes WHERE exam_id = $1 ORDER BY created_at DESC LIMIT $2", [examId, limit]);
+  return rows.map((r) => ({ id: Number(r.id), date: day(r.change_date), kind: r.kind, lines: r.lines ?? [], summary: r.summary ?? null, createdAt: iso(r.created_at) }));
 }
 
 export async function deleteExam(id) {
@@ -102,10 +155,17 @@ function toItem(r) {
     targetCount: r.target_count ?? null,
     done: r.done,
     doneAt: iso(r.done_at),
+    minutes: r.minutes ?? null,
+    nodeId: r.node_id ?? null,
+    nodeName: r.node_name ?? null,
+    skipped: r.skipped ?? false,
+    reason: r.reason ?? null,
+    payload: r.payload ?? null,
+    sessionId: r.session_id ?? null,
   };
 }
 
-const ITEM_SELECT = `SELECT i.*, t.name AS topic_name FROM exam_plan_items i LEFT JOIN topics t ON t.id = i.topic_id`;
+const ITEM_SELECT = `SELECT i.*, t.name AS topic_name, kn.name AS node_name FROM exam_plan_items i LEFT JOIN topics t ON t.id = i.topic_id LEFT JOIN km_nodes kn ON kn.id = i.node_id`;
 
 export async function listPlanItems(examId, { from, to } = {}) {
   const values = [examId];
@@ -135,6 +195,47 @@ export async function replacePlan(examId, items) {
     }
     await client.query("UPDATE exams SET plan_generated_at = NOW(), updated_at = NOW() WHERE id = $1", [examId]);
   });
+}
+
+/**
+ * Replaces the weekly plan's undone tasks from `from` on with `items` (done
+ * and skipped ones stay as history).
+ */
+export async function replaceWeekItems(examId, from, items) {
+  await withTransaction(async (client) => {
+    await client.query("DELETE FROM exam_plan_items WHERE exam_id = $1 AND NOT done AND NOT skipped AND plan_date >= $2::date", [examId, from]);
+    for (const it of items) {
+      await client.query(
+        `INSERT INTO exam_plan_items (exam_id, plan_date, position, task_type, unit_id, topic_id, title, details, target_count, minutes, node_id, reason, payload)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+        [examId, it.date, it.position, it.type, it.unitId ?? null, it.topicId ?? null, it.title, it.details ?? null, it.targetCount ?? null, it.minutes ?? null, it.nodeId ?? null, it.reason ?? null, it.payload ? JSON.stringify(it.payload) : null]
+      );
+    }
+  });
+}
+
+/** Applies daily-replan edits: moves [{ id, date, position }], skips [ids], new items. */
+export async function applyReplan(examId, { moves = [], skips = [], adds = [] }) {
+  await withTransaction(async (client) => {
+    for (const m of moves) await client.query("UPDATE exam_plan_items SET plan_date = $2, position = $3 WHERE id = $1 AND exam_id = $4", [m.id, m.date, m.position, examId]);
+    if (skips.length) await client.query("UPDATE exam_plan_items SET skipped = TRUE WHERE exam_id = $1 AND id = ANY($2::uuid[])", [examId, skips]);
+    for (const it of adds) {
+      await client.query(
+        `INSERT INTO exam_plan_items (exam_id, plan_date, position, task_type, title, details, target_count, minutes, node_id, reason, payload)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [examId, it.date, it.position, it.type, it.title, it.details ?? null, it.targetCount ?? null, it.minutes ?? null, it.nodeId ?? null, it.reason ?? null, it.payload ? JSON.stringify(it.payload) : null]
+      );
+    }
+  });
+}
+
+export async function linkItemSession(id, sessionId) {
+  await query("UPDATE exam_plan_items SET session_id = $2 WHERE id = $1", [id, sessionId]);
+}
+
+/** Ticks off plan tasks whose practice session was submitted. */
+export async function completeItemsForSession(sessionId) {
+  await query("UPDATE exam_plan_items SET done = TRUE, done_at = COALESCE(done_at, NOW()) WHERE session_id = $1", [sessionId]);
 }
 
 /** Moves items to new dates/positions: [{ id, date, position }]. */

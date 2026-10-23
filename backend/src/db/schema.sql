@@ -707,3 +707,42 @@ CREATE TABLE IF NOT EXISTS diagnoses (
   UNIQUE (session_id, position)
 );
 CREATE INDEX IF NOT EXISTS diagnoses_user_idx ON diagnoses (notebook_id, user_id, created_at DESC);
+
+-- ---- Weekly plan and daily replanning -----------------------------------------------
+
+-- An exam's plan is either the day-by-day revision plan ('revision') or the
+-- agent's weekly plan ('weekly'), replanned each day from results. The weekly
+-- plan uses the student's study minutes per weekday ({"mon": 120, …}),
+-- preferred session length and rest day; mastery_snapshot is the node
+-- mastery at the last (re)plan, to spot changes.
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS plan_kind TEXT NOT NULL DEFAULT 'revision';
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS study_minutes JSONB;
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS session_minutes INTEGER NOT NULL DEFAULT 45;
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS rest_day TEXT;
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS timezone TEXT;
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS week_start DATE;
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS last_replanned_on DATE;
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS mastery_snapshot JSONB;
+
+-- Weekly-plan tasks: learn | drill | timed_test | revise_mistakes | flashcards | mock,
+-- with minutes, the map node, why it's there, how to start it (payload) and
+-- the practice session it started (finishing that session ticks it off).
+ALTER TABLE exam_plan_items ADD COLUMN IF NOT EXISTS minutes INTEGER;
+ALTER TABLE exam_plan_items ADD COLUMN IF NOT EXISTS node_id UUID REFERENCES km_nodes(id) ON DELETE SET NULL;
+ALTER TABLE exam_plan_items ADD COLUMN IF NOT EXISTS skipped BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE exam_plan_items ADD COLUMN IF NOT EXISTS reason TEXT;
+ALTER TABLE exam_plan_items ADD COLUMN IF NOT EXISTS payload JSONB;
+ALTER TABLE exam_plan_items ADD COLUMN IF NOT EXISTS session_id UUID REFERENCES practice_sessions(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS exam_plan_items_session_idx ON exam_plan_items (session_id);
+
+-- What each (re)plan changed and why, one line per change.
+CREATE TABLE IF NOT EXISTS plan_changes (
+  id           BIGSERIAL PRIMARY KEY,
+  exam_id      UUID NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+  change_date  DATE NOT NULL,
+  kind         TEXT NOT NULL,                -- weekly | daily
+  lines        JSONB NOT NULL DEFAULT '[]',  -- [{ text, type }]
+  summary      TEXT,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS plan_changes_exam_idx ON plan_changes (exam_id, created_at DESC);
