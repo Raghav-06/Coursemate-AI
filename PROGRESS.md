@@ -335,6 +335,28 @@ settings…"), as agreed.
   signed out → 401, totals / tiers / features / days / failure after mock calls and an inserted 429);
   check-access + 3 usage checks (own calls only); build + oxlint (no new warnings); UI: usage section.
 
+### After stage 7: dependencies and polish
+- `npm audit fix` (no `--force`): backend handlebars (critical), frontend vite + source-map-js (high);
+  `npm audit` reports 0 in both. KaTeX `^0.19.0` with an npm `overrides` entry, because rehype-katex
+  7.0.1 and micromark-extension-math (both latest) still declare `^0.16` — without it chat would
+  render with 0.16 against 0.19's CSS. Checked in headless Chromium: inline and display maths in a
+  chat answer and in practice questions, no `.katex-error`, KaTeX fonts load. (In remark-math 6,
+  `$$…$$` on one line inside a paragraph is inline maths; display needs the `$$` fences on their
+  own lines — unchanged by the upgrade.)
+- Code splitting: pages other than Home / sign-in, every course tool except chat, the source viewer
+  and the share dialog load with `React.lazy` + `Suspense` (the app's `Spinner`); KaTeX + remark-math
+  + rehype-katex sit in `MathMarkdown.jsx`, loaded only for text containing `$`, `\(` or `\[` (plain
+  Markdown is the fallback while it loads). `vite.config.js` groups vendor code with Rolldown's
+  `codeSplitting` groups (react / markdown / katex, `includeDependenciesRecursively: false` — with the
+  `manualChunks` compat API, Rolldown pulled shared Markdown utilities into the KaTeX chunk and made
+  the entry import it). Entry 62 kB (was one 963 kB chunk), largest chunk KaTeX 270 kB, no
+  chunk-size warning; the entry preloads only itself, the runtime and React.
+- Lint: SessionPlayer's `queue` is now a stable `useCallback` on `flush` (the 20 s time-saving
+  interval and `submit` had closed over a stale copy; fixes both exhaustive-deps warnings);
+  ExamPractice applies a new `preset` while rendering (once per preset) instead of copying it into
+  state in an effect, and only notifies the parent from the effect. 35 → 32 warnings; the rest are
+  pre-existing patterns in other files.
+
 ## Earlier upgrade (done)
 
 Turning CourseMate AI into a study and exam-prep app for college courses (10 stages, built in order;

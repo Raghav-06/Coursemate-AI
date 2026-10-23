@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api";
 import { Icon, Menu, Spinner, timeAgo, toast } from "../ui";
 import Markdown, { MathText } from "../Markdown";
@@ -117,7 +117,7 @@ export default function ExamPractice({ notebook, onOpenCitation, preset, onPrese
   const [reporting, setReporting] = useState(null);
   const [setup, setSetup] = useState(null); // { kind, nodeIds }
   const [sessions, setSessions] = useState(null);
-  const handled = useRef(null);
+  const [handledPreset, setHandledPreset] = useState(null);
 
   const loadBank = useCallback(() => api.listBankQuestions(notebook.id).then(setBank, (err) => setError(err.message)), [notebook.id]);
   useEffect(() => {
@@ -127,12 +127,16 @@ export default function ExamPractice({ notebook, onOpenCitation, preset, onPrese
     api.listSessions(notebook.id).then(setSessions, () => setSessions([]));
   }, [notebook.id, loadBank]);
 
-  useEffect(() => {
-    if (!preset || handled.current === preset) return;
-    handled.current = preset;
-    onPresetUsed?.();
+  // A new preset (e.g. "Practise this" on the map) opens its dialog: state is
+  // adjusted while rendering, once per preset, instead of in an effect.
+  if (preset && preset !== handledPreset) {
+    setHandledPreset(preset);
     if (preset.session) setSetup({ kind: preset.session, nodeIds: preset.nodeIds ?? [] });
     else if (preset.nodeIds?.length) setGenerating({ nodeIds: preset.nodeIds });
+  }
+  // …and the parent is told it was used (so it clears it).
+  useEffect(() => {
+    if (preset) onPresetUsed?.();
   }, [preset, onPresetUsed]);
 
   useEffect(() => {

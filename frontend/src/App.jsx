@@ -1,14 +1,22 @@
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { useRoute } from "./hooks";
 import { api } from "./api";
 import { AuthProvider, useAuth } from "./auth";
 import { Spinner, Toaster } from "./components/ui";
 import HomePage from "./pages/HomePage";
-import InvitePage from "./pages/InvitePage";
-import BattlePage from "./pages/BattlePage";
-import NotebookPage from "./pages/NotebookPage";
 import LoginPage from "./pages/LoginPage";
-import SettingsPage from "./pages/SettingsPage";
+
+// Pages beyond Home / sign-in load on demand (code-split).
+const InvitePage = lazy(() => import("./pages/InvitePage"));
+const BattlePage = lazy(() => import("./pages/BattlePage"));
+const NotebookPage = lazy(() => import("./pages/NotebookPage"));
+const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+
+const pageSpinner = (
+  <div className="h-full flex items-center justify-center text-ink-3">
+    <Spinner className="w-6 h-6" />
+  </div>
+);
 
 function Banners({ health }) {
   if (health?.offline) {
@@ -40,11 +48,7 @@ function Routes() {
 
   let page;
   if (user === undefined) {
-    page = (
-      <div className="h-full flex items-center justify-center text-ink-3">
-        <Spinner className="w-6 h-6" />
-      </div>
-    );
+    page = pageSpinner;
   } else if (!user) {
     const serverError =
       error || (health && !health.offline && !health.googleAuthConfigured
@@ -66,7 +70,9 @@ function Routes() {
   return (
     <div className="h-full flex flex-col">
       <Banners health={user ? health : health?.offline ? health : null} />
-      <div className="flex-1 min-h-0">{page}</div>
+      <div className="flex-1 min-h-0">
+        <Suspense fallback={pageSpinner}>{page}</Suspense>
+      </div>
       <Toaster />
     </div>
   );

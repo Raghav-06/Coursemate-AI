@@ -116,11 +116,16 @@ export default function SessionPlayer({ sessionId, onExit, onOpenCitation, onFin
     }
   }, [sessionId, load]);
 
-  const queue = (position, body, delay = SAVE_DELAY_MS) => {
-    pending.current[position] = { ...pending.current[position], ...body };
-    clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(flush, delay);
-  };
+  // Merges a change into the pending save for a question and (re)schedules the flush.
+  // Stable across renders, so the timers and callbacks below always use the current flush.
+  const queue = useCallback(
+    (position, body, delay = SAVE_DELAY_MS) => {
+      pending.current[position] = { ...pending.current[position], ...body };
+      clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(flush, delay);
+    },
+    [flush]
+  );
 
   const submit = useCallback(async () => {
     setSubmitting(true);
@@ -136,7 +141,7 @@ export default function SessionPlayer({ sessionId, onExit, onOpenCitation, onFin
       setSubmitting(false);
       setConfirming(false);
     }
-  }, [sessionId, flush, takeTime, pos, onFinished]);
+  }, [sessionId, flush, queue, takeTime, pos, onFinished]);
 
   // The test clock: ticks locally, submits at zero.
   useEffect(() => {
@@ -156,7 +161,7 @@ export default function SessionPlayer({ sessionId, onExit, onOpenCitation, onFin
     if (!active) return;
     const t = setInterval(() => queue(pos, { timeSpentMs: Math.round(takeTime()) }), 20_000);
     return () => clearInterval(t);
-  }, [active, pos, takeTime]);
+  }, [active, pos, takeTime, queue]);
 
   const go = (next) => {
     queue(pos, { timeSpentMs: Math.round(takeTime()) }, 0);

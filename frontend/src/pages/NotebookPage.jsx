@@ -1,21 +1,29 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { navigate, useMediaQuery } from "../hooks";
 import { Logo, ThemeToggle } from "../components/TopBar";
 import AccountMenu from "../components/AccountMenu";
 import { Icon, IconButton, SlideOver, Spinner, toast } from "../components/ui";
 import SourcesPanel from "../components/sources/SourcesPanel";
-import SourceViewer from "../components/sources/SourceViewer";
 import AddSourcesDialog from "../components/sources/AddSourcesDialog";
 import ChatPanel from "../components/chat/ChatPanel";
-import StudyPanel from "../components/study/StudyPanel";
-import PracticePanel from "../components/practice/PracticePanel";
-import ProgressPanel from "../components/progress/ProgressPanel";
-import ExamsPanel from "../components/exams/ExamsPanel";
-import KnowledgeMapPanel from "../components/map/KnowledgeMapPanel";
-import MistakesPanel from "../components/mistakes/MistakesPanel";
 import CourseLanguageDialog from "../components/CourseLanguageDialog";
-import ShareDialog from "../components/ShareDialog";
+
+// Tools other than chat (and the source viewer) load when first opened.
+const SourceViewer = lazy(() => import("../components/sources/SourceViewer"));
+const StudyPanel = lazy(() => import("../components/study/StudyPanel"));
+const PracticePanel = lazy(() => import("../components/practice/PracticePanel"));
+const ProgressPanel = lazy(() => import("../components/progress/ProgressPanel"));
+const ExamsPanel = lazy(() => import("../components/exams/ExamsPanel"));
+const KnowledgeMapPanel = lazy(() => import("../components/map/KnowledgeMapPanel"));
+const MistakesPanel = lazy(() => import("../components/mistakes/MistakesPanel"));
+const ShareDialog = lazy(() => import("../components/ShareDialog"));
+
+const panelSpinner = (
+  <div className="flex-1 flex items-center justify-center text-ink-3">
+    <Spinner className="w-6 h-6" />
+  </div>
+);
 
 // Main-area tools of a course, in the sidebar. The two exam entries are
 // tabs of the Exams view (revision plan | past-paper insights).
@@ -693,7 +701,9 @@ export default function NotebookPage({ notebookId }) {
           </div>
         </header>
 
-        <div className={`flex-1 min-h-0 flex ${isWide ? "px-3 pb-3" : "px-2"}`}>{mainPanel}</div>
+        <div className={`flex-1 min-h-0 flex ${isWide ? "px-3 pb-3" : "px-2"}`}>
+          <Suspense fallback={panelSpinner}>{mainPanel}</Suspense>
+        </div>
 
         {!isWide && (
           <nav className="shrink-0 grid grid-cols-7 h-14 border-t border-line/60 bg-sidebar" aria-label="Course tools">
@@ -722,21 +732,27 @@ export default function NotebookPage({ notebookId }) {
 
       {viewedSource && (
         <SlideOver label={viewedSource.title} onClose={() => setViewer(null)}>
-          <SourceViewer
-            source={viewedSource}
-            citation={viewer.citation}
-            onBack={() => setViewer(null)}
-            onAsk={(question) => {
-              setViewer(null);
-              sendMessage(question);
-            }}
-            onReprocess={canEdit ? reprocessSource : undefined}
-          />
+          <Suspense fallback={panelSpinner}>
+            <SourceViewer
+              source={viewedSource}
+              citation={viewer.citation}
+              onBack={() => setViewer(null)}
+              onAsk={(question) => {
+                setViewer(null);
+                sendMessage(question);
+              }}
+              onReprocess={canEdit ? reprocessSource : undefined}
+            />
+          </Suspense>
         </SlideOver>
       )}
 
       <CourseLanguageDialog notebookId={notebookId} open={languageOpen} onClose={() => setLanguageOpen(false)} />
-      {shareOpen && <ShareDialog notebook={notebook} open onClose={() => setShareOpen(false)} />}
+      {shareOpen && (
+        <Suspense fallback={null}>
+          <ShareDialog notebook={notebook} open onClose={() => setShareOpen(false)} />
+        </Suspense>
+      )}
       <AddSourcesDialog
         open={addOpen}
         onClose={() => setAddOpen(false)}
