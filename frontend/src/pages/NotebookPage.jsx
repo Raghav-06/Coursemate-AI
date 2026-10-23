@@ -416,9 +416,19 @@ export default function NotebookPage({ notebookId }) {
   const bumpProgress = useCallback(() => setProgressKey((k) => k + 1), []);
   // Past-paper question → Answer writing (marks rounded to the nearest 2/5/10).
   // Starting a task of the revision plan opens the matching tool.
-  const startTask = (task, exam) => {
+  const startTask = async (task, exam) => {
     const unitTitle = units.find((u) => u.id === task.unitId)?.title;
     if (task.type === "read") return askAboutTopic({ name: task.topic ?? task.title, unitTitle });
+    // Weekly-plan tasks: learn in chat, or a practice session made from the task.
+    if (task.type === "learn") return askAboutTopic({ name: task.nodeName ?? task.title.replace(/^Learn:\s*/, ""), unitTitle });
+    if (["drill", "timed_test", "mock", "revise_mistakes"].includes(task.type)) {
+      try {
+        const { session } = await api.startTask(task.id);
+        return playSession(session.id);
+      } catch (err) {
+        return toast(err.message, "error");
+      }
+    }
     if (task.type === "flashcards") return showView("study");
     if (task.type === "quiz") {
       setPracticeIntent(
@@ -551,6 +561,7 @@ export default function NotebookPage({ notebookId }) {
         units={units}
         sources={sources}
         onStartTask={startTask}
+        onPlaySession={playSession}
         insightsProps={{
           initialTopicId: insightsTopic,
           onOpenCitation: openCitation,

@@ -746,3 +746,12 @@ CREATE TABLE IF NOT EXISTS plan_changes (
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS plan_changes_exam_idx ON plan_changes (exam_id, created_at DESC);
+
+-- The weekday the student's study week starts on (mon … sun); week_start above
+-- is the first day of the week the current plan was made for.
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS week_starts_on TEXT NOT NULL DEFAULT 'mon';
+-- Set when new results (a submitted session and its diagnoses) should change
+-- the weekly plan; the next visit replans even if it already did today.
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS replan_due BOOLEAN NOT NULL DEFAULT FALSE;
+-- Why the student skipped a weekly-plan task (optional, their words).
+ALTER TABLE exam_plan_items ADD COLUMN IF NOT EXISTS skip_reason TEXT;

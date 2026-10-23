@@ -79,6 +79,26 @@ async function main() {
       [id, ownerId, sessionId]
     );
     const diagnosisId = diagRows[0].id;
+    const { rows: examRows } = await query(
+      "INSERT INTO exams (notebook_id, user_id, name, exam_date, plan_kind, week_start) VALUES ($1, $2, 'Access check exam', CURRENT_DATE + 30, 'weekly', CURRENT_DATE) RETURNING id",
+      [id, ownerId]
+    );
+    const examId = examRows[0].id;
+    const { rows: itemRows } = await query(
+      "INSERT INTO exam_plan_items (exam_id, plan_date, task_type, title, minutes, payload) VALUES ($1, CURRENT_DATE, 'drill', 'Drill', 20, '{\"kind\": \"drill\", \"nodeIds\": []}') RETURNING id",
+      [examId]
+    );
+    const itemId = itemRows[0].id;
+    const examRoutes = [
+      ["GET", `/api/exams/${examId}`],
+      ["PATCH", `/api/exams/${examId}/schedule`],
+      ["GET", `/api/exams/${examId}/weekly-plan`],
+      ["POST", `/api/exams/${examId}/weekly-plan`],
+      ["POST", `/api/exams/${examId}/weekly-plan/replan`],
+      ["GET", `/api/exams/${examId}/plan-changes`],
+      ["PATCH", `/api/plan-items/${itemId}`],
+      ["POST", `/api/plan-items/${itemId}/start`],
+    ];
 
     // Sharing: existing accounts are added straight away.
     check("owner invites editor", (await call("owner", "POST", `/api/notebooks/${id}/invites`, { email: emails[1], role: "editor" })).status, 201);
@@ -115,6 +135,7 @@ async function main() {
       ["GET", `/api/diagnoses/${diagnosisId}`],
       ["PATCH", `/api/diagnoses/${diagnosisId}`],
       ["POST", `/api/diagnoses/${diagnosisId}/practice`],
+      ...examRoutes,
     ]) {
       check(`outsider ${method} ${path.replace(id, ":id")}`, (await call("outsider", method, path, method === "GET" || method === "DELETE" ? undefined : { title: "x", email: "a@b.invalid", role: "viewer" })).status, 404);
     }
@@ -159,6 +180,17 @@ async function main() {
     check("viewer can't see the owner's diagnosis", (await call("viewer", "GET", `/api/diagnoses/${diagnosisId}`)).status, 404);
     check("viewer's own mistakes dashboard is empty", (await call("viewer", "GET", `/api/notebooks/${id}/mistakes`)).data?.total, 0);
     check("owner opens their session", (await call("owner", "GET", `/api/sessions/${sessionId}`)).status, 200);
+    // Exams and weekly plans are personal: a co-member can't see or change someone else's.
+    for (const [method, path] of examRoutes) {
+      check(`viewer ${method} ${path.replace(examId, ":examId").replace(itemId, ":itemId")} (someone else's)`, (await call("viewer", method, path, method === "GET" ? undefined : { done: true, restDay: null })).status, 404);
+    }
+    check("owner reads their weekly plan", (await call("owner", "GET", `/api/exams/${examId}/weekly-plan`)).status, 200);
+    check("owner sets their rest day", (await call("owner", "PATCH", `/api/exams/${examId}/schedule`, { restDay: "sun" })).data?.restDay, "sun");
+    check("owner skips a task", (await call("owner", "PATCH", `/api/plan-items/${itemId}`, { skipped: true, reason: "busy" })).data?.skipReason, "busy");
+    const viewerExam = await call("viewer", "POST", `/api/notebooks/${id}/exams`, { name: "My exam", examDate: new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10), planKind: "weekly" });
+    check("viewer adds their own weekly-plan exam", viewerExam.data?.planKind, "weekly");
+    check("viewer changes their own schedule", (await call("viewer", "PATCH", `/api/exams/${viewerExam.data?.id}/schedule`, { studyMinutes: 90 })).status, 200);
+    check("owner can't see the viewer's exam", (await call("owner", "GET", `/api/exams/${viewerExam.data?.id}`)).status, 404);
     check("viewer sees a bank question", (await call("viewer", "GET", `/api/questions/${bankId}`)).status, 200);
     check("viewer reads the knowledge map", (await call("viewer", "GET", `/api/notebooks/${id}/knowledge-map`)).status, 200);
     check("editor renames the deck", (await call("editor", "PATCH", `/api/decks/${deck.id}`, { title: "Deck 2" })).status, 200);

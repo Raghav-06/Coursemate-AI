@@ -174,6 +174,14 @@ export const api = {
   generatePlan: (examId) => request(`/api/exams/${examId}/plan`, { method: "POST" }),
   replanExam: (examId) => request(`/api/exams/${examId}/replan`, { method: "POST" }),
   setTaskDone: (itemId, done) => request(`/api/plan-items/${itemId}`, { method: "PATCH", body: { done } }),
+  // Weekly plan (agent): schedule, the week's tasks, replanning and what changed
+  updateSchedule: (examId, body) => request(`/api/exams/${examId}/schedule`, { method: "PATCH", body }),
+  generateWeeklyPlan: (examId) => request(`/api/exams/${examId}/weekly-plan`, { method: "POST" }),
+  weeklyPlan: (examId, week) => request(`/api/exams/${examId}/weekly-plan${week ? `?week=${week}` : ""}`),
+  replanWeek: (examId) => request(`/api/exams/${examId}/weekly-plan/replan`, { method: "POST" }),
+  planChanges: (examId) => request(`/api/exams/${examId}/plan-changes`),
+  skipTask: (itemId, skipped, reason) => request(`/api/plan-items/${itemId}`, { method: "PATCH", body: { skipped, reason } }),
+  startTask: (itemId) => request(`/api/plan-items/${itemId}/start`, { method: "POST" }),
 
   // Past papers (exam insights)
   examInsights: (id) => request(`/api/notebooks/${id}/exam-insights`),

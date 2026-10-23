@@ -5,7 +5,7 @@ import { nodeMastery, subtreeIds } from "./knowledgeMap.js";
 import { listNodes, nodeEvents } from "../db/knowledgeMap.js";
 import { insertBankQuestions, listBankQuestions } from "../db/questionBank.js";
 import { addTopicEvents } from "../db/practice.js";
-import { completeItemsForSession, recordActivity } from "../db/exams.js";
+import { completeItemsForSession, markWeeklyPlansDue, recordActivity } from "../db/exams.js";
 import { diagnoseSession } from "./diagnosis.js";
 import { sessionDiagnoses } from "../db/diagnoses.js";
 import {
@@ -350,7 +350,10 @@ export async function finishSession(session, { tz, language } = {}) {
     const attempted = all.filter((a) => a.attempted).length;
     if (attempted && tz) await recordActivity(session.userId, tz, "practice", attempted);
     // Why each wrong answer went wrong (in the background; results show it when ready).
-    diagnoseSession({ ...session, status: "finished", finishedAt: new Date().toISOString() }, { language });
+    // Then the weekly plan replans from the new mastery and diagnoses on the next visit.
+    diagnoseSession({ ...session, status: "finished", finishedAt: new Date().toISOString() }, { language })
+      .then(() => markWeeklyPlansDue(session.notebookId, session.userId))
+      .catch((err) => console.warn(`Marking the weekly plan due after session ${session.id} failed: ${err.message}`));
   } catch (err) {
     await updateSession(session.id, { status: "active" });
     throw err;

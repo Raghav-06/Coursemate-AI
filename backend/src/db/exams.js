@@ -26,7 +26,9 @@ function toExam(r) {
     restDay: r.rest_day ?? null,
     timezone: r.timezone ?? null,
     weekStart: day(r.week_start),
+    weekStartsOn: r.week_starts_on ?? "mon",
     lastReplannedOn: day(r.last_replanned_on),
+    replanDue: r.replan_due ?? false,
     masterySnapshot: r.mastery_snapshot ?? null,
     createdAt: iso(r.created_at),
     ...(r.task_count !== undefined ? { taskCount: Number(r.task_count), doneCount: Number(r.done_count) } : {}),
@@ -60,21 +62,22 @@ export async function getExam(id, userId) {
   return toExam(rows[0]);
 }
 
-export async function createExam({ notebookId, userId, name, examDate, unitIds, planKind, studyMinutes, sessionMinutes, restDay, timezone }) {
+export async function createExam({ notebookId, userId, name, examDate, unitIds, planKind, studyMinutes, sessionMinutes, restDay, timezone, weekStartsOn }) {
   const { rows } = await query(
-    `INSERT INTO exams (notebook_id, user_id, name, exam_date, unit_ids, plan_kind, study_minutes, session_minutes, rest_day, timezone)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-    [notebookId, userId, name, examDate, JSON.stringify(unitIds ?? []), planKind ?? "revision", studyMinutes ? JSON.stringify(studyMinutes) : null, sessionMinutes ?? 45, restDay ?? null, timezone ?? null]
+    `INSERT INTO exams (notebook_id, user_id, name, exam_date, unit_ids, plan_kind, study_minutes, session_minutes, rest_day, timezone, week_starts_on)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+    [notebookId, userId, name, examDate, JSON.stringify(unitIds ?? []), planKind ?? "revision", studyMinutes ? JSON.stringify(studyMinutes) : null, sessionMinutes ?? 45, restDay ?? null, timezone ?? null, weekStartsOn ?? "mon"]
   );
   return toExam(rows[0]);
 }
 
-export async function updateExam(id, { name, examDate, unitIds, planKind, studyMinutes, sessionMinutes, restDay, timezone }) {
+export async function updateExam(id, { name, examDate, unitIds, planKind, studyMinutes, sessionMinutes, restDay, timezone, weekStartsOn }) {
   await query(
     `UPDATE exams SET name = COALESCE($2, name), exam_date = COALESCE($3::date, exam_date),
                       unit_ids = COALESCE($4::jsonb, unit_ids), plan_kind = COALESCE($5, plan_kind),
                       study_minutes = COALESCE($6::jsonb, study_minutes), session_minutes = COALESCE($7, session_minutes),
-                      rest_day = CASE WHEN $8 THEN $9 ELSE rest_day END, timezone = COALESCE($10, timezone), updated_at = NOW()
+                      rest_day = CASE WHEN $8 THEN $9 ELSE rest_day END, timezone = COALESCE($10, timezone),
+                      week_starts_on = COALESCE($11, week_starts_on), updated_at = NOW()
       WHERE id = $1`,
     [
       id,
@@ -87,18 +90,42 @@ export async function updateExam(id, { name, examDate, unitIds, planKind, studyM
       restDay !== undefined,
       restDay ?? null,
       timezone ?? null,
+      weekStartsOn ?? null,
     ]
   );
 }
 
-/** Weekly-plan bookkeeping: week start, last replan day, mastery snapshot. */
+/**
+ * Switches an exam between the revision and the weekly plan: undone tasks of
+ * the other kind are deleted (done ones stay as history) and the weekly
+ * bookkeeping is reset, so the next plan starts fresh.
+ */
+export async function switchPlanKind(id, planKind, weeklyTypes) {
+  await withTransaction(async (client) => {
+    await client.query(
+      `DELETE FROM exam_plan_items WHERE exam_id = $1 AND NOT done AND (task_type = ANY($2::text[])) = $3`,
+      [id, weeklyTypes, planKind !== "weekly"]
+    );
+    await client.query(
+      "UPDATE exams SET plan_kind = $2, week_start = NULL, last_replanned_on = NULL, mastery_snapshot = NULL, replan_due = FALSE, updated_at = NOW() WHERE id = $1",
+      [id, planKind]
+    );
+  });
+}
+
+/** Weekly-plan bookkeeping: week start, last replan day, mastery snapshot (clears the "due" flag). */
 export async function setPlanState(id, { weekStart, lastReplannedOn, masterySnapshot }) {
   await query(
     `UPDATE exams SET week_start = COALESCE($2::date, week_start), last_replanned_on = COALESCE($3::date, last_replanned_on),
-                      mastery_snapshot = COALESCE($4::jsonb, mastery_snapshot), plan_generated_at = NOW(), updated_at = NOW()
+                      mastery_snapshot = COALESCE($4::jsonb, mastery_snapshot), replan_due = FALSE, plan_generated_at = NOW(), updated_at = NOW()
       WHERE id = $1`,
     [id, weekStart ?? null, lastReplannedOn ?? null, masterySnapshot ? JSON.stringify(masterySnapshot) : null]
   );
+}
+
+/** New results in a course: this user's weekly plans there replan on the next visit. */
+export async function markWeeklyPlansDue(notebookId, userId) {
+  await query("UPDATE exams SET replan_due = TRUE WHERE notebook_id = $1 AND user_id = $2 AND plan_kind = 'weekly' AND week_start IS NOT NULL", [notebookId, userId]);
 }
 
 /** Exams with a weekly plan that may need today's replan (for the daily job). */
@@ -159,6 +186,7 @@ function toItem(r) {
     nodeId: r.node_id ?? null,
     nodeName: r.node_name ?? null,
     skipped: r.skipped ?? false,
+    skipReason: r.skip_reason ?? null,
     reason: r.reason ?? null,
     payload: r.payload ?? null,
     sessionId: r.session_id ?? null,
@@ -229,8 +257,9 @@ export async function applyReplan(examId, { moves = [], skips = [], adds = [] })
   });
 }
 
+/** Links a task to the practice session it started (a skipped task that's started isn't skipped any more). */
 export async function linkItemSession(id, sessionId) {
-  await query("UPDATE exam_plan_items SET session_id = $2 WHERE id = $1", [id, sessionId]);
+  await query("UPDATE exam_plan_items SET session_id = $2, skipped = FALSE, skip_reason = NULL WHERE id = $1", [id, sessionId]);
 }
 
 /** Ticks off plan tasks whose practice session was submitted. */
@@ -263,9 +292,21 @@ export async function getPlanItem(id, userId) {
 
 export async function setItemDone(id, done) {
   const { rows } = await query(
-    `UPDATE exam_plan_items SET done = $2, done_at = CASE WHEN $2 THEN COALESCE(done_at, NOW()) ELSE NULL END
+    `UPDATE exam_plan_items SET done = $2, done_at = CASE WHEN $2 THEN COALESCE(done_at, NOW()) ELSE NULL END,
+                                skipped = CASE WHEN $2 THEN FALSE ELSE skipped END
       WHERE id = $1 RETURNING *`,
     [id, done]
+  );
+  return rows[0] ? toItem(rows[0]) : null;
+}
+
+/** Skips a task (with the student's optional reason) or brings it back; a skipped task isn't done. */
+export async function setItemSkipped(id, skipped, reason) {
+  const { rows } = await query(
+    `UPDATE exam_plan_items SET skipped = $2, skip_reason = CASE WHEN $2 THEN $3 ELSE NULL END,
+                                done = CASE WHEN $2 THEN FALSE ELSE done END, done_at = CASE WHEN $2 THEN NULL ELSE done_at END
+      WHERE id = $1 RETURNING *`,
+    [id, skipped, reason || null]
   );
   return rows[0] ? toItem(rows[0]) : null;
 }

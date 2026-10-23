@@ -15,8 +15,8 @@ analysis, exams + revision plans, streaks) instead of duplicating it.
 | 3 | Self-checked practice question generation | ✅ done |
 | 4 | Timed practice sessions | ✅ done |
 | 5 | Mistake diagnosis agent | ✅ done |
-| 6 | Weekly plan and daily replanning | ⏳ next |
-| 7 | Demo course, AI usage panel and docs | ☐ |
+| 6 | Weekly plan and daily replanning | ✅ done |
+| 7 | Demo course, AI usage panel and docs | ⏳ next |
 
 Before stage 1, the uncommitted shared-provider work that was in the tree (AI_PROVIDER / LLM_*
 settings, failing interrupted sources on boot) was committed on its own ("Shared AI provider
@@ -260,6 +260,52 @@ settings…"), as agreed.
   misconceptions/costly nodes as expected. check-access: outsider 404 ×5, co-member can't see
   another's diagnosis, own dashboard empty. Build + oxlint 0 errors. UI: dashboard (light),
   table view (mobile dark), results with a careless-error card (light).
+
+### 6. Weekly plan and daily replanning ✅
+- Planner (`services/weeklyPlan.js`, written before this stage) wired up. Changes to it: weeks can start
+  on any weekday (`weekStartOf`, `weekDays(…, startsOn)`; `mondayOf` kept), "new diagnoses since the
+  last plan" compares timestamps (`plan_generated_at`) so replanning twice in a day doesn't add the
+  same review twice, `useModel: false` (priority order, no AI call; used by the demo seed).
+- DB: `exams.week_starts_on` (the user's week start; `week_start` stays the current plan week's first
+  day), `exams.replan_due` (set when a submitted session's diagnoses are saved; cleared by
+  `setPlanState`), `exam_plan_items.skip_reason` (`reason` stays the planner's "why this task").
+  `db/exams.js`: `switchPlanKind` (deletes undone tasks of the other kind, resets the weekly
+  bookkeeping), `setItemSkipped`, `markWeeklyPlansDue`; done ↔ skipped are exclusive; starting a
+  skipped task un-skips it.
+- `services/replanTrigger.js`: per-exam in-memory lock (`withPlanLock`, shared by the routes and the
+  background job), `replanInBackground` (cheap Intl date check first; re-reads the exam inside the
+  lock; forced when `replan_due`; failures logged), `examToday` (exam timezone, else the browser's).
+- Routes (`routes/exams.routes.js`; exams are personal like before — the exam's user can read and
+  change it, anyone else gets 404, any course member can plan their own): `PATCH
+  /api/exams/:examId/schedule` (planKind, studyMinutes 15-600 as one number or per weekday,
+  sessionMinutes 15-240, restDay, IANA timezone checked with Intl and PostgreSQL, weekStartsOn),
+  `POST|GET /api/exams/:examId/weekly-plan[?week=]` (7 days with rest/after-exam flags, budget /
+  planned / done minutes, totals, theme, replanning), `POST …/weekly-plan/replan` (forced),
+  `GET …/plan-changes` (newest 50), `PATCH /api/plan-items/:itemId` (`done`, `skipped`, `reason`),
+  `POST /api/plan-items/:itemId/start` (drill / sectional / speed drill / mock from the payload, "fix
+  mistakes" = drill on the diagnoses' follow-ups; resumes an unfinished linked session; submitting it
+  ticks the task). `POST /:id/exams` takes `planKind` + schedule fields (timezone defaults to the
+  browser's). The old `POST …/replan` stays for revision plans (409 for weekly ones). Daily trigger
+  on `GET /api/notebooks/:id/exams` and `GET /api/exams/:examId` (there is no `GET /api/exams`).
+- UI: Exam plan → Weekly plan | Day by day; weekly view (`exams/WeeklyPlan.jsx`): week navigation,
+  7-day strip (rest day / after exam greyed, planned vs done minutes bar against the budget, a task
+  icon per task by state), the selected day's tasks (type, topic, minutes, why, skipped reason;
+  Start / Resume, Skip with optional reason, Mark done / Not done), Replan now, "Updating today's
+  plan…" polling while a background replan runs, theme, What changed (weekly / daily, each line).
+  `exams/ScheduleDialog.jsx` (plan type, minutes per weekday, session length, rest day, week start,
+  timezone defaulting to the browser's with the Intl list); saving rebuilds the week. New exams pick
+  weekly or day-by-day. The existing Replan / Regenerate actions call the weekly routes for weekly
+  exams. Learn tasks open chat, flashcards open Study, the rest open the practice session.
+- Tested (Windows backend against a scratch PostgreSQL 16 in WSL + a mock OpenAI-compatible API):
+  schedule validation (9 bad bodies → 400), skip with reason / unskip / done+skipped → 400, start on
+  learn → 409, fix-mistakes start → 2-question follow-up drill, second start resumes it; bad week →
+  400; replan on the old route → 409; finished session → diagnoses → `replan_due` → next exams load
+  replanned in the background (flag cleared, daily change logged); a new concept-gap diagnosis →
+  review added + topic pulled earlier once, the second replan the same minute → no changes. check-access
+  extended (outsider 404 ×8 on the new routes, co-member 404 ×8 on someone else's exam, owner reads /
+  sets rest day / skips, viewer plans their own exam). Build + oxlint (no new warnings). UI (headless
+  Chromium, production build): weekly view light, dark, mobile dark (no horizontal page scroll), skip
+  dialog, mark done, replan → What changed, schedule dialog, Start → session intro.
 
 ## Earlier upgrade (done)
 

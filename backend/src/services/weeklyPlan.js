@@ -9,7 +9,7 @@ import { listDiagnoses } from "../db/diagnoses.js";
 import { addPlanChange, applyReplan, cardsInScope, listPlanItems, replaceWeekItems, setPlanState } from "../db/exams.js";
 
 // The agent's weekly plan and daily replanning.
-//   Weekly (Ultra, each Monday or on demand): Ultra orders the week's focus
+//   Weekly (Ultra, at the start of each study week or on demand): Ultra orders the week's focus
 //     topics (high exam weight × low mastery, diagnosed misconceptions) and
 //     words a reason for each; CODE computes and enforces everything else —
 //     days, the student's minutes per weekday, rest day, session length,
@@ -30,20 +30,23 @@ const REVIEW_MIN = 15;
 const RECENT_DIAGNOSIS_DAYS = 14;
 const ORDER = { flashcards: 0, revise_mistakes: 1, learn: 2, drill: 3, timed_test: 4, mock: 5 };
 
-const weekdayOf = (date) => WEEKDAYS[(new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7];
-export const mondayOf = (date) => addDays(date, -WEEKDAYS.indexOf(weekdayOf(date)));
+export const weekdayOf = (date) => WEEKDAYS[(new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7];
+/** First day of the study week holding `date` (weeks start on `startsOn`, Monday by default). */
+export const weekStartOf = (date, startsOn = "mon") => addDays(date, -((WEEKDAYS.indexOf(weekdayOf(date)) - WEEKDAYS.indexOf(startsOn) + 7) % 7));
+export const mondayOf = (date) => weekStartOf(date, "mon");
 
-/** The study days left this week: today → Sunday, before the exam, without the rest day. */
-export function weekDays(today, examDate, restDay) {
+/** The study days left this week: today → the week's last day, before the exam, without the rest day. */
+export function weekDays(today, examDate, restDay, startsOn = "mon") {
+  const lastDay = WEEKDAYS[(WEEKDAYS.indexOf(startsOn) + 6) % 7];
   const days = [];
   for (let d = today; d < examDate; d = addDays(d, 1)) {
     if (weekdayOf(d) !== restDay) days.push(d);
-    if (weekdayOf(d) === "sun") break;
+    if (weekdayOf(d) === lastDay) break;
   }
   return days;
 }
 
-const minutesFor = (exam, date) => (exam.studyMinutes ?? DEFAULT_MINUTES)[weekdayOf(date)] ?? 0;
+export const minutesFor = (exam, date) => (exam.studyMinutes ?? DEFAULT_MINUTES)[weekdayOf(date)] ?? 0;
 
 /** Topics in the given order, but each after its prerequisites that are also in the list. */
 export function prerequisitesFirst(topics, edges) {
@@ -218,13 +221,18 @@ function mockFor(profile, nodes) {
   return { minutes, title: `${profile.name} full mock` };
 }
 
-/** Builds this week's plan (from today); keeps done tasks. Returns { items, theme }. */
-export async function generateWeeklyPlan(exam, userId, today, { language } = {}) {
+/**
+ * Builds this week's plan (from today); keeps done tasks. Returns { items, theme }.
+ * `useModel: false` skips Ultra and uses the priority order (no AI call; the demo seed uses it).
+ */
+export async function generateWeeklyPlan(exam, userId, today, { language, useModel = true } = {}) {
   const inputs = await planInputs(exam, userId, today);
   if (!inputs.nodes.length) throw Object.assign(new Error("Build the course's knowledge map first — the weekly plan is made from it."), { status: 409 });
-  const days = weekDays(today, exam.examDate, exam.restDay);
+  const days = weekDays(today, exam.examDate, exam.restDay, exam.weekStartsOn);
   const daysLeft = daysBetween(today, exam.examDate);
-  const { order, theme } = await weeklyPriorities(exam, inputs, daysLeft, language);
+  const { order, theme } = useModel
+    ? await weeklyPriorities(exam, inputs, daysLeft, language)
+    : { order: inputs.topics.slice(0, MAX_TOPICS).map((t) => ({ ...t, reason: null })), theme: null };
   const ordered = prerequisitesFirst(order, inputs.edges).map((t) => ({ ...t, reason: t.reason ?? fallbackReason(t) }));
 
   // Concept gaps from recent diagnoses: review the node to revisit.
@@ -262,7 +270,7 @@ export async function generateWeeklyPlan(exam, userId, today, { language } = {})
     sectional: sectionalFor(inputs.profile, ordered, inputs.nodes),
   });
   await replaceWeekItems(exam.id, today, items);
-  await setPlanState(exam.id, { weekStart: mondayOf(today), lastReplannedOn: today, masterySnapshot: snapshotOf(inputs.mastery, inputs.topics) });
+  await setPlanState(exam.id, { weekStart: weekStartOf(today, exam.weekStartsOn), lastReplannedOn: today, masterySnapshot: snapshotOf(inputs.mastery, inputs.topics) });
   const minutes = items.reduce((s, i) => s + i.minutes, 0);
   await addPlanChange(exam.id, {
     date: today,
@@ -314,13 +322,13 @@ const label = (today, date) => (date === today ? "today" : date === addDays(toda
 export async function replanIfDue(exam, userId, today, { language, force = false } = {}) {
   if (exam.planKind !== "weekly" || !exam.weekStart || today >= exam.examDate) return null;
   if (!force && exam.lastReplannedOn === today) return null;
-  if (mondayOf(today) !== exam.weekStart) {
+  if (weekStartOf(today, exam.weekStartsOn) !== exam.weekStart) {
     const { theme } = await generateWeeklyPlan(exam, userId, today, { language });
     return { kind: "weekly", theme };
   }
 
   const [items, inputs] = await Promise.all([listPlanItems(exam.id), planInputs(exam, userId, today)]);
-  const days = weekDays(today, exam.examDate, exam.restDay);
+  const days = weekDays(today, exam.examDate, exam.restDay, exam.weekStartsOn);
   const load = new Map(days.map((d) => [d, items.filter((i) => i.date === d && !i.done && !i.skipped).reduce((s, i) => s + (i.minutes ?? 0), 0)]));
   const nextPos = new Map(days.map((d) => [d, Math.max(-1, ...items.filter((i) => i.date === d).map((i) => i.position)) + 1]));
   const fits = (date, minutes) => load.get(date) + minutes <= minutesFor(exam, date);
@@ -353,9 +361,9 @@ export async function replanIfDue(exam, userId, today, { language, force = false
     }
   }
 
-  // 2. New diagnoses since the last plan.
-  const since = exam.lastReplannedOn ?? exam.weekStart;
-  const fresh = inputs.diagnoses.filter((d) => d.createdAt.slice(0, 10) >= since);
+  // 2. New diagnoses since the last (re)plan — by time, so replanning twice in a day doesn't add them twice.
+  const since = Date.parse(exam.planGeneratedAt ?? `${exam.weekStart}T00:00:00Z`);
+  const fresh = inputs.diagnoses.filter((d) => Date.parse(d.createdAt) > since);
   const groups = new Map();
   for (const d of fresh) {
     const nodeId = d.category === "concept_gap" ? d.revisitNodeId ?? d.nodeIds[0] : d.nodeIds[0];
