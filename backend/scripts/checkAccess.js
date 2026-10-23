@@ -190,6 +190,10 @@ async function main() {
     const viewerExam = await call("viewer", "POST", `/api/notebooks/${id}/exams`, { name: "My exam", examDate: new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10), planKind: "weekly" });
     check("viewer adds their own weekly-plan exam", viewerExam.data?.planKind, "weekly");
     check("viewer changes their own schedule", (await call("viewer", "PATCH", `/api/exams/${viewerExam.data?.id}/schedule`, { studyMinutes: 90 })).status, 200);
+    await query("INSERT INTO ai_calls (user_id, notebook_id, tier, task, latency_ms, ok) VALUES ($1, $2, 'super', 'access_check', 1, TRUE)", [ownerId, id]);
+    check("owner sees their own AI usage", (await call("owner", "GET", "/api/me/ai-usage?days=7")).data?.totals?.calls, 1);
+    check("outsider's AI usage doesn't include the owner's", (await call("outsider", "GET", "/api/me/ai-usage")).data?.totals?.calls, 0);
+    check("AI usage with days=0", (await call("owner", "GET", "/api/me/ai-usage?days=0")).status, 400);
     check("owner can't see the viewer's exam", (await call("owner", "GET", `/api/exams/${viewerExam.data?.id}`)).status, 404);
     check("viewer sees a bank question", (await call("viewer", "GET", `/api/questions/${bankId}`)).status, 200);
     check("viewer reads the knowledge map", (await call("viewer", "GET", `/api/notebooks/${id}/knowledge-map`)).status, 200);

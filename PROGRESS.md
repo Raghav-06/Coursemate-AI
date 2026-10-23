@@ -16,7 +16,7 @@ analysis, exams + revision plans, streaks) instead of duplicating it.
 | 4 | Timed practice sessions | ✅ done |
 | 5 | Mistake diagnosis agent | ✅ done |
 | 6 | Weekly plan and daily replanning | ✅ done |
-| 7 | Demo course, AI usage panel and docs | ⏳ next |
+| 7 | Demo course, AI usage panel and docs | ✅ done |
 
 Before stage 1, the uncommitted shared-provider work that was in the tree (AI_PROVIDER / LLM_*
 settings, failing interrupted sources on boot) was committed on its own ("Shared AI provider
@@ -306,6 +306,34 @@ settings…"), as agreed.
   sets rest day / skips, viewer plans their own exam). Build + oxlint (no new warnings). UI (headless
   Chromium, production build): weekly view light, dark, mobile dark (no horizontal page scroll), skip
   dialog, mark done, replan → What changed, schedule dialog, Start → session intro.
+
+### 7. Demo course, AI usage panel and docs ✅
+- `scripts/seedDemo.js` (`npm run seed:demo`): deletes and recreates `demo@coursemate.local` /
+  `demo-pass-123` (scrypt via `hashPassword`) in one transaction, then a JEE Main course (Physics
+  only) with two pasted notes (chunks with 8-dim zero vectors and `embedding_model =
+  demo-seed:not-embedded`, so `ensureCurrentEmbeddings` re-embeds them on the first chat), six course
+  topics + `topic_sets` (ready, real signature), a 9-node knowledge map with 5 prerequisites and
+  weights (`km_maps` ready with the real `mapSignature`, so opening it doesn't rebuild), 12 verified
+  bank questions (MCQ / numerical, LaTeX), older practice events (strong Newton's laws, weak
+  friction), a submitted 5-question drill from yesterday with 2 wrong answers and their diagnoses
+  (concept gap with follow-ups + careless error), and a weekly-plan exam 60 days ahead (Asia/Kolkata,
+  Sunday off) whose week is generated with `useModel: false`. No AI calls. Refuses with
+  `NODE_ENV=production` unless `--force`. Prints the login.
+- AI usage: `aiUsageReport` in `db/aiCalls.js` (window from the start of the day `days − 1` days ago
+  in the user's timezone; totals, per tier with models, per task + tier, per day per tier, 10 latest
+  failures with course title). `ai_calls` has no token/character columns, so the response says
+  `tokensRecorded: false` and the panel says so. `GET /api/me/ai-usage?days=1-90`
+  (`routes/me.routes.js`, own rows only). Settings → AI usage (`components/AiUsage.jsx`): 7/30/90
+  days, totals, Nano/Super/Ultra cards (+ "Other" for default/vision/transcribe), per-day stacked bars
+  in CSS with hover readout, legend and a table view (tier colours = the validated `--cat-*`
+  palette), by feature, recent failures.
+- README rewritten for the app as it is (features, the exam agent diagram, quick start, 5-minute
+  demo, provider examples for OpenAI / Hugging Face router / Groq-OpenRouter / Ollama / mixed tiers,
+  every npm script, the full route list). `.env.example`: every variable the code reads, each with a
+  one-line comment (legacy `CHAT_*` aliases listed commented out), no real values.
+- Tested: seed twice (reset works), production refusal; usage endpoint (days 0 / 91 / x → 400,
+  signed out → 401, totals / tiers / features / days / failure after mock calls and an inserted 429);
+  check-access + 3 usage checks (own calls only); build + oxlint (no new warnings); UI: usage section.
 
 ## Earlier upgrade (done)
 

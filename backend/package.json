@@ -13,7 +13,8 @@
     "mmr-demo": "node scripts/mmrDemo.js",
     "multiquery-demo": "node scripts/multiQueryDemo.js",
     "check-api": "node scripts/checkApi.js",
-    "check-access": "node scripts/checkAccess.js"
+    "check-access": "node scripts/checkAccess.js",
+    "seed:demo": "node scripts/seedDemo.js"
   },
   "dependencies": {
     "@huggingface/inference": "^4.13.30",

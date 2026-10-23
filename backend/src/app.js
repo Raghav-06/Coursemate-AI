@@ -20,6 +20,7 @@ import { agentRouter } from "./routes/knowledgeMap.routes.js";
 import { questionsRouter } from "./routes/questions.routes.js";
 import { sessionsRouter } from "./routes/sessions.routes.js";
 import { diagnosesRouter } from "./routes/diagnoses.routes.js";
+import { meRouter } from "./routes/me.routes.js";
 import { configurePassport, googleConfigured } from "./auth/passport.js";
 import { pool } from "./db/pool.js";
 import { emailConfigured } from "./services/mailer.js";
@@ -98,6 +99,7 @@ export function createApp() {
   app.use("/api/sessions", sessionsRouter);
   app.use("/api/invites", invitesRouter);
   app.use("/api/battles", battlesRouter);
+  app.use("/api/me", meRouter);
   app.use("/api", (_req, res) => res.status(404).json({ message: "Not found." }));
 
   // Production: serve the built React app from the same origin.

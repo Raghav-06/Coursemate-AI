@@ -1,535 +1,455 @@
 # CourseMate AI
 
-**Study and exam prep for college courses, built on your own material.** Create a **course**, split
-it into **units**, and add what your lecturer gave you — PDFs, slides, Word docs, photos of
-handwritten notes, scanned PDFs, lecture recordings, links, past exam papers. CourseMate turns them
-into spaced-repetition **flashcards**, **quizzes**, **graded answer-writing practice**,
-**explain-it-back** checks, **past-paper insights**, a **revision plan** to exam day and live **quiz
-battles** with classmates — and every answer cites the exact page, slide or minute it came from.
-It runs on any AI provider, or entirely on local models, and answers in English or 11 Indian
-languages.
+**Study and exam prep built on your own course material — with an exam agent that plans your week.**
+Create a **course**, split it into **units**, and add what your lecturer gave you: PDFs, slides, Word
+docs, photos of handwritten notes, scanned PDFs, lecture recordings, links, the syllabus and past
+papers. CourseMate answers questions with citations to the exact page, slide or minute, and turns the
+material into flashcards, quizzes, graded answer writing and timed practice. For JEE, NEET, GATE, UPSC
+and university exams, an **exam agent** builds a knowledge map of the syllabus, writes self-checked
+practice questions in the exam's own format and marking, diagnoses why each answer went wrong, and
+plans your study week — replanning every day from your results.
 
-## Features
-
-- **Courses with units** — group sources into units (chapters / modules) with collapsible headers;
-  add, rename, reorder and delete units, move sources between them, and pick the unit when adding
-  sources. Sources without a unit live under *General*. A scope selector above the chat input limits
-  answers to the whole course or to chosen units.
-- **Page and slide citations** — PDFs (uploaded or linked) record their pages and PPTX decks their
-  slides, so citations read *p. 12*, *pp. 12–13* or *Slide 4* in the chips, popovers and source
-  viewer (which shows page/slide markers). Original uploads are kept so any source can be
-  **re-processed**; sources added before this feature gain page numbers that way (links are
-  re-fetched; older slide decks recover their slides from the stored text).
-- **Flashcards with spaced repetition** — generate decks of 10/20/30 cards (easy/medium/hard)
-  from chosen units or the whole course; every card cites the page it came from. Add, edit and
-  delete cards by hand. The *Study* area shows an "N due" badge and reviews cards with **SM-2**
-  (Again / Hard / Good / Easy, each button showing the next interval; keys 1–4 and Space). Review
-  progress is personal, and new cards are capped per day (`NEW_CARDS_PER_DAY`, default 20).
-- **Quizzes, answer writing and weak topics** — the model extracts 5–15 **topics** per unit from
-  its sources (refreshed automatically when the unit's sources change). *Practice* makes
-  multiple-choice quizzes (5/10/15/20 questions, easy/medium/hard, chosen units) with explanations
-  and the page each answer comes from, and **answer-writing** practice: generate (or type) a 2-, 5-
-  or 10-mark question, write your answer, and get it **graded against your sources** — marks,
-  correct points, missing points, mistakes and a cited model answer. *Progress* shows your
-  **mastery** of every topic (weighted recent accuracy from quizzes, graded answers and flashcard
-  ratings), weakest first, with "Revise these today" and one-click *Quiz me*, *Flashcards* and
-  *Ask in chat*.
-- **Past-paper analysis** — mark sources as *past exam papers* (with exam name and year) when
-  adding them or later. CourseMate extracts every question (number, text, marks, section, year),
-  finds where its answer is in your course material, and maps it to a unit and topic (embedding
-  similarity, confirmed by the model). **Exam insights** ranks topics and units by how often they're
-  examined, total marks and years, and lists the questions (filter by unit, topic or year) with
-  citations to the answer and *Practise this question*, which opens Answer writing. Past papers
-  are left out of chat answers (switch on *Include past papers* in the scope menu), quizzes,
-  flashcards and topics.
-- **Exam mode, revision plans, daily goal and streaks** — add your exam (date + units) in a
-  course's *Exams* tab and get a **day-by-day revision plan** to the exam: read, quiz, answer-writing
-  and past-paper tasks per topic plus daily flashcards, prioritised by your weak topics, how often
-  past papers ask about them and the cards you have due. Tick tasks off, start them in one click,
-  **re-plan missed days** or regenerate the plan. Every study action (flashcard review, quiz answer,
-  graded answer, chat question) counts toward a **daily goal** (default 20, changeable); meeting it
-  on consecutive days builds a **streak**. The home page opens on **Today**: goal ring, streak, the
-  last 7 days, the next exam's countdown with today's tasks, and flashcards due across courses.
-- **Explain it back** — pick a topic (or type a question) and explain it in your own words; the
-  model compares it with your sources and lists what's right, the gaps and any misconceptions
-  (each cited), scores clarity and accuracy out of 10, and asks one follow-up question you can
-  explain next. It counts toward topic mastery and your daily goal.
-- **Answers in Indian languages** — *Settings* (account menu) sets the response language:
-  English, Hindi, Bengali, Marathi, Tamil, Telugu, Gujarati, Kannada, Malayalam, Punjabi, Odia or
-  Urdu, optionally **bilingual** (explanations in your language, technical terms in English). A
-  course can override it (the 文A button in its header). It applies to every AI feature — chat,
-  source guides, course overview, flashcards, quizzes, written questions, grading,
-  explain-it-back and revision-plan tips — keeping formulas, symbols and `[n]` citations intact.
-- **Handwritten notes and lecture recordings** — upload photos (PNG, JPG, WebP) of handwritten
-  notes or whiteboards, or scanned PDFs without a text layer: a **vision model** reads the text
-  (formulas and diagrams described, unreadable words marked), and the viewer shows the image next
-  to the extracted text. Upload **lecture recordings** — audio (MP3, M4A, WAV, WebM, OGG) or video
-  (MP4, MOV, MKV): the audio is extracted, compressed and split with ffmpeg and transcribed with
-  timestamps, so citations point to the moment in the lecture (*12:34*) and the viewer plays the
-  recording from any timestamp. Progress ("Transcribing part 2 of 5…") shows under the source.
-- **Shared courses with roles** — the course owner invites classmates by email as **editors**
-  (add and change sources, units and decks) or **viewers** (read, chat, study and practise). People
-  who already have an account are added at once; anyone else gets an invite link (emailed, or
-  copyable when SMTP isn't set) that applies when they sign up or sign in with that address. Chat
-  history, flashcard progress, quizzes, graded answers, mastery, exams and plans — and which sources
-  are ticked for chat — stay **personal**. Shared courses show who owns them; members can leave.
-- **Quiz battles** — start a battle from chosen units (5/10/15 questions, 10/20/30 s each): you get
-  a 6-character **join code** for people in the course → lobby → the host starts → timed questions
-  one at a time, **500 points for a correct answer plus up to 500 for speed** → live leaderboard
-  (Server-Sent Events) → results saved, and every answer counts toward your daily goal and topic
-  mastery like a quiz.
-- **Made for studying** — a calm paper-and-ink look (light and dark) with serif headings; each
-  course has a left sidebar with its tools (Chat, Study, Practice, Exam plan, Exam insights,
-  Progress) and its units and sources, the selected tool in the main area, and sources opening in a
-  slide-over viewer. Home opens on **Today**. Works on phones (drawer + bottom bar).
+It runs on any OpenAI-compatible AI provider (OpenAI, Hugging Face, Groq, OpenRouter, Gemini…) or
+entirely on local models (Ollama, LM Studio), and answers in English or 11 Indian languages.
 
 | Layer     | Tech |
 |-----------|------|
-| Frontend  | React 19 + Vite + Tailwind (`frontend/`) |
-| Backend   | Node.js + Express (`backend/`) |
-| Auth      | Google OAuth 2.0 (Passport) **or** email + verified code + password (scrypt hash); sessions in Postgres |
-| Database  | PostgreSQL via `pg` — users, email verification codes, notebooks, sources, chunks + embeddings, chat, sessions |
-| AI        | **LangChain** with any model provider — chat and vision via any OpenAI-compatible API, embeddings via an OpenAI-compatible API or Hugging Face; transcription via any OpenAI-compatible `/audio/transcriptions` API (audio prepared with ffmpeg) |
+| Frontend  | React 19 + Vite + Tailwind CSS v4 (`frontend/`), KaTeX for maths |
+| Backend   | Node.js 20+ + Express (`backend/`) |
+| Database  | PostgreSQL 13+ via `pg` — schema created automatically on start (`backend/src/db/schema.sql`) |
+| Auth      | Email + verified code + password (scrypt) and/or Google OAuth; sessions in Postgres |
+| AI        | LangChain `ChatOpenAI` / `OpenAIEmbeddings` against any OpenAI-compatible API (embeddings can also use Hugging Face feature extraction); ffmpeg for recordings |
 
----
+## Contents
 
-## Any AI provider — or fully local
+- [Features](#features)
+- [How the exam agent works](#how-the-exam-agent-works)
+- [Quick start](#quick-start)
+- [5-minute demo](#5-minute-demo)
+- [AI providers and settings](#ai-providers-and-settings)
+- [npm scripts](#npm-scripts)
+- [API](#api)
+- [How it works (details)](#how-it-works-details)
+- [Deploying to production](#deploying-to-production)
 
-CourseMate talks to models through LangChain and plain OpenAI-compatible APIs, so you choose where
-your notes go. Set one provider for everything — `AI_PROVIDER` (`openai`, `anthropic`, `gemini`,
-`groq`, `openrouter`, `mistral`, `together`, `deepseek`, `xai`, `huggingface`, `ollama`, `lmstudio`,
-or `custom` with `AI_BASE_URL`), `AI_API_KEY` and `LLM_MODEL` — and the base URL is filled in for
-you. Any job can use a different provider with its own `<JOB>_PROVIDER`, `<JOB>_API_KEY` and
-`<JOB>_BASE_URL`. *Settings → AI & privacy* in the app shows which models the server uses (never
-the keys):
+## Features
 
-| Job | Settings (empty = the shared `AI_*` ones) | Hosted examples | Local examples |
-|-----|----------|-----------------|----------------|
-| LLM: chat, guides, flashcards, quizzes, grading, plans | `LLM_MODEL`, `LLM_PROVIDER`, `LLM_API_KEY`, `LLM_BASE_URL` | OpenAI, Anthropic, Gemini, Groq, OpenRouter, Mistral… | Ollama (`llama3.1`, `qwen2.5`), LM Studio |
-| Search (embeddings) | `EMBEDDING_MODEL`, `EMBEDDING_PROVIDER`, `EMBEDDING_API_KEY`, `EMBEDDING_BASE_URL` | OpenAI `text-embedding-3-small`, Gemini, Mistral, Hugging Face | Ollama `nomic-embed-text`, LM Studio |
-| Reading photos / scans | `VISION_MODEL` (default: `LLM_MODEL`), `VISION_PROVIDER`, `VISION_API_KEY`, `VISION_BASE_URL` | `gpt-4o-mini`, Gemini, Claude | Ollama `qwen2.5vl`, `llava`, `llama3.2-vision` |
-| Transcribing lectures | `TRANSCRIBE_MODEL`, `TRANSCRIBE_PROVIDER`, `TRANSCRIBE_API_KEY`, `TRANSCRIBE_BASE_URL` | OpenAI `whisper-1`, Groq `whisper-large-v3-turbo` | any local server with an OpenAI-compatible `/audio/transcriptions` (e.g. faster-whisper-server, LocalAI) |
+**Your material**
+- **Courses with units** — group sources into units; a scope selector limits chat to chosen units.
+  Sources are *notes*, the *syllabus* or *past papers* (CourseMate suggests which after an upload).
+- **Cited chat** — answers cite the source with its page (*p. 12*), slide (*Slide 4*) or recording
+  timestamp (*12:34*); the source viewer opens at that spot. Maths renders with KaTeX.
+- **Photos, scans and lectures** — a vision model reads handwritten notes and scanned PDFs; lecture
+  audio/video is transcribed with timestamps (ffmpeg + any `/audio/transcriptions` API).
+- **Shared courses** — invite classmates as editors (change the material) or viewers (read, chat,
+  practise). Chat, progress, practice, exams and plans stay personal.
 
-The older `CHAT_API_KEY`, `CHAT_BASE_URL` and `CHAT_MODEL` names are still read.
+**Study and practice**
+- **Flashcards** with SM-2 spaced repetition, generated from chosen units, each card citing its page.
+- **Quizzes and answer writing** — MCQ quizzes and 2/5/10-mark written answers graded against your
+  sources; **explain it back** checks your own explanation of a topic.
+- **Topics and mastery** — topics per unit, mastery from every answer, "revise these today".
+- **Past-paper insights** — questions extracted from past papers, mapped to topics, ranked by how
+  often and for how many marks they're asked.
+- **Quiz battles** — live timed quizzes with a join code and a leaderboard.
+- **Today** — daily goal, streak, next exam and today's tasks across courses.
 
-**Keeping notes on your machine:** point every job at a local server (Ollama, LM Studio,
-LocalAI…) — no API keys are needed for `localhost` — and nothing you upload leaves the computer
-running the backend; the AI & privacy panel then says "on this computer" for each model. Small local
-models write weaker flashcards and grades than large hosted ones, and `npm run check-api` tests the
-chat, embedding and model-tier settings before you start.
+**Exam agent** (JEE Main / Advanced, NEET, GATE, UPSC Prelims / Mains, University)
+- **Exam profiles** — each exam's subjects, question formats, marking (negative marks, JEE Advanced
+  partial marking, GATE MSQ) and mock pattern, as data.
+- **Knowledge map** — subject → chapter → topic → subtopic with prerequisites and exam weights (from
+  past papers when you have them); your mastery per node.
+- **Self-checked questions** — generated in the exam's formats, checked by code validators and an
+  independent solve that never sees the key; only verified questions reach the bank.
+- **Timed practice** — topic drills, mixed practice, sectional tests and full mocks with the real
+  timing and marking; time, answer changes, confidence and working are recorded.
+- **Mistake diagnosis** — every wrong answer is classified as a concept gap, careless error or time
+  pressure, with the specific misconception, what to revisit and two follow-up questions; a
+  **Mistakes** dashboard shows the patterns.
+- **Weekly plan + daily replanning** — your week planned within your study minutes, session length
+  and rest day; replanned each day from missed tasks, new diagnoses and mastery changes, with a "What
+  changed" log explaining every change.
+- **AI usage** — *Settings → AI usage* shows your calls per tier, feature and day, latency and recent
+  failures.
 
-## Exam-prep agent: Nano, Super and Ultra models
+## How the exam agent works
 
-The exam-prep agent (for JEE, NEET, GATE, UPSC and university exams) splits its work across three
-model **tiers**, each its own OpenAI-compatible endpoint, so cheap fast models do the frequent
-small jobs and the strongest model does the thinking. With nothing configured, every tier is your
-`LLM_MODEL`.
+The agent splits its work across three model **tiers** (each can be a different model and provider;
+with nothing set, all three are your `LLM_MODEL`):
 
-| Tier | Does | Why this tier |
-|------|------|---------------|
-| **Nano** | grading objective answers that need judgement (numeric with units/tolerance, one-word, matching), tagging questions and attempts with topics, classifying uploads (syllabus / notes / past paper), mapping past-paper questions to topics | many short calls with a small, checkable output — speed and cost matter most |
-| **Super** | generating practice questions, answer keys and solutions, the independent **self-check solve**, grading descriptive answers, quizzes and written questions, daily replanning | writing correct exam content needs a capable model, and the self-check doubles those calls |
-| **Ultra** | mistake diagnosis (the specific misconception), building the knowledge map, the weekly plan | few calls that reason over the whole course or a student's history |
+```mermaid
+flowchart LR
+  subgraph Nano["Nano — quick judgement"]
+    N1["Grades objective answers<br/>(numbers with units, one-word, matching)"]
+    N2["Tags questions & attempts<br/>with map topics"]
+  end
+  subgraph Super["Super — writes exam content"]
+    S1["Writes questions, keys<br/>and cited solutions"]
+    S2["Self-check: solves each one<br/>again without the key"]
+  end
+  subgraph Ultra["Ultra — reasons over your history"]
+    U1["Diagnoses each mistake<br/>(concept gap / careless / time)"]
+    U2["Plans the week<br/>(weak × high-weight first)"]
+  end
+  D["Daily replan<br/>(code adjusts, Super explains)"]
 
-Settings (each falls back to the LLM ones when empty): `MODEL_NANO_BASE_URL`, `MODEL_NANO_API_KEY`,
-`MODEL_NANO_MODEL`, and the same for `SUPER` and `ULTRA`; optional `MODEL_<TIER>_TEMPERATURE`,
-`MODEL_<TIER>_MAX_TOKENS` (empty = the LLM value, `default` = the provider's) and
-`MODEL_<TIER>_SYSTEM_PREFIX` — a line put before the system prompt, for models that switch reasoning
-with one (Nemotron: `detailed thinking on`, or `/think` / `/no_think`). A leading `<think>…</think>`
-block in a reply is dropped. `.env.example` shows NVIDIA's endpoint
-(`https://integrate.api.nvidia.com/v1`) with Nemotron Nano / Super / Ultra — copy the exact model IDs
-from build.nvidia.com. The task → tier map is one table in `backend/src/services/modelRouter.js`.
-
-Every model call is logged in `ai_calls` (user, course, tier, model, task, latency, ok, error
-code — never the prompt). `npm run check-api` tests chat, embeddings and each tier (plain text and
-JSON); `/health` and *Settings → AI & privacy* show the tier models and hosts (never keys).
-
-### Exam profiles and the knowledge map
-
-Each course can name its exam (*Knowledge map → Choose exam*): **JEE Main** (MCQ +4/−1, numerical
-+4/0), **JEE Advanced** (single correct, one-or-more correct with partial marking, integer/numerical,
-matching), **NEET** (MCQ +4/−1), **GATE** (MCQ 1/2 marks with −1/3 / −2/3, MSQ and NAT without
-negative marking), **UPSC Prelims** (MCQ, −1/3 of the marks), **UPSC Mains** (10/15-mark descriptive)
-or **University** (custom subjects; MCQ, one-word, 2/5/10-mark descriptive). Profiles are plain data
-in `backend/src/config/examProfiles.js`; marks are computed in `services/marking.js`.
-
-Sources are **notes**, the **syllabus** or **past papers** (picked in *Add sources*). After an upload
-is processed, Nano guesses which it is and the sources list offers "Looks like the syllabus — mark
-it" (nothing changes unless you click).
-
-The **knowledge map** (Ultra) is built from the syllabus first, then the notes and past papers:
-subject → chapter → topic → subtopic, with prerequisite links (cycles and self-links are dropped)
-and an exam weight per node — from how often and for how many marks past-paper questions land on it
-(Nano places each question on a node, choosing among the five most similar by embeddings), or the
-model's high/medium/low estimate when there are no papers. It rebuilds on demand and when the
-course's sources or exam change; nodes keep their ids when their names match, so progress stays.
-Topic nodes are linked to the course topics of the same name, so quizzes and flashcards on those
-topics count too. Mastery per node (attempts, accuracy, recency-weighted score, last practised)
-rolls up to chapters and subjects; the tree and the prerequisite graph are coloured not started /
-weak (< 50%) / OK / strong (≥ 75%). Clicking a node shows where your sources cover it, its past-paper
-questions, your history, what to learn first, and *Practise this* / *Ask in chat*.
-
-### Self-checked practice questions
-
-*Practice → Exam practice* (or *Practise this* on a map node) generates questions for chosen map
-nodes in the exam's formats — single/multiple correct MCQs, numerical (value, tolerance, unit),
-matching lists, one-word, descriptive (model answer + rubric) — with difficulty, expected solve time,
-a step-by-step solution citing the notes as [n], node tags and the exam's marks. **Before a student
-sees a question:** code validators check it (4 distinct options, exactly the right number of correct
-ones, the number parses with a sane tolerance and has a unit, the stem doesn't give the answer away,
-at least one cited passage exists), then a **separate Super call solves it from the same passages
-without the key or solution**; it is accepted only if that answer matches (same options, number
-within tolerance, same matches/word; for descriptive questions the passages must support ≥ 80% of the
-rubric marks). A rejected question is rewritten with the reason (up to 2 retries) and otherwise
-dropped. Verified questions go to the course's bank (shared by its members); every attempt, the
-solver's answer and the reasons are stored in `bank_questions.verification`. *Report a problem*
-(wrong key / unclear / out of syllabus) hides a question for everyone and logs it in
-`question_reports`. Questions, options, solutions, quizzes and chat render LaTeX (remark-math +
-rehype-katex).
-
-### Timed practice sessions
-
-*Exam practice* offers four session types: **topic drill** (chosen topics, check each answer with its
-solution), **mixed practice** (weak and high-weight topics first, optional timer), **timed sectional
-test** (one subject or chapter, at the exam's time per question) and **full mock** (the profile's
-question count, duration and marking — e.g. JEE Main Physics: 20 MCQ + 5 numerical in 60 minutes).
-Sessions take verified questions from the bank (fresh ones first, same exam's marking); anything
-missing is generated and self-checked while the session shows "Preparing".
-
-For every question the session records the answer, correctness, marks (negative marking
-included), time spent, the time left on the test clock when answered, its position, how many times
-the answer changed, optional confidence (sure / unsure / guess) and optional "how I solved it" —
-text, or a photo of the working read by the vision model. The clock runs on the server: a timed
-session submits itself when time is up. **Grading:** options, integers, matching and numbers in the
-key's unit are graded in code; a number in another unit (or with its unit typed in) and near-miss
-one-word answers go to Nano; written answers are marked against the rubric by Super, citing the
-passages. Results show the score with the exam's marking, accuracy, attempted, time used vs
-expected, per-section marks, and per question your time against the expected time and the full
-solution. Graded answers feed mastery on their map nodes.
-
-### Mistake diagnosis
-
-After a session is submitted (or a drill answer is checked wrong), every wrong answer — and every
-question the student worked on but left blank — is diagnosed as a **concept gap**, a **careless
-error** or **time pressure**:
-
-1. **Signals in code:** time spent vs expected (very fast < 0.35×, very slow > 1.6×), time left on
-   the clock when answered, position late in the test, confidence, answer changes, mastery of the
-   node and its prerequisites *before* the session, recent accuracy and repeated misses on it.
-2. **Rules for clear cases:** strong mastery + very fast or "sure" → careless; little time left (or
-   late in a timed test) + rushed or guessed → time pressure; repeated misses, a weak prerequisite
-   or weak mastery → concept gap.
-3. **Ultra decides**, given the question, key, solution, the answer and working (text or photo),
-   the signals, the rules' suggestion and the map neighbourhood: the final category and confidence,
-   the specific misconception in one sentence (e.g. "Treats static friction as always equal to μN"),
-   which prerequisite to revisit, a short explanation citing the notes, and evidence.
-4. **Super writes two follow-up questions** on the node to revisit (self-checked as in Stage 3).
-
-If Ultra fails, the rules' call is kept (or the diagnosis can be retried). Concept gaps add weak
-evidence to the node to revisit, so mastery and the plan pick it up. Students can mark a diagnosis
-"Not right" (kept for review, left out of the stats). The **Mistakes** dashboard shows the split by
-category, mistakes per week (chart or table), top misconceptions, the topics costing the most marks
-and recent diagnoses, each with **Fix this**: the follow-ups as a drill (concept gap, careless —
-untimed, with an accuracy checklist in the advice) or a timed speed drill at 75% of the expected
-time (time pressure).
-
-## 1. Prerequisites
-
-- Node.js 20+
-- PostgreSQL 13+ (local, or hosted: Neon, Supabase, Render, RDS…)
-- A Google Cloud project (for Google sign-in)
-- An SMTP account for sending verification emails (Gmail app password, SendGrid, Brevo, SES…). Optional in development.
-- An API key from your AI provider (OpenAI, Anthropic, Gemini, Groq, OpenRouter, Mistral, Hugging Face…), or a local server such as Ollama
-
-## 2. Create the database
-
-```bash
-createdb askai            # or: psql -U postgres -c "CREATE DATABASE askai;"
+  N2 --> S1 --> S2 -->|verified only| Bank[(Question bank)]
+  Bank --> Session["Timed practice session"]
+  Session --> N1 --> U1
+  U1 -->|misconceptions, follow-ups| U2
+  U2 --> Week["This week's plan"]
+  Week --> D
+  D -->|missed tasks, new diagnoses,<br/>mastery changes| Week
+  U1 -.->|marks the plan due| D
 ```
 
-Tables are created automatically when the server starts (or run `npm run db:migrate` in `backend/`).
-See `backend/src/db/schema.sql`.
+1. **Nano grades and tags.** Options, integers and numbers in the key's unit are graded in code; Nano
+   judges the rest (another unit, near-miss words) and places questions on the knowledge map.
+2. **Super writes and self-checks questions.** A question is accepted only if code validators pass
+   *and* a separate Super call, given only the stem, options and passages, reaches the same answer.
+3. **Ultra diagnoses mistakes and plans the week.** Code computes the signals (time vs expected,
+   clock, confidence, answer changes, mastery of the topic and its prerequisites) and suggests a
+   category; Ultra makes the final call and names the misconception. For the week, Ultra orders the
+   focus topics and words a reason for each — code enforces the days, minutes per day, rest day,
+   session length, prerequisites first, spaced revision and one full mock.
+4. **Daily replan.** On your first visit each day (and after a submitted session's diagnoses are
+   saved), the plan is adjusted in the background: missed tasks move to days with room, new concept
+   gaps get a review and pull that topic earlier, time-pressure mistakes get a speed drill, topics you
+   became strong at drop their drills. Super words each change in one line for *What changed*.
 
-## 3. Create Google OAuth credentials
+The task → tier map is one table in `backend/src/services/modelRouter.js`; every call is logged in
+`ai_calls` (user, course, tier, model, task, latency, outcome — never the prompt).
 
-1. Go to **Google Cloud Console → APIs & Services → OAuth consent screen**, choose *External*,
-   fill in the app name/support email, and add yourself as a test user.
-2. **Credentials → Create credentials → OAuth client ID → Web application**.
-3. **Authorized JavaScript origins:** `http://localhost:5173`
-4. **Authorized redirect URIs:** `http://localhost:5173/auth/google/callback`
-5. Copy the **Client ID** and **Client secret** into `backend/.env`.
+## Quick start
 
-> In development the callback goes through the Vite dev server (which proxies `/auth` and `/api`
-> to Express on :3000), so the session cookie is set on the same origin as the app.
-
-## 4. Fill in `backend/.env`
-
-`backend/.env` already lists every variable. The ones you must fill in:
-
-| Variable | What to put |
-|----------|-------------|
-| `DATABASE_URL` | `postgresql://USER:PASSWORD@localhost:5432/askai` (or use the `PG*` vars) |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | From step 3 (skip if you only want email sign-in) |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | Your email provider's SMTP settings. Leave `SMTP_HOST` empty in development and the codes are printed in the backend console instead. |
-| `SESSION_SECRET` | `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"` |
-| `AI_PROVIDER`, `AI_API_KEY`, `LLM_MODEL` | Your provider's name (`.env.example` lists them, with their URLs and example models), its API key, and a chat model. `AI_BASE_URL` overrides the URL (required for `custom`). |
-| `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL` | Any provider above, or `huggingface` (feature extraction), plus the model. Empty provider / key / URL = the `AI_*` ones; set `EMBEDDING_PROVIDER` and `EMBEDDING_API_KEY` when the main provider has no embeddings API (Anthropic, Groq, DeepSeek, xAI). |
-| `VISION_*` (optional) | A model that accepts images, for photos of notes and scanned PDFs. Empty = the `AI_*` settings and `LLM_MODEL` (fine for gpt-4o-mini, Gemini, Claude). |
-| `TRANSCRIBE_*` (optional) | Speech-to-text for lecture recordings: `TRANSCRIBE_PROVIDER=openai` + `whisper-1`, or `groq` + `whisper-large-v3-turbo`. Empty = the `AI_*` settings. |
-| `MODEL_NANO_*`, `MODEL_SUPER_*`, `MODEL_ULTRA_*` (optional) | The exam-prep agent's model tiers (base URL, key, model, plus optional temperature, max tokens, system prefix). Empty = the LLM settings. See [Exam-prep agent](#exam-prep-agent-nano-super-and-ultra-models). |
-
-## 5. Run it
+Prerequisites: **Node.js 20+**, **PostgreSQL 13+**, and an API key from an AI provider (or a local
+Ollama / LM Studio server). Google OAuth and SMTP are optional in development.
 
 ```bash
-# terminal 1
-cd backend
-npm install
-npm run check-api     # optional: verifies your API key(s), chat, embeddings and the Nano/Super/Ultra tiers
-npm run dev           # http://localhost:3000
+# 1. Database
+createdb coursemate                 # or: psql -U postgres -c "CREATE DATABASE coursemate;"
 
-# terminal 2
+# 2. Backend
+cd backend
+cp .env.example .env                # then fill in DATABASE_URL, SESSION_SECRET and the AI settings
+npm install
+npm run check-api                   # optional: tests your keys, chat, embeddings and each model tier
+npm run dev                         # http://localhost:3000 — creates the tables on start
+
+# 3. Frontend (second terminal)
 cd frontend
 npm install
-npm run dev           # open http://localhost:5173
-                      # backend on another port? BACKEND_URL=http://localhost:3100 npm run dev
+npm run dev                         # open http://localhost:5173
+                                    # backend on another port? BACKEND_URL=http://localhost:3100 npm run dev
 ```
 
-> Internally (database tables, API paths) a course is still called a *notebook*.
+Sign up with email (in development, with `SMTP_HOST` empty, the 6-digit code is printed in the
+backend console) or with Google if you configured it. Internally (tables, API paths) a course is
+still called a *notebook*.
 
-Click **Sign in with Google**, or use email:
+**Google sign-in (optional):** Google Cloud Console → APIs & Services → OAuth consent screen
+(External, add yourself as a test user) → Credentials → OAuth client ID (Web application) with origin
+`http://localhost:5173` and redirect URI `http://localhost:5173/auth/google/callback`; put the client
+ID and secret in `backend/.env`.
 
-- **Create an account:** enter your email → type the 6-digit code from the email → choose your name and a password → you're signed in.
-- **Sign in:** email + password.
-- **Forgot password?:** same code flow, then set a new password. A Google user can also use this to add a password.
+**Real emails (optional):** for Gmail, turn on 2-Step Verification, create an App Password, and set
+`SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=465`, `SMTP_SECURE=true`, `SMTP_USER`, `SMTP_PASS` and
+`MAIL_FROM`.
 
-Each user only ever sees their own data.
+## 5-minute demo
 
-### Sending real emails with Gmail
+The demo seed creates a ready-made JEE Physics course without any AI calls, so you can look around
+before adding your own material.
 
-1. Turn on 2-Step Verification on the Google account that will send the emails.
-2. Create an App Password at https://myaccount.google.com/apppasswords.
-3. In `backend/.env`: `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=465`, `SMTP_SECURE=true`,
-   `SMTP_USER=you@gmail.com`, `SMTP_PASS=<the 16-character app password>`,
-   `MAIL_FROM="CourseMate AI <you@gmail.com>"`.
+```bash
+cd backend
+npm run seed:demo        # creates (or resets) demo@coursemate.local / demo-pass-123
+npm run dev              # and `npm run dev` in frontend/
+```
 
----
+1. **Sign in** at http://localhost:5173 with `demo@coursemate.local` / `demo-pass-123`, and open
+   **JEE Physics: Mechanics (demo)**.
+2. **Chat (1 min)** — ask *"When is static friction equal to μN?"*. The answer cites the class notes.
+   (The demo notes have placeholder vectors; the first chat re-embeds them with your
+   `EMBEDDING_MODEL`, so it needs a working embeddings provider.)
+3. **Knowledge map (30 s)** — Physics → Laws of Motion / Work, Energy and Power, with prerequisites,
+   exam weights and your mastery (strong on Newton's laws, weak on friction).
+4. **Exam plan → Weekly plan (1.5 min)** — JEE Main in 60 days, Sunday off. Today has *Fix mistakes:
+   Friction* first because of a diagnosed concept gap. Click **Start** on it (a drill of the
+   diagnosis's follow-up questions, no AI needed), **Skip** another task with a reason, **Mark done**
+   a third, then **Replan now** and read **What changed**. **Schedule** changes the daily minutes,
+   session length, rest day, timezone and week start.
+5. **Practice session (1 min)** — answer the follow-up questions with *Check*, then **Submit**; the
+   task ticks itself off and the plan is marked for replanning.
+6. **Mistakes (30 s)** — yesterday's drill: a concept gap ("treats static friction as always μN")
+   and a careless error, with evidence and *Fix this*.
+7. **Settings → AI usage (30 s)** — your calls per tier, feature and day, and recent failures (empty
+   until you've used an AI feature).
 
-## How it works
+Generating new questions, diagnosing new mistakes and Ultra's weekly priorities need an AI key; the
+seed itself uses none. Re-run `npm run seed:demo` any time to reset the demo account. It refuses to
+run with `NODE_ENV=production` unless you pass `-- --force`.
+
+## AI providers and settings
+
+Every AI job talks to an OpenAI-compatible API. Set one shared provider and everything uses it;
+override any job (or model tier) separately. `backend/.env.example` lists every variable with a
+comment.
+
+| Settings | Used for | Empty = |
+|----------|----------|---------|
+| `AI_PROVIDER`, `AI_API_KEY`, `AI_BASE_URL` | the shared provider (name fills in the base URL: `openai`, `anthropic`, `gemini`, `groq`, `openrouter`, `mistral`, `together`, `deepseek`, `xai`, `huggingface`, `ollama`, `lmstudio`, or `custom` + `AI_BASE_URL`) | `openai` |
+| `LLM_MODEL`, `LLM_TEMPERATURE`, `LLM_MAX_TOKENS`, `LLM_PROVIDER`, `LLM_API_KEY`, `LLM_BASE_URL` | chat, guides, flashcards, quizzes, grading, plans | the shared provider; `gpt-4o-mini` on OpenAI |
+| `EMBEDDING_MODEL`, `EMBEDDING_PROVIDER`, `EMBEDDING_API_KEY`, `EMBEDDING_BASE_URL`, `EMBEDDING_DIMENSIONS`, `EMBEDDING_BATCH_SIZE` | search and citations (`huggingface` = HF feature extraction) | the shared provider, `text-embedding-3-small` |
+| `VISION_MODEL`, `VISION_PROVIDER`, `VISION_API_KEY`, `VISION_BASE_URL`, `VISION_MAX_PAGES` | photos of notes, scanned PDFs, photos of working | the LLM settings |
+| `TRANSCRIBE_MODEL`, `TRANSCRIBE_PROVIDER`, `TRANSCRIBE_API_KEY`, `TRANSCRIBE_BASE_URL`, `TRANSCRIBE_MAX_MB`, `FFMPEG_PATH` | lecture recordings (`/audio/transcriptions`, `verbose_json`) | the shared provider, `whisper-1`, bundled ffmpeg |
+| `MODEL_NANO_*`, `MODEL_SUPER_*`, `MODEL_ULTRA_*`: `_BASE_URL`, `_API_KEY`, `_MODEL`, `_TEMPERATURE`, `_MAX_TOKENS`, `_SYSTEM_PREFIX` | the exam agent's tiers | the LLM settings (`default` for temperature / max tokens = the provider's choice) |
+
+A key is only sent to the URL it belongs to: the shared key is reused for a job or tier only when that
+job uses the shared base URL. `_SYSTEM_PREFIX` is a line put before the system prompt for models that
+switch reasoning with one (e.g. `detailed thinking on`, `/no_think`); a leading `<think>…</think>` in
+replies is removed. The older `CHAT_API_KEY`, `CHAT_BASE_URL`, `CHAT_MODEL` names are still read.
+*Settings → AI & privacy* shows the model and host of every job (never keys).
+
+**OpenAI** — everything on one key:
+
+```env
+AI_PROVIDER=openai
+AI_API_KEY=sk-...
+LLM_MODEL=gpt-4o-mini
+EMBEDDING_MODEL=text-embedding-3-small
+TRANSCRIBE_MODEL=whisper-1
+```
+
+**Hugging Face router** (`https://router.huggingface.co/v1`, OpenAI-compatible chat; embeddings via
+HF feature extraction):
+
+```env
+AI_PROVIDER=huggingface              # base URL https://router.huggingface.co/v1
+AI_API_KEY=hf_...
+LLM_MODEL=meta-llama/Llama-3.1-8B-Instruct
+EMBEDDING_PROVIDER=huggingface
+EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
+MODEL_ULTRA_MODEL=Qwen/Qwen2.5-72B-Instruct   # a bigger model for diagnosis and planning, same router and key
+```
+
+**Groq / OpenRouter-style providers** — fast chat; Groq has no embeddings API, so embeddings use
+another provider:
+
+```env
+AI_PROVIDER=groq                     # or openrouter (https://openrouter.ai/api/v1)
+AI_API_KEY=gsk_...
+LLM_MODEL=llama-3.3-70b-versatile    # OpenRouter: e.g. meta-llama/llama-3.3-70b-instruct
+EMBEDDING_PROVIDER=openai
+EMBEDDING_API_KEY=sk-...
+TRANSCRIBE_MODEL=whisper-large-v3-turbo
+MODEL_NANO_MODEL=llama-3.1-8b-instant      # cheap, fast tier on the same endpoint
+```
+
+**Local Ollama** — nothing leaves your machine, no keys:
+
+```env
+AI_PROVIDER=ollama                   # http://localhost:11434/v1
+LLM_MODEL=qwen2.5:7b
+EMBEDDING_MODEL=nomic-embed-text
+VISION_MODEL=qwen2.5vl
+MODEL_ULTRA_MODEL=qwen2.5:32b
+# transcription: point TRANSCRIBE_BASE_URL at a local faster-whisper / LocalAI server
+```
+
+**Mixing tiers across providers** — e.g. NVIDIA's endpoint for the agent while chat stays on OpenAI:
+
+```env
+MODEL_ULTRA_BASE_URL=https://integrate.api.nvidia.com/v1
+MODEL_ULTRA_API_KEY=nvapi-...
+MODEL_ULTRA_MODEL=<model id from build.nvidia.com>
+MODEL_ULTRA_SYSTEM_PREFIX=detailed thinking on
+MODEL_ULTRA_TEMPERATURE=default
+```
+
+Small local models write weaker questions and grades than large hosted ones; `npm run check-api`
+tests chat, embeddings and every tier (plain text and JSON) before you start.
+
+## npm scripts
+
+**Backend** (`cd backend`)
+
+| Script | What it does |
+|--------|--------------|
+| `npm start` | Run the server (`node server.js`) |
+| `npm run dev` | Run with `node --watch` (restarts on changes) |
+| `npm run db:migrate` | Create / update the tables from `schema.sql` (also runs on every start) |
+| `npm run seed:demo` | Create or reset the demo account and JEE Physics course (no AI calls; refuses in production without `-- --force`) |
+| `npm run check-api` | Test your AI settings: chat, embeddings and the Nano / Super / Ultra tiers |
+| `npm run check-access` | Prove shared-course and personal-data access rules against your database (throwaway accounts, cleaned up) |
+| `npm run create-database -- you@example.com file.pdf …` | Ingest local files into a new course for an existing user |
+| `npm run cli-chat -- <notebookId>` | Chat with a course in the terminal |
+| `npm run mmr-demo` | Compare plain similarity and MMR search on sample sentences (uses your embedding model) |
+| `npm run multiquery-demo` | Multi-query retrieval on sample sentences (uses your LLM and embedding model) |
+
+**Frontend** (`cd frontend`)
+
+| Script | What it does |
+|--------|--------------|
+| `npm run dev` | Vite dev server on :5173 (proxies `/api`, `/auth`, `/health`; `BACKEND_URL` picks the backend) |
+| `npm run build` | Production build into `dist/` |
+| `npm run preview` | Serve the production build locally |
+| `npm run lint` | `oxlint` |
+
+## API
+
+Every `/api/*` route needs a signed-in session. Courses are visible to their members only (others get
+404); editing material needs editor, sharing and deleting need the owner; personal data (chat,
+practice, sessions, diagnoses, exams and plans, AI usage) is visible only to its user. The browser
+sends `X-Timezone` so "today" is the user's day.
+
+**Auth and account**
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | `/auth/email/start` · `/auth/email/verify` · `/auth/email/complete` | Email code sign-up / password reset → signed in |
+| POST | `/auth/login` · `/auth/logout` | Email + password sign-in / sign out |
+| GET | `/auth/google` · `/auth/google/callback` | Google sign-in |
+| GET | `/auth/me` | Current user (401 if signed out) |
+| GET | `/health` | Server status, AI models and hosts (no keys) |
+| GET/PATCH | `/api/settings` | Daily goal, response language, bilingual |
+| GET | `/api/me/ai-usage?days=1-90` | Your AI calls: totals, per tier, per feature, per day, 10 latest failures |
+| GET | `/api/today` | Goal, streak, last 7 days, next exam's tasks, cards due |
+
+**Courses, units, sources and chat**
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET/POST | `/api/notebooks` | List / create courses |
+| GET/PATCH/DELETE | `/api/notebooks/:id` | Read / rename / delete a course |
+| POST | `/api/notebooks/:id/overview` | Refresh the course overview |
+| GET/POST, PATCH/DELETE, PUT | `/api/notebooks/:id/units`, `…/units/:unitId`, `…/units/order` | Units |
+| GET | `/api/notebooks/:id/sources` | Sources |
+| POST | `/api/notebooks/:id/sources/files` · `…/sources/url` · `…/sources/text` | Add files (documents, images, audio, video), links, pasted text (`unitId?`, `kind: material\|syllabus\|past_paper`, `examName?`, `examYear?`) |
+| GET/PATCH/DELETE | `/api/sources/:id` | Source / rename, select, move, change kind / delete |
+| GET | `/api/sources/:id/content` · `/api/sources/:id/original` | Full text with page/slide/timestamp locations · the uploaded image or recording |
+| POST | `/api/sources/:id/reprocess` · `/api/sources/:id/analyse` | Extract again · analyse a past paper again |
+| GET/DELETE | `/api/notebooks/:id/messages` | Your chat history / clear it |
+| POST | `/api/notebooks/:id/chat` | Ask (Server-Sent Events) `{ content, sourceIds?, unitIds?, includePastPapers? }` |
+| GET/PATCH | `/api/notebooks/:id/preferences` | Your language for this course |
+| GET | `/api/arxiv?query=` | Find arXiv papers |
+
+**Sharing and battles**
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/notebooks/:id/members` | Members and (owner) open invites |
+| POST, DELETE | `/api/notebooks/:id/invites`, `…/invites/:inviteId` | Owner: invite `{ email, role }` / cancel |
+| PATCH/DELETE | `/api/notebooks/:id/members/:userId` (`…/members/me` = leave) | Owner: change role / remove |
+| GET, POST | `/api/invites/:token`, `/api/invites/:token/accept` | Invite link info / accept |
+| GET/POST | `/api/notebooks/:id/battles` | Live and past battles / start one |
+| POST, GET | `/api/battles/join`, `/api/battles/:code`, `…/events` (SSE), `…/start`, `…/answer`, `…/leave` | Play a battle |
+
+**Study and practice**
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET/POST | `/api/notebooks/:id/decks`, `…/decks/generate` | Decks / create / generate |
+| GET/PATCH/DELETE | `/api/decks/:deckId`; POST `…/cards`; PATCH/DELETE `/api/cards/:cardId` | Decks and cards |
+| GET, POST | `/api/notebooks/:id/review`, `/api/cards/:cardId/review` | Cards to review / rate one |
+| GET, POST | `/api/notebooks/:id/topics`, `…/topics/refresh` | Topics per unit / re-extract |
+| GET | `/api/notebooks/:id/progress` | Mastery per unit and topic |
+| GET/POST, GET/DELETE | `/api/notebooks/:id/quizzes`, `/api/quizzes/:quizId` | Quizzes |
+| POST | `/api/quizzes/:quizId/attempts`, `/api/quiz-attempts/:attemptId/answers`, `…/finish` | Take a quiz |
+| POST | `/api/notebooks/:id/written-questions` | Exam-style written questions |
+| GET/POST, GET/DELETE | `/api/notebooks/:id/answers`, `/api/answers/:answerId` | Graded answers |
+| GET/POST, GET/DELETE | `/api/notebooks/:id/explanations`, `/api/explanations/:explanationId` | Explain it back |
+| GET | `/api/notebooks/:id/exam-insights`, `…/past-paper-questions` | Past-paper insights and questions |
+| PATCH | `/api/notebooks/:id/past-paper-questions/:questionId` | Fix a question's topic / unit |
+
+**Exam agent: profiles, knowledge map, questions**
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/exam-profiles` | Exam profiles (subjects, formats, marking, mock pattern) |
+| GET/PUT | `/api/notebooks/:id/exam-profile` | The course's exam (PUT: editors) |
+| GET | `/api/notebooks/:id/knowledge-map` | Map: status, nodes with your mastery, prerequisite edges |
+| POST | `/api/notebooks/:id/knowledge-map/rebuild` | Rebuild with Ultra (editors; 202) |
+| GET | `/api/notebooks/:id/knowledge-map/nodes/:nodeId` | Node: passages, past-paper questions, history, prerequisites |
+| POST | `/api/notebooks/:id/questions/generate` | Generate self-checked questions `{ nodeIds, count, formats?, difficulty? }` → 202 job |
+| GET | `/api/notebooks/:id/questions/jobs/:jobId` | Generation progress |
+| GET | `/api/notebooks/:id/questions?nodeId=&format=` | The verified bank (no keys) |
+| GET | `/api/questions/:questionId?reveal=1` | One question (with key and solution when revealed) |
+| POST | `/api/questions/:questionId/report` | Report a problem (hides it) |
+
+**Exam agent: practice sessions and diagnosis**
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET/POST | `/api/notebooks/:id/sessions` | Your sessions / new `{ kind: drill\|mixed\|sectional\|mock, nodeIds?, count?, minutes? }` → 202 |
+| GET | `/api/sessions/:sessionId` | Questions, your answers, time left |
+| POST | `/api/sessions/:sessionId/start` · `…/finish` | Start the clock · submit and grade |
+| PUT | `/api/sessions/:sessionId/answers/:position` | Save `{ answer?, timeSpentMs?, confidence?, workingText?, check? }` |
+| POST | `/api/sessions/:sessionId/answers/:position/working` | Photo of your working (OCR) |
+| GET | `/api/sessions/:sessionId/results` · `…/diagnoses` | Results · the session's diagnoses |
+| GET/PATCH | `/api/diagnoses/:diagnosisId` | A diagnosis · "not right" feedback |
+| POST | `/api/diagnoses/:diagnosisId/retry` · `…/practice` | Re-run a failed one · "Fix this" practice |
+| GET | `/api/notebooks/:id/mistakes` | Mistakes dashboard |
+
+**Exams, weekly plan and replanning** (personal)
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET/POST | `/api/notebooks/:id/exams` | Your exams in a course (starts due daily replans in the background) / add `{ name, examDate, unitIds?, planKind?: weekly\|revision, …schedule }` |
+| GET/PATCH/DELETE | `/api/exams/:examId` | Exam with its plan items (starts a due replan) / edit / delete |
+| PATCH | `/api/exams/:examId/schedule` | `{ planKind?, studyMinutes? (15-600, or { mon: 120, … }), sessionMinutes? (15-240), restDay?: mon…sun\|null, timezone? (IANA), weekStartsOn? }` |
+| POST | `/api/exams/:examId/weekly-plan` | Plan this week (Ultra; done and skipped tasks kept) |
+| GET | `/api/exams/:examId/weekly-plan?week=YYYY-MM-DD` | A week: days (rest, budget / planned / done minutes, tasks) and totals |
+| POST | `/api/exams/:examId/weekly-plan/replan` | Replan now (missed tasks, new diagnoses, mastery changes) |
+| GET | `/api/exams/:examId/plan-changes` | What each (re)plan changed and why (newest 50) |
+| POST | `/api/exams/:examId/plan` · `…/replan` | Day-by-day revision plan: generate · move missed tasks |
+| PATCH | `/api/plan-items/:itemId` | `{ done?, skipped?, reason? }` |
+| POST | `/api/plan-items/:itemId/start` | Start (or resume) the task's practice session |
+
+## How it works (details)
 
 ```
 React (5173) ──/auth, /api──▶ Express (3000) ──▶ PostgreSQL
                                    │
-                                   └──▶ LangChain ──▶ your AI provider(s) (chat + embeddings)
+                                   └──▶ LangChain ──▶ your AI provider(s) / local models
 ```
 
-- **Google sign-in:** `/auth/google` → Google consent → `/auth/google/callback`. The user is upserted
-  into `users` (Google id, email, name, avatar, last login) and a session is stored in
-  `user_sessions`. The browser holds only an httpOnly cookie.
-- **Email sign-up:** `/auth/email/start` emails a random 6-digit code. Only an HMAC of the code is
-  stored (`email_verifications`), and each code expires after 10 minutes, allows 5 attempts and
-  works once. A new one can be requested after 60 seconds. `/auth/email/verify` marks the email
-  verified in the session, then `/auth/email/complete` saves the password as an **scrypt hash**
-  (`users.password_hash`, never plain text) and signs the user in. Sign-in attempts are rate-limited.
-- **One account per email:** if someone signs up with email and later uses Google with the same
-  address (or the reverse), both sign-in methods open the same account and notebooks.
-- **Authorization:** every `/api/*` route requires a session. A course is visible only to its
-  members (`notebook_members`: owner / editor / viewer — every course lookup, and every deck, card,
-  quiz, exam… reached through one, checks membership), so other users' ids return 404. Changing
-  sources, units, decks, the course title or past-paper mappings needs editor (403 for viewers);
-  members, invites and deleting the course need the owner. Personal data is additionally filtered
-  by user id. `npm run check-access` (in `backend/`) proves it against your database: throwaway
-  owner/editor/viewer/outsider accounts, ~45 checks, cleaned up afterwards.
-- **Sharing:** `notebook_invites` holds open invites (email, role, a SHA-256 hash of the token,
-  expiry — `INVITE_TTL_DAYS`, default 14). They are applied when a verified account with that email
-  signs up or signs in, or opens the link (`#/invite/<token>`; only the invited email can accept).
-  On upgrade, each existing course's creator becomes its owner, existing chat messages are assigned
-  to that owner, and sources that were unticked stay unticked for the owner only
-  (`source_deselections`).
-- **Quiz battles:** live games are held **in the server's memory** (fine for one backend process;
-  a restart ends running games, and several processes behind a load balancer would need a shared
-  store such as Redis). Questions come from the quiz generator; players follow along over
-  Server-Sent Events (`/api/battles/:code/events`), answers are hidden until a question closes, and
-  a question closes early when everyone has answered. Finished games are saved to `battles` and
-  `battle_players`. Only members of the battle's course can join (`MAX_BATTLE_PLAYERS`, default 30).
-- **Sources:** text is extracted (files, URLs, pasted text), saved to `sources.content`, split into
-  overlapping chunks, embedded, and stored in `chunks.embedding` (`REAL[]`). Pages and slides are
-  recorded as character ranges in `sources.locations`, and each chunk stores the page(s) it spans
-  in `chunks.location`. Uploaded files are kept in `ORIGINALS_DIR` (default `uploads/originals`)
-  until their source is deleted.
-- **Images and recordings:** photos and scanned PDF pages (pages whose text layer is empty; the
-  page image is decoded with pdf.js, at most `VISION_MAX_PAGES` per PDF) are sent to the vision
-  model as data URLs (large photos are scaled to ≤ 2048 px JPEG first) through LangChain
-  (`completeVision` in `llm.js`, settings `VISION_*`). Recordings go through ffmpeg
-  (`ffmpeg-static`, or `FFMPEG_PATH`): audio only, mono 16 kHz MP3 at 32 kbit/s, split into pieces
-  of at most 10 minutes and below `TRANSCRIBE_MAX_MB` (default 24, under OpenAI's and Groq's 25 MB
-  limit). Each piece is posted to `TRANSCRIBE_BASE_URL/audio/transcriptions` with
-  `response_format=verbose_json`; segment times are shifted by the piece's start and grouped into
-  ~45-second paragraphs whose start time ("12:34") becomes the location used by citations. Uploads
-  are capped by `UPLOAD_MAX_MB`. *Note:* `ffmpeg-static` downloads an ffmpeg binary for the OS
-  that ran `npm install`; if you move `node_modules` between Windows and WSL/Linux, run
-  `npm rebuild ffmpeg-static`.
-- **Chat:** MMR retrieval over the selected sources → the model answers with `[n]` citations,
-  streamed to the browser via Server-Sent Events. History is stored in `messages`.
-- **AI through LangChain:** chat uses LangChain's `ChatOpenAI` class pointed at the provider's URL,
-  which works with any OpenAI-compatible API (OpenAI, Anthropic, Gemini, Groq, OpenRouter, Mistral,
-  Together, DeepSeek, xAI, Hugging Face, Ollama, LM Studio…). Embeddings use `OpenAIEmbeddings`
-  (any OpenAI-compatible embeddings API) or `HuggingFaceInferenceEmbeddings` (when
-  `EMBEDDING_PROVIDER` is `huggingface`). Every job can use a different provider and key.
-- **Spaced repetition:** decks and cards belong to the course; each user's SM-2 state lives in
-  `card_reviews` (ease 2.5, interval, repetitions, due date, lapses) and every rating in
-  `review_log`. The browser sends its timezone (`X-Timezone`) so "today" is the user's day.
-- **Topics and mastery:** each unit's topics (`topics`, with a source fingerprint in `topic_sets`)
-  are extracted from a sample of its passages and re-extracted when its sources change; topics that
-  keep their name keep their id, so history survives. Quiz questions, graded answers and cards are
-  tagged with a topic, and every answer adds a `topic_events` row (score 0–1, weight: quiz 1,
-  flashcard 0.5, 2/5/10-mark answer 1/2/3). Mastery = weighted average of a topic's last 25 events,
-  each older event counting 15% less. Quizzes, attempts, graded answers and mastery are personal.
-- **Past papers:** `sources.kind` is `material` or `past_paper` (+ `exam_name`, `exam_year`,
-  `paper_status`). After a paper is ingested, the model extracts its questions (long papers in
-  ~14k-character windows); each question is embedded and compared with the course material's
-  chunks — the best 3 become its citations and vote for a unit — then up to 5 candidate topics
-  (by similarity, favouring that unit) go to the model to pick one (or none). Results live in
-  `past_paper_questions`; a wrong topic can be fixed by hand.
-- **Revision plans:** `exams` and `exam_plan_items` are personal. The days (today → the day
-  before the exam, at most the last 90), phases and counts are computed in code: each topic gets a
-  priority of 0.6 × weakness (1 − mastery; 0.7 if unpractised) + 0.4 × past-paper weight; the first
-  ~65% of days cover every topic (read → quiz the next day → a 5/10-mark answer for weak or examined
-  topics), the rest review the weakest topics and practise past-paper questions, ending with a mixed
-  quiz; flashcards are scheduled daily from the due/new cards; at most 8 other tasks a day (with ≤ 2
-  days left it's quizzes only). The model only orders the topics (prerequisites first) and writes a
-  one-line tip for each. Re-planning moves missed tasks to the least busy remaining days.
-- **Daily goal and streaks:** each study action increments `user_activity` (user, day in the
-  user's timezone, kind). The streak counts consecutive days meeting the current goal
-  (`users.daily_goal`) — today only once it's met, so an unfinished today doesn't break it.
-- **Response language:** `users.preferences` (`{ language, bilingual }`) and per-user,
-  per-course overrides in `course_preferences`. Every AI call passes the resolved language to
-  `llm.js`, which appends one instruction (`withLanguage`) to the system prompt. Shared,
-  course-level output (source guides, the course overview) uses the language of whoever added or
-  refreshed it. Topic names and extracted past-paper questions stay in the language of the
-  sources — they are matched against the material and copied verbatim.
-- **Changing models:** each source records which embedding model it used; if you change
-  `EMBEDDING_MODEL` (or its provider), existing sources are re-embedded automatically the next time you chat.
-
-### API
-
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET | `/auth/google` | Start Google sign-in |
-| GET | `/auth/google/callback` | OAuth callback |
-| GET | `/auth/me` | Current user (401 if signed out) |
-| POST | `/auth/logout` | Sign out |
-| POST | `/auth/email/start` | Email a 6-digit code `{ email, purpose: "signup" \| "reset" }` |
-| POST | `/auth/email/verify` | Check the code `{ email, purpose, code }` |
-| POST | `/auth/email/complete` | Set the password (and name on sign-up) → signed in |
-| POST | `/auth/login` | Email + password sign-in |
-| GET/POST | `/api/notebooks` | List / create courses |
-| GET/PATCH/DELETE | `/api/notebooks/:id` | Read / rename / delete a course |
-| GET/POST | `/api/notebooks/:id/units` | List / create units `{ title }` |
-| PATCH/DELETE | `/api/notebooks/:id/units/:unitId` | Rename / delete a unit (its sources move to General) |
-| PUT | `/api/notebooks/:id/units/order` | Reorder units `{ unitIds: [] }` |
-| GET | `/api/notebooks/:id/sources` | List sources |
-| POST | `/api/notebooks/:id/sources/files` | Upload files — documents, images, audio, video (multipart `files`, optional `unitId`, `kind`, `examName`, `examYear`) |
-| POST | `/api/notebooks/:id/sources/url` | Add links `{ urls: [], unitId?, kind?, examName?, examYear? }` |
-| POST | `/api/notebooks/:id/sources/text` | Add pasted text `{ title?, text, unitId?, kind?, examName?, examYear? }` |
-| GET/PATCH/DELETE | `/api/sources/:id` | Source details / rename, select, move `{ unitId }`, `{ kind: material\|past_paper, examName, examYear }` / delete |
-| GET | `/api/notebooks/:id/members` | Members (with roles) and, for the owner, open invites |
-| POST | `/api/notebooks/:id/invites` | Owner: invite `{ email, role: editor\|viewer }` → `{ member }` (existing account) or `{ invite, link, emailed }` |
-| DELETE | `/api/notebooks/:id/invites/:inviteId` | Owner: cancel an invite |
-| PATCH/DELETE | `/api/notebooks/:id/members/:userId` | Owner: change a role `{ role }` / remove; `DELETE …/members/me` leaves the course |
-| GET | `/api/invites/:token` | What an invite link is for (course, inviter, role, whether your email matches) |
-| POST | `/api/invites/:token/accept` | Join the course (only with the invited email) |
-| GET/POST | `/api/notebooks/:id/battles` | Live + past battles / start one `{ unitIds?, count: 5\|10\|15, seconds: 10\|20\|30, difficulty? }` → `{ code }` |
-| POST | `/api/battles/join` | Join a lobby `{ code }` |
-| GET | `/api/battles/:code` | The battle as you see it (answers hidden while a question is open) |
-| GET | `/api/battles/:code/events` | Server-Sent Events: that state after every change |
-| POST | `/api/battles/:code/start` | Host: start |
-| POST | `/api/battles/:code/answer` | `{ index, choice: 0-3 }` |
-| POST | `/api/battles/:code/leave` | Leave the lobby (the host closes it) |
-| GET | `/api/sources/:id/content` | Full source text + page/slide/timestamp `locations` `[{ label, start, end }]` |
-| GET | `/api/sources/:id/original` | The uploaded image or recording (images, audio, video only; supports Range) |
-| POST | `/api/sources/:id/reprocess` | Extract, chunk and embed a source again (202; 409 while processing) |
-| GET/DELETE | `/api/notebooks/:id/messages` | Chat history / clear |
-| POST | `/api/notebooks/:id/chat` | Ask a question (SSE stream) `{ content, sourceIds?, unitIds?, includePastPapers? }` |
-| GET | `/api/arxiv?query=` | Discover arXiv papers |
-| GET/POST | `/api/notebooks/:id/decks` | List decks with due/new counts / create an empty deck `{ title, unitId? }` |
-| POST | `/api/notebooks/:id/decks/generate` | Generate a deck `{ count: 10\|20\|30, difficulty, unitIds?, sourceIds?, topicIds?, title? }` |
-| GET | `/api/notebooks/:id/review?deckId=` | Cards to review now (due first, then today's new cards), with next-interval previews |
-| GET/PATCH/DELETE | `/api/decks/:deckId` | Deck with its cards / rename, set unit / delete |
-| POST | `/api/decks/:deckId/cards` | Add a card `{ front, back, topic? }` |
-| PATCH/DELETE | `/api/cards/:cardId` | Edit / delete a card |
-| POST | `/api/cards/:cardId/review` | Rate a card `{ rating: again\|hard\|good\|easy }` → new SM-2 state |
-| GET | `/api/notebooks/:id/topics` | Topics per unit with status (ready / pending / error / empty) |
-| POST | `/api/notebooks/:id/topics/refresh` | Re-extract topics `{ unitId? }` (202) |
-| GET | `/api/notebooks/:id/progress` | Your mastery per unit and topic, weakest first, plus "revise these today" |
-| GET/POST | `/api/notebooks/:id/quizzes` | Your quizzes / make one `{ count: 5\|10\|15\|20, difficulty, unitIds?, topicIds?, title? }` |
-| GET/DELETE | `/api/quizzes/:quizId` | Quiz with its questions (no answers) / delete |
-| POST | `/api/quizzes/:quizId/attempts` | Start an attempt |
-| POST | `/api/quiz-attempts/:attemptId/answers` | Answer `{ questionId, chosenIndex, timeMs }` → correct, explanation, citation |
-| POST | `/api/quiz-attempts/:attemptId/finish` | Finish → score, per-topic results, every answer |
-| GET | `/api/quiz-attempts/:attemptId` | Review of a finished attempt |
-| POST | `/api/notebooks/:id/written-questions` | Exam-style questions `{ marks: 2\|5\|10, count: 1-5, unitIds?, topicIds? }` |
-| GET/POST | `/api/notebooks/:id/answers` | Your graded answers / grade one `{ question, marks, answer, unitIds?, topicId? }` |
-| GET/DELETE | `/api/answers/:answerId` | A graded answer / delete it |
-| GET | `/api/notebooks/:id/exam-insights` | Past papers, and topics / units ranked by frequency, marks and years |
-| GET | `/api/notebooks/:id/past-paper-questions?unitId=&topicId=&year=&sourceId=` | Past-paper questions with citations to the answer |
-| PATCH | `/api/notebooks/:id/past-paper-questions/:questionId` | Fix a question's topic or unit `{ topicId?, unitId? }` |
-| GET | `/api/exam-profiles` | Exam profiles (JEE Main/Advanced, NEET, GATE, UPSC Prelims/Mains, University): subjects, formats, marking, mock pattern |
-| GET / PUT | `/api/notebooks/:id/exam-profile` | The course's exam `{ examType, subjects?, name? }` (PUT: editors) |
-| GET | `/api/notebooks/:id/knowledge-map` | The map: status, nodes (level, weight, syllabus ref, your mastery, past-paper count), prerequisite edges |
-| POST | `/api/notebooks/:id/knowledge-map/rebuild` | Rebuild now with Ultra (editors; 202) |
-| GET | `/api/notebooks/:id/knowledge-map/nodes/:nodeId` | One node: cited passages, past-paper questions, mastery history, prerequisites and dependants |
-| POST | `/api/notebooks/:id/questions/generate` | Generate self-checked questions `{ nodeIds (1-5), count 1-15, formats?, difficulty? }` → 202 job |
-| GET | `/api/notebooks/:id/questions/jobs/:jobId` | Generation progress; the verified questions when done |
-| GET | `/api/notebooks/:id/questions?nodeId=&format=` | The course's verified questions (no keys) and bank stats |
-| GET | `/api/questions/:questionId?reveal=1` | One question (with `reveal=1`: key, solution, verification) |
-| POST | `/api/questions/:questionId/report` | Report a problem `{ reason, note? }` — hides it |
-| POST | `/api/notebooks/:id/sessions` | New session `{ kind: drill\|mixed\|sectional\|mock, nodeIds?, count?, minutes? }` → 202 (preparing) |
-| GET | `/api/notebooks/:id/sessions` | Your sessions in the course |
-| GET | `/api/sessions/:sessionId` | Session with questions (keys only once checked/submitted), your answers, time left |
-| POST | `/api/sessions/:sessionId/start` | Start the clock |
-| PUT | `/api/sessions/:sessionId/answers/:position` | Save `{ answer?, timeSpentMs?, confidence?, workingText?, check? }` |
-| POST | `/api/sessions/:sessionId/answers/:position/working` | Photo of your working (multipart `image`) → OCR |
-| POST | `/api/sessions/:sessionId/finish` | Submit and grade → results |
-| GET | `/api/sessions/:sessionId/results` | Score, accuracy, time vs expected, per-question solutions |
-| GET | `/api/sessions/:sessionId/diagnoses` | The session's diagnoses (and whether more are running) |
-| GET / PATCH | `/api/diagnoses/:diagnosisId` | One diagnosis; PATCH `{ feedback: "not_right" \| null, note? }` |
-| POST | `/api/diagnoses/:diagnosisId/retry` | Re-run a failed diagnosis |
-| POST | `/api/diagnoses/:diagnosisId/practice` | "Fix this": a follow-up drill or a timed speed drill |
-| GET | `/api/notebooks/:id/mistakes` | Mistakes dashboard (by category and week, top misconceptions, costly topics) |
-| POST | `/api/sources/:id/analyse` | Extract and map a past paper's questions again (202) |
-| GET/POST | `/api/notebooks/:id/exams` | Your exams in a course / add one `{ name, examDate: "YYYY-MM-DD", unitIds? }` |
-| GET/PATCH/DELETE | `/api/exams/:examId` | Exam with its plan (`items`, `today`, `missedCount`) / edit / delete |
-| POST | `/api/exams/:examId/plan` | Generate or regenerate the plan (tasks already done are kept) |
-| POST | `/api/exams/:examId/replan` | Move missed tasks onto the remaining days |
-| PATCH | `/api/plan-items/:itemId` | Tick a task `{ done }` |
-| GET | `/api/today` | Goal, today's count, streak, last 7 days, next exam with today's tasks, cards due across courses |
-| GET/PATCH | `/api/settings` | Your settings `{ dailyGoal: 1-500, language: en\|hi\|bn\|mr\|ta\|te\|gu\|kn\|ml\|pa\|or\|ur, bilingual }` (GET also lists the languages) |
-| GET/PATCH | `/api/notebooks/:id/preferences` | Your settings for a course `{ language: code \| null (= your default), bilingual }` + the effective language |
-| GET/POST | `/api/notebooks/:id/explanations` | Your explanations / check one `{ topicId?, prompt?, explanation, unitIds? }` |
-| GET/DELETE | `/api/explanations/:explanationId` | An explanation with its feedback / delete it |
+- **Sign-in:** email codes are stored only as an HMAC (10 minutes, 5 tries, one use); passwords as
+  scrypt hashes; Google and email accounts with the same address are one account. Sessions live in
+  `user_sessions`; the browser holds an httpOnly cookie.
+- **Sources:** text is extracted (PDF pages, PPTX slides, DOCX, links, pasted text, OCR for images
+  and scanned pages, transcripts for recordings), split into overlapping chunks, embedded and stored
+  in `chunks.embedding`. Uploads are kept in `ORIGINALS_DIR` so sources can be re-processed. If you
+  change the embedding model, sources are re-embedded on their next chat.
+- **Chat:** MMR retrieval over the selected sources, answers with `[n]` citations streamed over SSE.
+- **Mastery:** every graded answer, flashcard rating and explanation adds a `topic_events` row;
+  mastery is a recency-weighted average, rolled up the knowledge map.
+- **Knowledge map:** built by Ultra from the syllabus, notes and past papers; ids stay stable across
+  rebuilds when names match, so progress stays attached. Rebuilt when the course's sources or exam
+  change.
+- **Sessions:** the clock runs on the server (a timed session submits itself when time is up);
+  grading is code first, then Nano, then Super for written answers.
+- **Weekly plan:** `exams` (plan kind, study minutes per weekday, session length, rest day,
+  timezone, week start, last replan, mastery snapshot, a "replan due" flag), `exam_plan_items`
+  (minutes, map node, reason, payload to start it, skipped + reason, linked session) and
+  `plan_changes`. One (re)plan runs at a time per exam (an in-memory lock in the backend process).
+- **Quiz battles** live in the backend's memory (one process; a restart ends running games).
+- **Response language:** a user setting with per-course overrides, added as one instruction to every
+  AI call; formulas, units and citations are kept as they are.
+- **Recordings:** `ffmpeg-static` downloads an ffmpeg for the OS that ran `npm install`; if you move
+  `node_modules` between Windows and WSL/Linux, run `npm rebuild ffmpeg-static` or set `FFMPEG_PATH`.
 
 ## Deploying to production
 
 1. `cd frontend && npm run build`
-2. In `backend/.env`, set `NODE_ENV=production`, `CLIENT_URL=https://your-domain`,
-   `GOOGLE_CALLBACK_URL=https://your-domain/auth/google/callback`, and `PGSSL=true` if your
-   database requires SSL.
-3. `cd backend && npm start`. Express serves the built frontend and the API from one origin
+2. In `backend/.env`: `NODE_ENV=production`, `CLIENT_URL=https://your-domain`,
+   `GOOGLE_CALLBACK_URL=https://your-domain/auth/google/callback` (if you use Google),
+   `SESSION_SECRET`, SMTP settings, and `PGSSL=true` if your database needs SSL.
+3. `cd backend && npm start` — Express serves the built frontend and the API from one origin
    (secure cookies are on automatically in production).
-4. Add the production origin and callback URL to your Google OAuth client.
 
-If you host the frontend on a different domain from the API, set `VITE_API_URL` in
-`frontend/.env` before building, and set `COOKIE_SAME_SITE=none` + `COOKIE_SECURE=true` in the backend.
-
-## CLI helpers (`backend/`)
-
-```bash
-npm run db:migrate                                   # create/update tables
-npm run check-api                                    # test API key(s), models and tiers
-npm run check-access                                 # prove shared-course access control (throwaway users)
-npm run create-database -- you@gmail.com file.pdf    # ingest files into a new notebook for a user
-npm run cli-chat -- <notebookId>                     # chat in the terminal
-```
+If the frontend is on a different domain, set `VITE_API_URL` in `frontend/.env` before building and
+`COOKIE_SAME_SITE=none` + `COOKIE_SECURE=true` in the backend.
 
 ## License
 

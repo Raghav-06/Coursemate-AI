@@ -5,6 +5,7 @@ import { Logo, ThemeToggle } from "../components/TopBar";
 import AccountMenu from "../components/AccountMenu";
 import LanguagePicker from "../components/LanguagePicker";
 import { Icon, IconButton, Spinner, toast } from "../components/ui";
+import AiUsage from "../components/AiUsage";
 
 function Section({ title, description, children }) {
   return (
@@ -153,6 +154,9 @@ export default function SettingsPage() {
             </Section>
             <Section title="AI & privacy" description="The models this CourseMate server uses. API keys stay on the server and are never shown here.">
               {health ? <AiPrivacy ai={health.ai} /> : <Spinner className="w-5 h-5 text-ink-3" />}
+            </Section>
+            <Section title="AI usage" description="Your own model calls on this server: how many, on which tier and for what, how long they took, and the ones that failed.">
+              <AiUsage />
             </Section>
           </>
         )}

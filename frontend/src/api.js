@@ -221,6 +221,7 @@ export const api = {
   retryDiagnosis: (diagnosisId) => request(`/api/diagnoses/${diagnosisId}/retry`, { method: "POST" }),
   practiseDiagnosis: (diagnosisId) => request(`/api/diagnoses/${diagnosisId}/practice`, { method: "POST" }),
   mistakes: (id) => request(`/api/notebooks/${id}/mistakes`),
+  aiUsage: (days = 30) => request(`/api/me/ai-usage?days=${days}`),
 
   listMessages: (id) => request(`/api/notebooks/${id}/messages`),
   clearMessages: (id) => request(`/api/notebooks/${id}/messages`, { method: "DELETE" }),
