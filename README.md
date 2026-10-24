@@ -416,7 +416,8 @@ React (5173) ──/auth, /api──▶ Express (3000) ──▶ PostgreSQL
 
 - **Sign-in:** email codes are stored only as an HMAC (10 minutes, 5 tries, one use); passwords as
   scrypt hashes; Google and email accounts with the same address are one account. Sessions live in
-  `user_sessions`; the browser holds an httpOnly cookie.
+  `user_sessions`; the browser holds an httpOnly cookie (`SESSION_COOKIE_NAME`, default
+  `coursemate.sid`). Changing the cookie name signs everyone out once.
 - **Sources:** text is extracted (PDF pages, PPTX slides, DOCX, links, pasted text, OCR for images
   and scanned pages, transcripts for recordings), split into overlapping chunks, embedded and stored
   in `chunks.embedding`. Uploads are kept in `ORIGINALS_DIR` so sources can be re-processed. If you

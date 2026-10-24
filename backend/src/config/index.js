@@ -196,7 +196,7 @@ export const config = {
     port: num(process.env.PGPORT, 5432),
     user: process.env.PGUSER || "postgres",
     password: process.env.PGPASSWORD,
-    database: process.env.PGDATABASE || "askai",
+    database: process.env.PGDATABASE || "coursemate",
     ssl: bool(process.env.PGSSL),
     sslRejectUnauthorized: bool(process.env.PGSSL_REJECT_UNAUTHORIZED, true),
     poolMax: num(process.env.PG_POOL_MAX, 10),
@@ -210,7 +210,7 @@ export const config = {
     },
     sessionSecret: process.env.SESSION_SECRET,
     sessionMaxAgeDays: num(process.env.SESSION_MAX_AGE_DAYS, 30),
-    cookieName: process.env.SESSION_COOKIE_NAME || "askai.sid",
+    cookieName: process.env.SESSION_COOKIE_NAME || "coursemate.sid",
     cookieSecure: bool(process.env.COOKIE_SECURE, isProduction),
     cookieSameSite: process.env.COOKIE_SAME_SITE || "lax",
     // Optional comma-separated allow-list, e.g. "example.com,school.edu".
