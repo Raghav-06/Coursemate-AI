@@ -13,6 +13,7 @@ import {
   listExams,
   listPlanChanges,
   listPlanItems,
+  markExamReplanDue,
   setDailyGoal,
   setItemDone,
   setItemSkipped,
@@ -372,6 +373,11 @@ examsRouter.patch(
     let item = req.planItem;
     if (skipped !== undefined) item = await setItemSkipped(item.id, skipped, cleanString(reason, MAX_SKIP_REASON));
     if (done !== undefined) item = await setItemDone(item.id, done);
+    // Skipping today's task: the next visit or "Replan now" moves it to a later day.
+    if (skipped && !done) {
+      const exam = await getExam(item.examId, req.user.id);
+      if (exam?.planKind === "weekly" && item.date === (await examToday(exam, req.tz))) await markExamReplanDue(exam.id);
+    }
     res.json({ ...item, topic: req.planItem.topic, nodeName: req.planItem.nodeName });
   })
 );

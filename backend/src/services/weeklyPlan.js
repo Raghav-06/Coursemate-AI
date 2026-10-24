@@ -16,8 +16,8 @@ import { addPlanChange, applyReplan, cardsInScope, listPlanItems, replaceWeekIte
 //     prerequisites before dependants, task durations and counts, spaced
 //     revision, one full mock.
 //   Daily (Super, on the first visit of the day or the daily job): code
-//     adjusts today and the rest of the week from yesterday — missed tasks,
-//     new diagnoses, mastery changes — and Super explains each change in one line.
+//     adjusts today and the rest of the week from yesterday — missed and skipped
+//     tasks, new diagnoses, mastery changes — and Super explains each change in one line.
 
 export const WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 export const DEFAULT_MINUTES = { mon: 120, tue: 120, wed: 120, thu: 120, fri: 120, sat: 180, sun: 180 };
@@ -298,6 +298,12 @@ function templateLine(c) {
       return `Moved "${c.title}" to ${c.toLabel}: it wasn't done ${c.fromLabel}.`;
     case "dropped":
       return `Dropped "${c.title}": no time left this week.`;
+    case "skip_moved":
+      return `Moved "${c.title}" from ${c.fromLabel} to ${c.toLabel} (you skipped it${c.reason ? `: ${c.reason}` : ""}).`;
+    case "skip_kept":
+      return `Left "${c.title}" skipped: no later day this week has room for it.`;
+    case "skip_dropped":
+      return `Dropped "${c.title}": you skipped it again after it was moved.`;
     case "review_added":
       return `Added a mistake review on ${c.name}: ${c.count} new concept-gap mistake${c.count === 1 ? "" : "s"}.`;
     case "moved_earlier":
@@ -341,6 +347,7 @@ export async function replanIfDue(exam, userId, today, { language, force = false
   };
   const moves = [];
   const skips = [];
+  const updates = [];
   const adds = [];
   const changes = [];
 
@@ -358,6 +365,22 @@ export async function replanIfDue(exam, userId, today, { language, force = false
     } else {
       skips.push(i.id);
       changes.push({ type: "dropped", title: i.title });
+    }
+  }
+
+  // 1b. Tasks the student skipped → the first later day this week with room, once;
+  // skipped again after that, they're dropped for good.
+  const skipped = items.filter((i) => i.skipped && !i.done && i.date >= exam.weekStart && i.type !== "flashcards" && i.payload?.awaitingReschedule);
+  for (const i of skipped) {
+    const { awaitingReschedule, ...payload } = i.payload;
+    const firstSkip = !payload.rescheduledFromSkip;
+    const date = firstSkip ? days.find((d) => d > i.date && fits(d, i.minutes ?? 0)) : null;
+    if (date) {
+      moves.push({ id: i.id, date, position: book(date, i.minutes ?? 0), payload: { ...payload, rescheduledFromSkip: 1, movedFrom: i.date } });
+      changes.push({ type: "skip_moved", title: i.title, toLabel: label(today, date), fromLabel: label(today, i.date), reason: i.skipReason });
+    } else {
+      updates.push({ id: i.id, payload });
+      changes.push({ type: firstSkip ? "skip_kept" : "skip_dropped", title: i.title });
     }
   }
 
@@ -420,7 +443,7 @@ export async function replanIfDue(exam, userId, today, { language, force = false
     }
   }
 
-  await applyReplan(exam.id, { moves, skips, adds });
+  await applyReplan(exam.id, { moves, skips, updates, adds });
 
   // Super words each change in one line; templates fill any gap.
   let lines = changes.map((c) => ({ type: c.type, text: templateLine(c) }));

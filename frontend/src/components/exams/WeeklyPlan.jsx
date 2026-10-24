@@ -22,8 +22,9 @@ function SkipDialog({ task, onClose, onSkip }) {
     <Modal open onClose={busy ? undefined : onClose} title="Skip this task?" bodyClassName="px-6 pb-6">
       <form onSubmit={submit} className="flex flex-col gap-4">
         <p className="text-sm text-ink-2">
-          <span className="font-medium text-ink">{task.title}</span> won't be moved to another day. Tomorrow's replan takes it into account.
+          <span className="font-medium text-ink">{task.title}</span> will be marked as skipped.
         </p>
+        <p className="text-xs text-ink-3">We'll move it to another day this week if there's room.</p>
         <label className="flex flex-col gap-1.5 text-sm font-medium text-ink-2">
           Why? (optional)
           <input className="input" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} placeholder="e.g. Already covered this in class" autoFocus />
@@ -57,6 +58,11 @@ function TaskCard({ task, starting, onStart, onDone, onSkip, onUnskip }) {
             {task.targetCount ? ` · ${task.targetCount} questions` : ""}
           </p>
           {task.reason && <p className="text-xs text-ink-2 leading-5 mt-0.5">{task.reason}</p>}
+          {task.payload?.movedFrom && (
+            <p className="text-xs text-ink-3 leading-5 mt-0.5 inline-flex items-center gap-1">
+              <Icon name="redo" size={14} /> Moved from {formatDay(task.payload.movedFrom, { weekday: "short" })}
+            </p>
+          )}
           {task.skipped && (
             <p className="text-xs text-ink-3 leading-5 mt-0.5">
               Skipped{task.skipReason ? `: “${task.skipReason}”` : ""}

@@ -128,6 +128,11 @@ export async function markWeeklyPlansDue(notebookId, userId) {
   await query("UPDATE exams SET replan_due = TRUE WHERE notebook_id = $1 AND user_id = $2 AND plan_kind = 'weekly' AND week_start IS NOT NULL", [notebookId, userId]);
 }
 
+/** One weekly plan replans on the next visit (e.g. a task due today was skipped). */
+export async function markExamReplanDue(examId) {
+  await query("UPDATE exams SET replan_due = TRUE WHERE id = $1 AND plan_kind = 'weekly' AND week_start IS NOT NULL", [examId]);
+}
+
 /** Exams with a weekly plan that may need today's replan (for the daily job). */
 export async function weeklyExamsToReplan() {
   const { rows } = await query(
@@ -242,11 +247,24 @@ export async function replaceWeekItems(examId, from, items) {
   });
 }
 
-/** Applies daily-replan edits: moves [{ id, date, position }], skips [ids], new items. */
-export async function applyReplan(examId, { moves = [], skips = [], adds = [] }) {
+/**
+ * Applies daily-replan edits: moves [{ id, date, position, payload? }] (a move
+ * with a payload brings a skipped task back and replaces its payload), skips
+ * [ids], payload updates [{ id, payload }], new items.
+ */
+export async function applyReplan(examId, { moves = [], skips = [], updates = [], adds = [] }) {
   await withTransaction(async (client) => {
-    for (const m of moves) await client.query("UPDATE exam_plan_items SET plan_date = $2, position = $3 WHERE id = $1 AND exam_id = $4", [m.id, m.date, m.position, examId]);
-    if (skips.length) await client.query("UPDATE exam_plan_items SET skipped = TRUE WHERE exam_id = $1 AND id = ANY($2::uuid[])", [examId, skips]);
+    for (const m of moves) {
+      await client.query(
+        m.payload
+          ? "UPDATE exam_plan_items SET plan_date = $2, position = $3, skipped = FALSE, skip_reason = NULL, payload = $5 WHERE id = $1 AND exam_id = $4"
+          : "UPDATE exam_plan_items SET plan_date = $2, position = $3 WHERE id = $1 AND exam_id = $4",
+        [m.id, m.date, m.position, examId, ...(m.payload ? [JSON.stringify(m.payload)] : [])]
+      );
+    }
+    // Skipped by the replan, not the student: not to be rescheduled.
+    if (skips.length) await client.query("UPDATE exam_plan_items SET skipped = TRUE, payload = payload - 'awaitingReschedule' WHERE exam_id = $1 AND id = ANY($2::uuid[])", [examId, skips]);
+    for (const u of updates) await client.query("UPDATE exam_plan_items SET payload = $2 WHERE id = $1 AND exam_id = $3", [u.id, JSON.stringify(u.payload), examId]);
     for (const it of adds) {
       await client.query(
         `INSERT INTO exam_plan_items (exam_id, plan_date, position, task_type, title, details, target_count, minutes, node_id, reason, payload)
@@ -259,7 +277,7 @@ export async function applyReplan(examId, { moves = [], skips = [], adds = [] })
 
 /** Links a task to the practice session it started (a skipped task that's started isn't skipped any more). */
 export async function linkItemSession(id, sessionId) {
-  await query("UPDATE exam_plan_items SET session_id = $2, skipped = FALSE, skip_reason = NULL WHERE id = $1", [id, sessionId]);
+  await query("UPDATE exam_plan_items SET session_id = $2, skipped = FALSE, skip_reason = NULL, payload = payload - 'awaitingReschedule' WHERE id = $1", [id, sessionId]);
 }
 
 /** Ticks off plan tasks whose practice session was submitted. */
@@ -300,11 +318,16 @@ export async function setItemDone(id, done) {
   return rows[0] ? toItem(rows[0]) : null;
 }
 
-/** Skips a task (with the student's optional reason) or brings it back; a skipped task isn't done. */
+/**
+ * Skips a task (with the student's optional reason) or brings it back; a
+ * skipped task isn't done. The next replan moves it to a later day once
+ * (payload.awaitingReschedule marks it until then).
+ */
 export async function setItemSkipped(id, skipped, reason) {
   const { rows } = await query(
     `UPDATE exam_plan_items SET skipped = $2, skip_reason = CASE WHEN $2 THEN $3 ELSE NULL END,
-                                done = CASE WHEN $2 THEN FALSE ELSE done END, done_at = CASE WHEN $2 THEN NULL ELSE done_at END
+                                done = CASE WHEN $2 THEN FALSE ELSE done END, done_at = CASE WHEN $2 THEN NULL ELSE done_at END,
+                                payload = CASE WHEN $2 THEN COALESCE(payload, '{}'::jsonb) || '{"awaitingReschedule": true}' ELSE payload - 'awaitingReschedule' END
       WHERE id = $1 RETURNING *`,
     [id, skipped, reason || null]
   );

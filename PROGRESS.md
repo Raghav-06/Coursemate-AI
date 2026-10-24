@@ -306,6 +306,15 @@ settings…"), as agreed.
   sets rest day / skips, viewer plans their own exam). Build + oxlint (no new warnings). UI (headless
   Chromium, production build): weekly view light, dark, mobile dark (no horizontal page scroll), skip
   dialog, mark done, replan → What changed, schedule dialog, Start → session intro.
+- Skipped tasks are rescheduled once (after stage 7): skipping sets `payload.awaitingReschedule`
+  (cleared by unskip, start, or a skip the replan makes itself), and skipping a task due today marks
+  that exam's plan due (`markExamReplanDue`). The next replan moves it to the first later day of the
+  week with room (same rules as missed tasks: not the rest day, within the day's minutes), un-skips
+  it and stores `payload.rescheduledFromSkip: 1` + `payload.movedFrom`; the change line reads
+  `Moved "…" from today to tomorrow (you skipped it: busy).` No room → it stays skipped ("Left … skipped:
+  no later day this week has room"); skipped again after a move → dropped for good. Flashcards
+  still just lapse. Weekly view: "Moved from <weekday>" on rescheduled tasks; the Skip dialog says
+  it'll be moved if there's room. Not yet tested against a database (PostgreSQL was stopped).
 
 ### 7. Demo course, AI usage panel and docs ✅
 - `scripts/seedDemo.js` (`npm run seed:demo`): deletes and recreates `demo@coursemate.local` /
