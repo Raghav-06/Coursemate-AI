@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { onToast } from "./uiUtils";
 
 export function Icon({ name, className = "", filled = false, size }) {
   return (
@@ -189,13 +190,6 @@ export function Menu({ items, icon = "more_vert", label = "More options", button
   );
 }
 
-// Simple global toast: call toast("message") from anywhere.
-const listeners = new Set();
-export function toast(message, tone = "info") {
-  const item = { id: Math.random(), message, tone };
-  listeners.forEach((fn) => fn(item));
-}
-
 export function Toaster() {
   const [items, setItems] = useState([]);
   useEffect(() => {
@@ -203,8 +197,7 @@ export function Toaster() {
       setItems((list) => [...list, item]);
       setTimeout(() => setItems((list) => list.filter((i) => i.id !== item.id)), 4500);
     };
-    listeners.add(add);
-    return () => listeners.delete(add);
+    return onToast(add);
   }, []);
 
   return createPortal(
@@ -241,29 +234,6 @@ export function Checkbox({ checked, indeterminate, onChange, label }) {
       className="w-[18px] h-[18px] shrink-0 accent-[rgb(var(--accent))] cursor-pointer"
     />
   );
-}
-
-export function copyText(text) {
-  navigator.clipboard?.writeText(text).then(
-    () => toast("Copied to clipboard"),
-    () => toast("Couldn't copy to clipboard", "error")
-  );
-}
-
-export function downloadText(filename, text) {
-  const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
-  const a = Object.assign(document.createElement("a"), { href: url, download: filename });
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-export function timeAgo(iso) {
-  const date = new Date(iso);
-  const seconds = (Date.now() - date) / 1000;
-  if (seconds < 60) return "just now";
-  if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)} h ago`;
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
 /** Row of mutually exclusive options: options = [[value, label], …]. */

@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { useAuth } from "../auth";
 import { navigate } from "../hooks";
 import { Logo, ThemeToggle } from "../components/TopBar";
-import { Icon, Spinner, toast } from "../components/ui";
+import { Icon, Spinner } from "../components/ui";
+import { useAuth } from "../authContext";
+import { toast } from "../components/uiUtils";
 
 /** "#/invite/<token>": join a course someone shared with your email address. */
 export default function InvitePage({ token }) {

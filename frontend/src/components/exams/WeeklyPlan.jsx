@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api";
-import { Icon, Modal, Spinner, toast } from "../ui";
+import { Icon, Modal, Spinner } from "../ui";
 import { SESSION_TASKS, TASK_META, WEEKDAYS, dayDiff, formatDay, formatMinutes } from "./planUtils";
+import { toast } from "../uiUtils";
 
 const POLL_MS = 3000;
 const CHANGES_SHOWN = 5;

@@ -1,26 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../../api";
-import { Icon, IconButton, Segmented, SlideOver, Spinner, timeAgo, toast } from "../ui";
+import { Icon, IconButton, Segmented, SlideOver, Spinner } from "../ui";
 import ExamProfileDialog from "./ExamProfileDialog";
+import { timeAgo, toast } from "../uiUtils";
+import { MASTERY, weightBand } from "./mapUtils";
 
 // The course knowledge map: subject → chapter → topic → subtopic, coloured by
 // your mastery, with exam weight badges, a prerequisite graph and a detail
 // panel per node.
 
 const POLL_MS = 4000;
-export const MASTERY = {
-  not_started: { label: "Not started", dot: "bg-panel-3 ring-1 ring-line", fill: "rgb(var(--panel-3))", text: "text-ink-3" },
-  weak: { label: "Weak", dot: "bg-danger", fill: "rgb(var(--danger) / 0.18)", text: "text-danger" },
-  ok: { label: "OK", dot: "bg-gold", fill: "rgb(var(--gold) / 0.22)", text: "text-gold" },
-  strong: { label: "Strong", dot: "bg-success", fill: "rgb(var(--success) / 0.2)", text: "text-success" },
-};
 const LEVEL_LABEL = { subject: "Subject", chapter: "Chapter", topic: "Topic", subtopic: "Subtopic" };
 const pct = (v) => (v === null || v === undefined ? "—" : `${Math.round(v * 100)}%`);
-
-export function weightBand(weight) {
-  if (weight === null || weight === undefined || weight <= 0) return null;
-  return weight >= 0.67 ? { label: "High weight", bars: 3 } : weight >= 0.34 ? { label: "Medium weight", bars: 2 } : { label: "Low weight", bars: 1 };
-}
 
 function WeightBadge({ weight, source }) {
   const band = weightBand(weight);
@@ -208,20 +199,21 @@ function LinkList({ items, onSelect }) {
 
 
 function NodeDetail({ notebookId, nodeId, onClose, onSelect, onOpenCitation, onPractise, onAsk }) {
-  const [node, setNode] = useState(null);
-  const [error, setError] = useState(null);
+  // The last loaded node ({ key, node } or { key, error }); shown only while it's the selected one.
+  const key = `${notebookId}:${nodeId}`;
+  const [loaded, setLoaded] = useState(null);
   useEffect(() => {
     let cancelled = false;
-    setNode(null);
-    setError(null);
     api.mapNode(notebookId, nodeId).then(
-      (n) => !cancelled && setNode(n),
-      (err) => !cancelled && setError(err.message)
+      (n) => !cancelled && setLoaded({ key, node: n }),
+      (err) => !cancelled && setLoaded({ key, error: err.message })
     );
     return () => {
       cancelled = true;
     };
-  }, [notebookId, nodeId]);
+  }, [notebookId, nodeId, key]);
+  const node = loaded?.key === key ? loaded.node ?? null : null;
+  const error = loaded?.key === key ? loaded.error ?? null : null;
 
   const m = node && MASTERY[node.mastery.status];
   const band = node && weightBand(node.weight);
@@ -331,7 +323,7 @@ export default function KnowledgeMapPanel({ notebook, canEdit, sourcesKey, onOpe
   const [map, setMap] = useState(null);
   const [error, setError] = useState(null);
   const [view, setView] = useState("tree");
-  const [open, setOpen] = useState(new Set());
+  const [opened, setOpened] = useState(null); // null until the first toggle: subjects and chapters open
   const [selected, setSelected] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [profile, setProfile] = useState(null);
@@ -358,12 +350,11 @@ export default function KnowledgeMapPanel({ notebook, canEdit, sourcesKey, onOpe
     return m;
   }, [map]);
   // Subjects and chapters start open.
-  useEffect(() => {
-    if (map?.nodes) setOpen((prev) => (prev.size ? prev : new Set(map.nodes.filter((n) => n.level === "subject" || n.level === "chapter").map((n) => n.id))));
-  }, [map]);
+  const defaultOpen = useMemo(() => new Set((map?.nodes ?? []).filter((n) => n.level === "subject" || n.level === "chapter").map((n) => n.id)), [map]);
+  const open = opened ?? defaultOpen;
 
-  const toggle = (id) => setOpen((s) => {
-    const next = new Set(s);
+  const toggle = (id) => setOpened((s) => {
+    const next = new Set(s ?? defaultOpen);
     if (next.has(id)) next.delete(id);
     else next.add(id);
     return next;

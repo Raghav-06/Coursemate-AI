@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "../../api";
-import { Modal, Spinner, toast } from "../ui";
+import { Modal, Spinner } from "../ui";
+import { toast } from "../uiUtils";
 
 const REASONS = [
   ["wrong_key", "The answer key is wrong"],

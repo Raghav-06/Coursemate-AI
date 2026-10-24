@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api";
-import { Icon, Menu, Spinner, timeAgo, toast } from "../ui";
+import { Icon, Menu, Spinner } from "../ui";
 import MasteryBar from "./MasteryBar";
+import { timeAgo, toast } from "../uiUtils";
 
 const POLL_MS = 4000;
 const pct = (v) => (v === null || v === undefined ? "—" : `${Math.round(v * 100)}%`);

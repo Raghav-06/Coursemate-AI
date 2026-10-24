@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api";
-import { useAuth } from "../../auth";
 import { navigate } from "../../hooks";
-import { Icon, Segmented, Spinner, timeAgo, toast } from "../ui";
+import { Icon, Segmented, Spinner } from "../ui";
 import UnitChecklist from "../study/UnitChecklist";
 import JoinBattleDialog from "./JoinBattleDialog";
+import { useAuth } from "../../authContext";
+import { timeAgo, toast } from "../uiUtils";
 
 const ordinal = (n) => `${n}${n % 10 === 1 && n % 100 !== 11 ? "st" : n % 10 === 2 && n % 100 !== 12 ? "nd" : n % 10 === 3 && n % 100 !== 13 ? "rd" : "th"}`;
 

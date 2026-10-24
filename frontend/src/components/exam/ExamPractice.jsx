@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api";
-import { Icon, Menu, Spinner, timeAgo, toast } from "../ui";
+import { Icon, Menu, Spinner } from "../ui";
 import Markdown, { MathText } from "../Markdown";
-import QuestionBody, { TYPE_LABEL, marksLabel } from "./QuestionBody";
+import QuestionBody from "./QuestionBody";
 import GenerateQuestionsDialog from "./GenerateQuestionsDialog";
 import ReportDialog from "./ReportDialog";
-import SessionSetupDialog, { SESSION_TYPES } from "./SessionSetupDialog";
+import SessionSetupDialog from "./SessionSetupDialog";
+import { timeAgo, toast } from "../uiUtils";
+import { TYPE_LABEL, marksLabel } from "./questionUtils";
+import { SESSION_TYPES } from "./sessionTypes";
 
 const JOB_POLL_MS = 2000;
 

@@ -138,8 +138,3 @@ export const MathText = memo(function MathText({ text, className = "" }) {
     </span>
   );
 });
-
-// Plain text of an answer for copy/export: drop citation markers.
-export function stripCitations(text) {
-  return (text ?? "").replace(/\s?\[\d+(?:\s*,\s*\d+)*\](?!\()/g, "");
-}

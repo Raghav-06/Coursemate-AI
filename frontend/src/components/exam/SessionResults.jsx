@@ -1,14 +1,10 @@
 import { useState } from "react";
 import { Icon, IconButton } from "../ui";
 import Markdown from "../Markdown";
-import QuestionBody, { TYPE_LABEL } from "./QuestionBody";
+import QuestionBody from "./QuestionBody";
+import { fmtTime } from "./sessionResultsUtils";
+import { TYPE_LABEL } from "./questionUtils";
 
-export const fmtTime = (s) => {
-  if (s === null || s === undefined) return "—";
-  const m = Math.floor(s / 60);
-  const r = Math.round(s % 60);
-  return m ? `${m}m ${String(r).padStart(2, "0")}s` : `${r}s`;
-};
 const pct = (v) => (v === null || v === undefined ? "—" : `${Math.round(v * 100)}%`);
 const CONF = { sure: "Sure", unsure: "Unsure", guess: "Guess" };
 

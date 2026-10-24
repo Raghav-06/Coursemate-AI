@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
-import { ConfirmDialog, Icon, IconButton, Menu, Segmented, Spinner, timeAgo, toast } from "../ui";
+import { ConfirmDialog, Icon, IconButton, Menu, Segmented, Spinner } from "../ui";
 import UnitChecklist from "../study/UnitChecklist";
 import GradedAnswer from "./GradedAnswer";
+import { timeAgo, toast } from "../uiUtils";
 
 const MAX_QUESTION = 1000;
 const MAX_ANSWER = 12000;
@@ -41,8 +42,11 @@ export default function AnswerWriting({ notebookId, units, sources, onOpenCitati
     };
   }, [notebookId]);
 
-  useEffect(() => {
-    if (!preset) return;
+  // A new preset fills the form: state is adjusted while rendering, once per
+  // preset, instead of in an effect…
+  const [handledPreset, setHandledPreset] = useState(null);
+  if (preset && preset !== handledPreset) {
+    setHandledPreset(preset);
     setQuestion(preset.question);
     if ([2, 5, 10].includes(preset.marks)) setMarks(preset.marks);
     setUnitIds(preset.unitIds ?? []);
@@ -50,7 +54,10 @@ export default function AnswerWriting({ notebookId, units, sources, onOpenCitati
     setAnswer("");
     setResult(null);
     setSuggestions(null);
-    onPresetUsed?.();
+  }
+  // …and the parent is told it was used (so it clears it).
+  useEffect(() => {
+    if (preset) onPresetUsed?.();
   }, [preset, onPresetUsed]);
 
   const suggest = async () => {

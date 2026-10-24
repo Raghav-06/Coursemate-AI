@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
-import { Icon, Modal, Spinner, toast } from "../ui";
+import { Icon, Modal, Spinner } from "../ui";
+import { toast } from "../uiUtils";
 
 const MAX_SUBJECTS = 12;
 
@@ -18,12 +19,19 @@ export default function ExamProfileDialog({ notebookId, open, current, onClose, 
   const [custom, setCustom] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // The form starts from the saved profile each time the dialog opens (or that profile changes).
+  const [formFor, setFormFor] = useState(open ? current ?? null : undefined);
+  const target = open ? current ?? null : undefined;
+  if (formFor !== target) {
+    setFormFor(target);
+    if (open) {
+      setType(current?.examType ?? "");
+      setSubjects(current?.settings?.subjects ?? []);
+    }
+  }
   useEffect(() => {
-    if (!open) return;
-    setType(current?.examType ?? "");
-    setSubjects(current?.settings?.subjects ?? []);
-    if (!profiles) api.examProfiles().then(setProfiles, (err) => setError(err.message));
-  }, [open, current, profiles]);
+    if (open && !profiles) api.examProfiles().then(setProfiles, (err) => setError(err.message));
+  }, [open, profiles]);
 
   const profile = profiles?.find((p) => p.type === type);
   const toggle = (s) => setSubjects((list) => (list.includes(s) ? list.filter((x) => x !== s) : [...list, s]));

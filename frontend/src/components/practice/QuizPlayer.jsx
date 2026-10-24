@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import Markdown, { MathText } from "../Markdown";
-import { Icon, IconButton, Spinner, toast } from "../ui";
+import { Icon, IconButton, Spinner } from "../ui";
 import CitationLink from "../study/CitationLink";
 import MasteryBar from "../progress/MasteryBar";
+import { toast } from "../uiUtils";
 
 const LETTERS = ["A", "B", "C", "D"];
 

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api";
-import { Icon, Menu, Modal, Spinner, toast } from "../ui";
+import { Icon, Menu, Modal, Spinner } from "../ui";
 import CitationLink from "../study/CitationLink";
+import { toast } from "../uiUtils";
 
 const POLL_MS = 4000;
 

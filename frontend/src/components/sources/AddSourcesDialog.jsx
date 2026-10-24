@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../api";
-import { Icon, IconButton, Modal, Segmented, Spinner, toast } from "../ui";
+import { Icon, IconButton, Modal, Segmented, Spinner } from "../ui";
+import { toast } from "../uiUtils";
 
 const DOCUMENTS = [".pdf", ".docx", ".pptx", ".txt", ".md", ".csv"];
 const IMAGES = [".png", ".jpg", ".jpeg", ".webp"];
@@ -316,13 +317,17 @@ export default function AddSourcesDialog({ open, onClose, notebookId, sourceCoun
     };
   }, [open]);
 
-  useEffect(() => {
+  // Each opening (or new defaults while open) starts from the home screen and the defaults.
+  const resetKey = open ? `${defaultUnitId}:${defaultKind}` : null;
+  const [resetFor, setResetFor] = useState(null);
+  if (resetKey !== resetFor) {
+    setResetFor(resetKey);
     if (open) {
       setMode("home");
       setUnitId(defaultUnitId);
       setKind({ ...NO_KIND, kind: defaultKind });
     }
-  }, [open, defaultUnitId, defaultKind]);
+  }
 
   // Fields sent with new sources; a year outside 1950..next year is dropped.
   const year = Number(kind.examYear);

@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { api } from "../../api";
-import { Icon, Modal, Segmented, Spinner, toast } from "../ui";
+import { Icon, Modal, Segmented, Spinner } from "../ui";
 import UnitChecklist from "./UnitChecklist";
+import { toast } from "../uiUtils";
 
 /** Generates a flashcard deck from chosen units (or the whole course). */
 export default function GenerateDeckDialog({ open, notebookId, units, sources, initialUnitIds = [], onClose, onCreated }) {

@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 import Markdown from "../Markdown";
-import { ConfirmDialog, Icon, IconButton, Spinner, toast } from "../ui";
+import { ConfirmDialog, Icon, IconButton, Spinner } from "../ui";
 import CitationLink from "./CitationLink";
 import { cardCitation } from "./citations";
+import { toast } from "../uiUtils";
 
 function dueLabel(review) {
   if (!review) return "New";

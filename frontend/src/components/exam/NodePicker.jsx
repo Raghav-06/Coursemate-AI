@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Checkbox, Icon } from "../ui";
-import { MASTERY, weightBand } from "../map/KnowledgeMapPanel";
+import { MASTERY, weightBand } from "../map/mapUtils";
 
 /**
  * Picks knowledge-map nodes (chapters and topics, up to `max`), grouped by

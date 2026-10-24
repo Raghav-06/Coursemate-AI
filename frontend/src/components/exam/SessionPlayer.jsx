@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api";
-import { ConfirmDialog, Icon, IconButton, Spinner, toast } from "../ui";
+import { ConfirmDialog, Icon, IconButton, Spinner } from "../ui";
 import Markdown from "../Markdown";
-import QuestionBody, { TYPE_LABEL, marksLabel } from "./QuestionBody";
-import SessionResults, { fmtTime } from "./SessionResults";
+import QuestionBody from "./QuestionBody";
+import SessionResults from "./SessionResults";
+import { fmtTime } from "./sessionResultsUtils";
 import DiagnosisCard from "../mistakes/DiagnosisCard";
 import { ADVICE } from "../mistakes/categories";
+import { toast } from "../uiUtils";
+import { TYPE_LABEL, marksLabel } from "./questionUtils";
 
 const POLL_MS = 2000;
 const SAVE_DELAY_MS = 600;
@@ -44,22 +47,32 @@ export default function SessionPlayer({ sessionId, onExit, onOpenCitation, onFin
   const [showWorking, setShowWorking] = useState(false);
   const [diagnoses, setDiagnoses] = useState({ diagnosing: false, list: [] });
   const spent = useRef({}); // position → ms
-  const enteredAt = useRef(Date.now());
+  const enteredAt = useRef(null); // when the current question was opened (set on the first load)
   const saveTimer = useRef(null);
   const pending = useRef({}); // position → body not yet sent
+  const clock = useRef(null); // seconds left, as ticked by the test clock below
+  const submitRef = useRef(null); // the latest submit (null while one is running), for the clock's time-up
 
-  const load = useCallback(async () => {
-    try {
-      const v = await api.getSession(sessionId);
-      setView(v);
-      setRemaining(v.remainingSeconds);
-      setAnswers(Object.fromEntries(v.answers.map((a) => [a.position, a])));
-      for (const a of v.answers) spent.current[a.position] = Math.max(spent.current[a.position] ?? 0, a.timeSpentMs);
-      if (v.status === "finished") setResults(await api.sessionResults(sessionId));
-    } catch (err) {
-      setError(err.message);
-    }
-  }, [sessionId]);
+  const setClock = useCallback((seconds) => {
+    clock.current = seconds;
+    setRemaining(seconds);
+  }, []);
+
+  const load = useCallback(
+    () =>
+      api
+        .getSession(sessionId)
+        .then(async (v) => {
+          enteredAt.current ??= Date.now();
+          setView(v);
+          setClock(v.remainingSeconds);
+          setAnswers(Object.fromEntries(v.answers.map((a) => [a.position, a])));
+          for (const a of v.answers) spent.current[a.position] = Math.max(spent.current[a.position] ?? 0, a.timeSpentMs);
+          if (v.status === "finished") setResults(await api.sessionResults(sessionId));
+        })
+        .catch((err) => setError(err.message)),
+    [sessionId, setClock]
+  );
   useEffect(() => {
     load();
   }, [load]);
@@ -143,18 +156,24 @@ export default function SessionPlayer({ sessionId, onExit, onOpenCitation, onFin
     }
   }, [sessionId, flush, queue, takeTime, pos, onFinished]);
 
+  useEffect(() => {
+    submitRef.current = submitting ? null : submit;
+  }, [submit, submitting]);
+
   // The test clock: ticks locally, submits at zero.
   useEffect(() => {
     if (!active || !timed) return;
-    const t = setInterval(() => setRemaining((r) => (r === null ? r : Math.max(0, r - 1))), 1000);
+    const t = setInterval(() => {
+      if (clock.current === null) return;
+      setClock(Math.max(0, clock.current - 1));
+      if (clock.current === 0) {
+        clearInterval(t);
+        toast("Time's up — submitting your test");
+        submitRef.current?.();
+      }
+    }, 1000);
     return () => clearInterval(t);
-  }, [active, timed]);
-  useEffect(() => {
-    if (active && timed && remaining === 0 && !submitting && !results) {
-      toast("Time's up — submitting your test");
-      submit();
-    }
-  }, [active, timed, remaining, submitting, results, submit]);
+  }, [active, timed, setClock]);
 
   // Save time spent every 20 s and when leaving.
   useEffect(() => {
@@ -167,14 +186,13 @@ export default function SessionPlayer({ sessionId, onExit, onOpenCitation, onFin
     queue(pos, { timeSpentMs: Math.round(takeTime()) }, 0);
     setPos(next);
     setShowWorking(false);
-    enteredAt.current = Date.now();
   };
 
   const start = async () => {
     try {
       const v = await api.startSession(sessionId);
       setView(v);
-      setRemaining(v.remainingSeconds);
+      setClock(v.remainingSeconds);
       enteredAt.current = Date.now();
     } catch (err) {
       toast(err.message, "error");

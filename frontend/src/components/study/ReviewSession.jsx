@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api";
 import Markdown from "../Markdown";
-import { Icon, IconButton, Spinner, toast } from "../ui";
+import { Icon, IconButton, Spinner } from "../ui";
 import CitationLink from "./CitationLink";
 import { cardCitation } from "./citations";
+import { toast } from "../uiUtils";
 
 const BUTTONS = [
   ["again", "Again", "1", "bg-danger/10 text-danger hover:bg-danger/20"],

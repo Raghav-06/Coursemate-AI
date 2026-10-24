@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api";
-import { useAuth } from "../auth";
 import { navigate } from "../hooks";
 import { Logo, ThemeToggle } from "../components/TopBar";
-import { Icon, IconButton, Spinner, copyText, toast } from "../components/ui";
+import { Icon, IconButton, Spinner } from "../components/ui";
+import { useAuth } from "../authContext";
+import { copyText, toast } from "../components/uiUtils";
 
 const LETTERS = ["A", "B", "C", "D"];
 // Explanations may carry [n] passage markers; battles show the source location instead.

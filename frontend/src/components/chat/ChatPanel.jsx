@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import Markdown, { stripCitations } from "../Markdown";
-import { ConfirmDialog, Icon, IconButton, Menu, copyText } from "../ui";
+import Markdown from "../Markdown";
+import { ConfirmDialog, Icon, IconButton, Menu } from "../ui";
 import ScopeSelector from "./ScopeSelector";
+import { stripCitations } from "../markdownUtils";
+import { copyText } from "../uiUtils";
 
 function TypingDots() {
   return (

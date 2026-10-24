@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
-import { useAuth } from "../auth";
 import { Icon, Spinner } from "./ui";
+import { useAuth } from "../authContext";
 
 const CODE_LENGTH = 6;
 const MIN_PASSWORD = 8;

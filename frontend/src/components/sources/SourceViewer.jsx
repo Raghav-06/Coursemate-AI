@@ -113,10 +113,20 @@ function MediaPane({ source, kind, mediaRef, startAt }) {
 }
 
 export default function SourceViewer({ source, citation, onBack, onAsk, onReprocess }) {
-  const [text, setText] = useState(null);
-  const [locations, setLocations] = useState(null);
-  const [error, setError] = useState(null);
+  // The loaded content ({ key, text, locations } or { key, error }); shown only for the current source and status.
+  const contentKey = `${source.id}:${source.status}`;
+  const [content, setContent] = useState(null);
+  const shown = content?.key === contentKey ? content : null;
+  const text = shown?.text ?? null;
+  const locations = shown?.locations ?? null;
+  const error = shown?.error ?? null;
   const [guideOpen, setGuideOpen] = useState(!citation);
+  // A new citation closes the guide (and no citation opens it).
+  const [guideFor, setGuideFor] = useState(citation);
+  if (guideFor !== citation) {
+    setGuideFor(citation);
+    setGuideOpen(!citation);
+  }
   const markRef = useRef(null);
   const mediaRef = useRef(null);
   const [icon, color] = sourceIcon(source);
@@ -137,25 +147,17 @@ export default function SourceViewer({ source, citation, onBack, onAsk, onReproc
 
   useEffect(() => {
     let cancelled = false;
-    setText(null);
-    setError(null);
     api.getSourceContent(source.id).then(
-      (r) => {
-        if (cancelled) return;
-        setText(r.text);
-        setLocations(r.locations);
-      },
-      (err) => !cancelled && setError(err.message)
+      (r) => !cancelled && setContent({ key: contentKey, text: r.text, locations: r.locations }),
+      (err) => !cancelled && setContent({ key: contentKey, error: err.message })
     );
     return () => {
       cancelled = true;
     };
-  }, [source.id, source.status]);
+  }, [source.id, source.status, contentKey]);
 
   // PDFs, slide decks and links to PDFs can carry page/slide numbers.
   const paged = /^(pdf|pptx)$/.test(source.fileType ?? "") || /\.pdf($|\?)|arxiv\.org/i.test(source.url ?? "");
-
-  useEffect(() => setGuideOpen(!citation), [citation]);
 
   const range = useMemo(() => (text ? locate(text, citation) : null), [text, citation]);
 

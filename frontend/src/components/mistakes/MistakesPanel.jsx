@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api";
-import { Icon, Segmented, Spinner, timeAgo, toast } from "../ui";
+import { Icon, Segmented, Spinner } from "../ui";
 import DiagnosisCard, { CategoryBadge } from "./DiagnosisCard";
 import { ADVICE, CATEGORY, CATEGORY_KEYS } from "./categories";
+import { timeAgo, toast } from "../uiUtils";
 
 const weekLabel = (iso) => new Date(`${iso}T12:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 

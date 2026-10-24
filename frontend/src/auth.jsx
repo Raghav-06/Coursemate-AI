@@ -1,7 +1,6 @@
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api, UNAUTHORIZED_EVENT } from "./api";
-
-const AuthContext = createContext(null);
+import { AuthContext } from "./authContext";
 
 /**
  * Holds the signed-in Google user. `user` is undefined while loading, null
@@ -31,14 +30,4 @@ export function AuthProvider({ children }) {
   }, []);
 
   return <AuthContext.Provider value={{ user, error, signOut, setUser }}>{children}</AuthContext.Provider>;
-}
-
-export function useAuth() {
-  return useContext(AuthContext);
-}
-
-/** Full-page redirect into Google OAuth; comes back to the current page. */
-export function signInWithGoogle() {
-  const returnTo = `/${window.location.hash || ""}`;
-  window.location.href = `${api.base}/auth/google?returnTo=${encodeURIComponent(returnTo)}`;
 }

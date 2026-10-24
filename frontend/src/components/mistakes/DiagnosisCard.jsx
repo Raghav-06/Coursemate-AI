@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { api } from "../../api";
-import { Icon, Spinner, toast } from "../ui";
+import { Icon, Spinner } from "../ui";
 import Markdown from "../Markdown";
 import { CATEGORY } from "./categories";
+import { toast } from "../uiUtils";
 
 export function CategoryBadge({ category }) {
   const c = CATEGORY[category];

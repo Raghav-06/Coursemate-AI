@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { api } from "../../api";
-import { Modal, Segmented, Spinner, toast } from "../ui";
+import { Modal, Segmented, Spinner } from "../ui";
 import NodePicker from "./NodePicker";
+import { toast } from "../uiUtils";
 
 /** Choose map nodes, how many questions, formats and difficulty; starts a generation job. */
 export default function GenerateQuestionsDialog({ notebookId, nodes, profile, initialNodeIds = [], onClose, onStarted }) {

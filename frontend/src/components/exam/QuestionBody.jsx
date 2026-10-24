@@ -7,20 +7,6 @@ import { Icon } from "../ui";
 //   value: mcq → { choice: ["B"] }; numerical → { value, unit }; matching →
 //   { pairs: { P: "1" } }; one_word / descriptive → { text }
 
-export const TYPE_LABEL = {
-  mcq_single: "Single correct",
-  mcq_multi: "One or more correct",
-  numerical: "Numerical",
-  matching: "Matching",
-  one_word: "One word",
-  descriptive: "Written answer",
-};
-
-export function marksLabel(q) {
-  if (q.type === "descriptive" || !q.negative) return `${q.marks} mark${q.marks === 1 ? "" : "s"}`;
-  return `+${q.marks} / −${q.negative}`;
-}
-
 function Option({ option, selected, multi, disabled, state, onClick }) {
   const tone =
     state === "correct" ? "border-success bg-success/10" : state === "wrong" ? "border-danger bg-danger/10" : selected ? "border-accent bg-accent-soft" : "border-line hover:bg-panel-2";

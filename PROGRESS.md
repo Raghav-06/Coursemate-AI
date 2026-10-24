@@ -365,6 +365,23 @@ settings…"), as agreed.
   ExamPractice applies a new `preset` while rendering (once per preset) instead of copying it into
   state in an effect, and only notifies the parent from the effect. 35 → 32 warnings; the rest are
   pre-existing patterns in other files.
+- Lint, the rest (oxlint 1.85: 31 → 0 warnings). Non-component exports moved to small modules:
+  `uiUtils.js` (toast + `onToast` for the Toaster, copyText, downloadText, timeAgo), `authContext.js`
+  (context, useAuth, signInWithGoogle; the provider stays in `auth.jsx`), `markdownUtils.js`,
+  `exam/questionUtils.js`, `exam/sessionTypes.js`, `exam/sessionResultsUtils.js` (fmtTime),
+  `map/mapUtils.js`. set-state-in-effect: SessionPlayer's time-up submit now fires from the clock's
+  interval (a ref mirrors the seconds left; skipped while a submit is running) and the first load sets
+  state in its promise callback; loaded content is keyed to what it was loaded for (map node detail,
+  source viewer) instead of being cleared in an effect; dialogs/forms reset from props while rendering
+  (once per opening / preset / intent / title — ExamProfileDialog, AddSourcesDialog, rename, course
+  title, ExplainBack, AnswerWriting, PracticePanel intents); the map tree's open set is derived until
+  the first toggle; LoginPage reads `?authError` in the state initializer. NotebookPage keeps "waiting
+  for the overview" in state (set with the deadline, cleared by the poll tick) instead of reading a ref
+  and `Date.now()` while rendering; the poll compares against the latest sources/notebook in a ref, so
+  its source-error toasts no longer run inside setState updaters.
+- check-access: the AI usage check compares before/after one inserted row (after the source's
+  background AI calls settle) and checks byFeature, so it passes with an AI key set too. Not yet run
+  against a database (PostgreSQL was stopped).
 
 ## Earlier upgrade (done)
 

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api";
 import { navigate } from "../../hooks";
-import { Icon, Modal, toast } from "../ui";
+import { Icon, Modal } from "../ui";
 import TaskRow from "../exams/TaskRow";
 import { countdown, formatDay } from "../exams/planUtils";
+import { toast } from "../uiUtils";
 
 const KIND_LABELS = { card: ["card", "cards"], quiz: ["quiz answer", "quiz answers"], answer: ["graded answer", "graded answers"], chat: ["question", "questions"], explain: ["explanation", "explanations"] };
 

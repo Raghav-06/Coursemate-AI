@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api";
-import { ConfirmDialog, Icon, Menu, Modal, Segmented, Spinner, toast } from "../ui";
+import { ConfirmDialog, Icon, Menu, Modal, Segmented, Spinner } from "../ui";
 import UnitChecklist from "../study/UnitChecklist";
 import TaskRow from "./TaskRow";
 import WeeklyPlan from "./WeeklyPlan";
 import ScheduleDialog from "./ScheduleDialog";
 import { countdown, dayDiff, formatDay } from "./planUtils";
+import { toast } from "../uiUtils";
 
 function ExamDialog({ open, exam, units, sources, today, onClose, onSave }) {
   const [name, setName] = useState(exam?.name ?? "");

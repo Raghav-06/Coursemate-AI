@@ -1,10 +1,11 @@
 import { Suspense, lazy, useEffect, useState } from "react";
 import { useRoute } from "./hooks";
 import { api } from "./api";
-import { AuthProvider, useAuth } from "./auth";
+import { AuthProvider } from "./auth";
 import { Spinner, Toaster } from "./components/ui";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
+import { useAuth } from "./authContext";
 
 // Pages beyond Home / sign-in load on demand (code-split).
 const InvitePage = lazy(() => import("./pages/InvitePage"));

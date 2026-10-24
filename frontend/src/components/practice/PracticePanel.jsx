@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api";
-import { ConfirmDialog, Icon, Menu, Segmented, Spinner, timeAgo, toast } from "../ui";
+import { ConfirmDialog, Icon, Menu, Segmented, Spinner } from "../ui";
 import QuizPlayer from "./QuizPlayer";
 import NewQuizDialog from "./NewQuizDialog";
 import AnswerWriting from "./AnswerWriting";
@@ -8,6 +8,7 @@ import ExplainBack from "./ExplainBack";
 import BattlesTab from "../battle/BattlesTab";
 import ExamPractice from "../exam/ExamPractice";
 import SessionPlayer from "../exam/SessionPlayer";
+import { timeAgo, toast } from "../uiUtils";
 
 function ScorePill({ quiz }) {
   if (quiz.lastScore === null) return <span className="text-xs text-ink-3">Not taken</span>;
@@ -58,47 +59,46 @@ export default function PracticePanel({ notebook, units, sources, onOpenCitation
     load();
   }, [load]);
 
+  // A new intent switches the tab and fills its preset while rendering (once per intent)…
+  const [shownIntent, setShownIntent] = useState(null);
+  if (intent && intent !== shownIntent) {
+    setShownIntent(intent);
+    if (intent.kind === "session") {
+      setTab("exam");
+      setSessionId(intent.sessionId);
+    } else if (intent.kind === "exam") {
+      setPlaying(null);
+      setTab("exam");
+      setExamPreset(intent);
+    } else if (intent.kind === "explain") {
+      setPlaying(null);
+      setTab("explain");
+      setExplainPreset(intent);
+    } else if (intent.kind === "answer") {
+      setPlaying(null);
+      setTab("answer");
+      setAnswerPreset(intent);
+    } else if (intent.kind === "quiz") {
+      setTab("quiz");
+      setMaking(true);
+    }
+  }
+  // …then tells the parent it was used and, for a quiz, makes it.
   useEffect(() => {
     if (!intent || handledIntent.current === intent) return;
     handledIntent.current = intent;
     onIntentUsed?.();
-    if (intent.kind === "session") {
-      setTab("exam");
-      setSessionId(intent.sessionId);
-      return;
-    }
-    if (intent.kind === "exam") {
-      setPlaying(null);
-      setTab("exam");
-      setExamPreset(intent);
-      return;
-    }
-    if (intent.kind === "explain") {
-      setPlaying(null);
-      setTab("explain");
-      setExplainPreset(intent);
-      return;
-    }
-    if (intent.kind === "answer") {
-      setPlaying(null);
-      setTab("answer");
-      setAnswerPreset(intent);
-      return;
-    }
-    if (intent.kind === "quiz") {
-      setTab("quiz");
-      setMaking(true);
-      api
-        .createQuiz(notebook.id, { topicIds: intent.topicIds, unitIds: intent.unitIds, count: intent.count ?? 5, difficulty: "medium" })
-        .then(
-          (quiz) => {
-            setPlaying(quiz);
-            load();
-          },
-          (err) => toast(err.message, "error")
-        )
-        .finally(() => setMaking(false));
-    }
+    if (intent.kind !== "quiz") return;
+    api
+      .createQuiz(notebook.id, { topicIds: intent.topicIds, unitIds: intent.unitIds, count: intent.count ?? 5, difficulty: "medium" })
+      .then(
+        (quiz) => {
+          setPlaying(quiz);
+          load();
+        },
+        (err) => toast(err.message, "error")
+      )
+      .finally(() => setMaking(false));
   }, [intent, onIntentUsed, notebook.id, load]);
 
   const remove = async (quiz) => {

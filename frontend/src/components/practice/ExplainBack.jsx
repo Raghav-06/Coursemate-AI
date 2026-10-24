@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 import Markdown from "../Markdown";
-import { ConfirmDialog, Icon, Menu, Spinner, timeAgo, toast } from "../ui";
+import { ConfirmDialog, Icon, Menu, Spinner } from "../ui";
 import { PointList } from "./GradedAnswer";
+import { timeAgo, toast } from "../uiUtils";
 
 const MAX_PROMPT = 500;
 const MAX_EXPLANATION = 8000;
@@ -80,13 +81,19 @@ export default function ExplainBack({ notebookId, onOpenCitation, preset, onPres
     };
   }, [notebookId]);
 
-  useEffect(() => {
-    if (!preset) return;
+  // A new preset fills the form: state is adjusted while rendering, once per
+  // preset, instead of in an effect…
+  const [handledPreset, setHandledPreset] = useState(null);
+  if (preset && preset !== handledPreset) {
+    setHandledPreset(preset);
     setTopicId(preset.topicId ?? "");
     setPrompt(preset.prompt ?? "");
     setExplanation("");
     setResult(null);
-    onPresetUsed?.();
+  }
+  // …and the parent is told it was used (so it clears it).
+  useEffect(() => {
+    if (preset) onPresetUsed?.();
   }, [preset, onPresetUsed]);
 
   const submit = async (e) => {

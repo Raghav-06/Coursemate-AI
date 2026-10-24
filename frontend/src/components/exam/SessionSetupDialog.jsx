@@ -1,14 +1,10 @@
 import { useState } from "react";
 import { api } from "../../api";
-import { Modal, Segmented, Spinner, toast } from "../ui";
+import { Modal, Segmented, Spinner } from "../ui";
 import NodePicker from "./NodePicker";
+import { toast } from "../uiUtils";
+import { SESSION_TYPES } from "./sessionTypes";
 
-export const SESSION_TYPES = [
-  { kind: "drill", icon: "target", title: "Topic drill", text: "Questions on chosen topics, checked one at a time with the solution." },
-  { kind: "mixed", icon: "shuffle", title: "Mixed practice", text: "A mix across topics — weak and high-weight ones first. Timer optional." },
-  { kind: "sectional", icon: "timer", title: "Sectional test", text: "A timed test on one subject or chapter, at the exam's pace and marking." },
-  { kind: "mock", icon: "assignment", title: "Full mock", text: "The whole paper: question count, duration and marking of the exam." },
-];
 const COUNTS = { drill: [5, 10, 15, 20], mixed: [10, 15, 20, 30], sectional: [10, 15, 20, 30] };
 
 /** Sets up a practice session of one kind (topics, length, timer) and creates it. */

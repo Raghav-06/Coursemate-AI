@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { signInWithGoogle } from "../auth";
 import { ThemeToggle } from "../components/TopBar";
 import { Icon } from "../components/ui";
 import EmailAuth from "../components/EmailAuth";
+import { signInWithGoogle } from "../authContext";
 
 // Google's "G" mark, as required on Sign in with Google buttons.
 function GoogleMark({ className = "w-5 h-5" }) {
@@ -59,14 +59,11 @@ function CardsIllustration() {
 }
 
 export default function LoginPage({ serverError }) {
-  const [authError, setAuthError] = useState(null);
-
   // The OAuth callback reports failures as ?authError=… ; show it once, then tidy the URL.
+  const [authError] = useState(() => new URLSearchParams(window.location.search).get("authError"));
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const message = params.get("authError");
-    if (message) {
-      setAuthError(message);
+    if (params.has("authError")) {
       params.delete("authError");
       const query = params.toString();
       window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);

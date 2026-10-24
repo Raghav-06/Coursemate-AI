@@ -3,11 +3,12 @@ import { api } from "../api";
 import { navigate, useMediaQuery } from "../hooks";
 import { Logo, ThemeToggle } from "../components/TopBar";
 import AccountMenu from "../components/AccountMenu";
-import { Icon, IconButton, SlideOver, Spinner, toast } from "../components/ui";
+import { Icon, IconButton, SlideOver, Spinner } from "../components/ui";
 import SourcesPanel from "../components/sources/SourcesPanel";
 import AddSourcesDialog from "../components/sources/AddSourcesDialog";
 import ChatPanel from "../components/chat/ChatPanel";
 import CourseLanguageDialog from "../components/CourseLanguageDialog";
+import { toast } from "../components/uiUtils";
 
 // Tools other than chat (and the source viewer) load when first opened.
 const SourceViewer = lazy(() => import("../components/sources/SourceViewer"));
@@ -77,7 +78,12 @@ const OVERVIEW_WAIT_MS = 45_000;
 
 function EditableTitle({ notebook, onRename }) {
   const [value, setValue] = useState(notebook.title);
-  useEffect(() => setValue(notebook.title), [notebook.title]);
+  // A new title from the server (rename, auto title) replaces the input.
+  const [valueFor, setValueFor] = useState(notebook.title);
+  if (notebook.title !== valueFor) {
+    setValueFor(notebook.title);
+    setValue(notebook.title);
+  }
 
   const commit = () => {
     const title = value.trim();
@@ -129,8 +135,17 @@ export default function NotebookPage({ notebookId }) {
   const [shareOpen, setShareOpen] = useState(false);
   const isWide = useMediaQuery("(min-width: 1024px)");
 
-  const overviewUntil = useRef(0);
+  const overviewUntil = useRef(0); // keep polling until then for the course overview
+  const [overviewWaiting, setOverviewWaiting] = useState(false);
+  const latest = useRef({ sources, notebook }); // for the polling tick
   const abortRef = useRef(null);
+  const waitForOverview = () => {
+    overviewUntil.current = Date.now() + OVERVIEW_WAIT_MS;
+    setOverviewWaiting(true);
+  };
+  useEffect(() => {
+    latest.current = { sources, notebook };
+  }, [sources, notebook]);
 
   // ---- Loading & polling ----------------------------------------------------
 
@@ -151,6 +166,7 @@ export default function NotebookPage({ notebookId }) {
         history.replaceState(null, "", `#/notebook/${notebookId}`); // drop ?new=1 / ?view= once used
         if (srcs.some((s) => s.status === "ready") && !nb.summary) {
           overviewUntil.current = Date.now() + OVERVIEW_WAIT_MS;
+          setOverviewWaiting(true);
           api.refreshOverview(notebookId).catch(() => {});
         }
       })
@@ -162,27 +178,26 @@ export default function NotebookPage({ notebookId }) {
   }, [notebookId]);
 
   const loaded = Boolean(notebook);
-  const busy = sources.some((s) => s.status === "processing" || s.paperStatus === "pending") || overviewUntil.current > Date.now();
+  const busy = sources.some((s) => s.status === "processing" || s.paperStatus === "pending") || overviewWaiting;
 
   useEffect(() => {
     if (!loaded || !busy) return;
     const timer = setInterval(async () => {
       try {
         const [nb, srcs] = await Promise.all([api.getNotebook(notebookId), api.listSources(notebookId)]);
-        setSources((prev) => {
-          const newlyReady = srcs.some((s) => s.status === "ready" && prev.find((p) => p.id === s.id)?.status === "processing");
-          if (newlyReady) overviewUntil.current = Date.now() + OVERVIEW_WAIT_MS;
-          for (const s of srcs) {
-            const before = prev.find((p) => p.id === s.id);
-            if (before?.status === "processing" && s.status === "error") toast(`Couldn't add "${s.title}": ${s.error}`, "error");
-            if (before?.status === "processing" && s.status === "ready" && s.error) toast(`"${s.title}": ${s.error}`, "error");
-          }
-          return srcs;
-        });
-        setNotebook((prev) => {
-          if (prev && (nb.summary !== prev.summary || nb.title !== prev.title)) overviewUntil.current = 0;
-          return nb;
-        });
+        const prev = latest.current;
+        const newlyReady = srcs.some((s) => s.status === "ready" && prev.sources.find((p) => p.id === s.id)?.status === "processing");
+        if (newlyReady) overviewUntil.current = Date.now() + OVERVIEW_WAIT_MS;
+        for (const s of srcs) {
+          const before = prev.sources.find((p) => p.id === s.id);
+          if (before?.status === "processing" && s.status === "error") toast(`Couldn't add "${s.title}": ${s.error}`, "error");
+          if (before?.status === "processing" && s.status === "ready" && s.error) toast(`"${s.title}": ${s.error}`, "error");
+        }
+        if (prev.notebook && (nb.summary !== prev.notebook.summary || nb.title !== prev.notebook.title)) overviewUntil.current = 0;
+        latest.current = { sources: srcs, notebook: nb };
+        setSources(srcs);
+        setNotebook(nb);
+        setOverviewWaiting(overviewUntil.current > Date.now());
       } catch {
         // transient — try again next tick
       }
@@ -331,7 +346,7 @@ export default function NotebookPage({ notebookId }) {
       await api.deleteSource(id);
       setSources((list) => list.filter((s) => s.id !== id));
       if (viewer?.sourceId === id) setViewer(null);
-      overviewUntil.current = Date.now() + OVERVIEW_WAIT_MS;
+      waitForOverview();
     } catch (err) {
       toast(err.message, "error");
     }

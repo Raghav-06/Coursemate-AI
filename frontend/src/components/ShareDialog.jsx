@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
-import { useAuth } from "../auth";
 import { navigate } from "../hooks";
-import { ConfirmDialog, Icon, IconButton, Modal, Segmented, Spinner, copyText, toast } from "./ui";
+import { ConfirmDialog, Icon, IconButton, Modal, Segmented, Spinner } from "./ui";
+import { useAuth } from "../authContext";
+import { copyText, toast } from "./uiUtils";
 
 const ROLE_LABELS = { owner: "Owner", editor: "Editor", viewer: "Viewer" };
 const ROLE_HELP = {

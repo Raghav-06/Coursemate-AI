@@ -3,10 +3,11 @@ import { api } from "../api";
 import { navigate } from "../hooks";
 import { Logo, ThemeToggle } from "../components/TopBar";
 import AccountMenu from "../components/AccountMenu";
-import { useAuth } from "../auth";
-import { ConfirmDialog, Icon, IconButton, Menu, Modal, Spinner, timeAgo, toast } from "../components/ui";
+import { ConfirmDialog, Icon, IconButton, Menu, Modal, Spinner } from "../components/ui";
 import JoinBattleDialog from "../components/battle/JoinBattleDialog";
 import TodayPanel from "../components/today/TodayPanel";
+import { useAuth } from "../authContext";
+import { timeAgo, toast } from "../components/uiUtils";
 
 // Each course gets a "binder" colour (spine stripe + emoji tile), picked from its id.
 const TINTS = [
@@ -31,7 +32,12 @@ function tintFor(id) {
 
 function RenameDialog({ notebook, onClose, onSaved }) {
   const [title, setTitle] = useState(notebook?.title ?? "");
-  useEffect(() => setTitle(notebook?.title ?? ""), [notebook]);
+  // Another course to rename starts from its own title.
+  const [titleFor, setTitleFor] = useState(notebook);
+  if (notebook !== titleFor) {
+    setTitleFor(notebook);
+    setTitle(notebook?.title ?? "");
+  }
 
   const save = async (e) => {
     e.preventDefault();

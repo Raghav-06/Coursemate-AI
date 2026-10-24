@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import LanguagePicker from "./LanguagePicker";
-import { Modal, Spinner, toast } from "./ui";
+import { Modal, Spinner } from "./ui";
+import { toast } from "./uiUtils";
 
 /** This course's response language for the signed-in user (or their default). */
 export default function CourseLanguageDialog({ notebookId, open, onClose }) {

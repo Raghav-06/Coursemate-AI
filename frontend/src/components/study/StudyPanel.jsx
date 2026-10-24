@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import { NameDialog } from "../sources/SourcesPanel";
-import { ConfirmDialog, Icon, Menu, Spinner, toast } from "../ui";
+import { ConfirmDialog, Icon, Menu, Spinner } from "../ui";
 import DeckEditor from "./DeckEditor";
 import GenerateDeckDialog from "./GenerateDeckDialog";
 import ReviewSession from "./ReviewSession";
+import { toast } from "../uiUtils";
 
 function DueBadge({ due, fresh }) {
   if (!due && !fresh) return <span className="text-xs text-ink-3">Nothing due</span>;

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { useAuth } from "../auth";
 import { navigate } from "../hooks";
 import { Icon } from "./ui";
+import { useAuth } from "../authContext";
 
 function Avatar({ user, size = 32 }) {
   const [broken, setBroken] = useState(false);

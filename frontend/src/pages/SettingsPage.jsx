@@ -4,8 +4,9 @@ import { navigate } from "../hooks";
 import { Logo, ThemeToggle } from "../components/TopBar";
 import AccountMenu from "../components/AccountMenu";
 import LanguagePicker from "../components/LanguagePicker";
-import { Icon, IconButton, Spinner, toast } from "../components/ui";
+import { Icon, IconButton, Spinner } from "../components/ui";
 import AiUsage from "../components/AiUsage";
+import { toast } from "../components/uiUtils";
 
 function Section({ title, description, children }) {
   return (
