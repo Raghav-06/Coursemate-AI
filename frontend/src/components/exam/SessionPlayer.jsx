@@ -52,6 +52,7 @@ export default function SessionPlayer({ sessionId, onExit, onOpenCitation, onFin
   const pending = useRef({}); // position → body not yet sent
   const clock = useRef(null); // seconds left, as ticked by the test clock below
   const submitRef = useRef(null); // the latest submit (null while one is running), for the clock's time-up
+  const closed = useRef(false); // true from the start of a submit: the server rejects saves after it (409)
 
   const setClock = useCallback((seconds) => {
     clock.current = seconds;
@@ -140,21 +141,39 @@ export default function SessionPlayer({ sessionId, onExit, onOpenCitation, onFin
     [flush]
   );
 
-  const submit = useCallback(async () => {
+  // Saves time on the current question, unless the session is being submitted.
+  const saveTime = useCallback(
+    (delay) => {
+      if (!closed.current) queue(pos, { timeSpentMs: Math.round(takeTime()) }, delay);
+    },
+    [queue, pos, takeTime]
+  );
+
+  // At time-up the server submits the session itself, so only unsaved answers are sent, not time.
+  const submit = useCallback(async ({ timeUp = false } = {}) => {
     setSubmitting(true);
+    if (timeUp) {
+      for (const [p, body] of Object.entries(pending.current)) {
+        delete body.timeSpentMs;
+        if (!Object.keys(body).length) delete pending.current[p];
+      }
+    } else {
+      saveTime(0);
+    }
+    closed.current = true;
     try {
-      queue(pos, { timeSpentMs: Math.round(takeTime()) }, 0);
       await flush();
       setResults(await api.finishSession(sessionId));
       setView((v) => ({ ...v, status: "finished" }));
       onFinished?.();
     } catch (err) {
+      closed.current = false;
       toast(err.message, "error");
     } finally {
       setSubmitting(false);
       setConfirming(false);
     }
-  }, [sessionId, flush, queue, takeTime, pos, onFinished]);
+  }, [sessionId, flush, saveTime, onFinished]);
 
   useEffect(() => {
     submitRef.current = submitting ? null : submit;
@@ -169,21 +188,33 @@ export default function SessionPlayer({ sessionId, onExit, onOpenCitation, onFin
       if (clock.current === 0) {
         clearInterval(t);
         toast("Time's up — submitting your test");
-        submitRef.current?.();
+        submitRef.current?.({ timeUp: true });
       }
     }, 1000);
     return () => clearInterval(t);
   }, [active, timed, setClock]);
 
-  // Save time spent every 20 s and when leaving.
+  // Save time spent every 20 s and when leaving, until the session is submitted.
   useEffect(() => {
-    if (!active) return;
-    const t = setInterval(() => queue(pos, { timeSpentMs: Math.round(takeTime()) }), 20_000);
+    if (!active || submitting) return;
+    const t = setInterval(() => saveTime(), 20_000);
     return () => clearInterval(t);
-  }, [active, pos, takeTime, queue]);
+  }, [active, submitting, saveTime]);
+  // A save still waiting when the player closes after a submit would only get a 409.
+  useEffect(
+    () => () => {
+      if (closed.current) clearTimeout(saveTimer.current);
+    },
+    []
+  );
+
+  const leave = () => {
+    if (active) saveTime(0);
+    flush().then(onExit);
+  };
 
   const go = (next) => {
-    queue(pos, { timeSpentMs: Math.round(takeTime()) }, 0);
+    saveTime(0);
     setPos(next);
     setShowWorking(false);
   };
@@ -336,7 +367,7 @@ export default function SessionPlayer({ sessionId, onExit, onOpenCitation, onFin
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-2 px-3 sm:px-5 h-14 border-b border-line/60 shrink-0">
-        <IconButton icon="close" label="Leave (your answers are saved)" onClick={() => flush().then(onExit)} />
+        <IconButton icon="close" label="Leave (your answers are saved)" onClick={leave} />
         <p className="min-w-0 flex-1 truncate text-sm font-medium">{view.title}</p>
         <Clock seconds={remaining ?? 0} timed={timed} />
         <button type="button" className="btn-primary h-9" onClick={() => setConfirming(true)} disabled={submitting}>
@@ -469,7 +500,7 @@ export default function SessionPlayer({ sessionId, onExit, onOpenCitation, onFin
         title="Submit this session?"
         message={`${view.questions.filter((x) => answered(x.position)).length} of ${view.questions.length} answered. Unanswered questions score 0; wrong answers lose marks where the exam has negative marking.`}
         confirmLabel="Submit"
-        onConfirm={submit}
+        onConfirm={() => submit()}
         onClose={() => setConfirming(false)}
       />
     </div>
