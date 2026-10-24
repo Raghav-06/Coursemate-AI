@@ -216,8 +216,11 @@ examsRouter.patch(
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const isRealDate = (v) => typeof v === "string" && DATE_RE.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`)) && new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v;
 
+/** The week a plan view opens on: this week, or next week when it was planned early (no study days were left). */
+const planWeek = (exam, today) => (exam.weekStart && exam.weekStart > today ? exam.weekStart : today);
+
 /** The weekly plan for the study week holding `date`: days (rest day, budget, planned / done minutes, tasks) and totals. */
-async function weekView(exam, today, date) {
+async function weekView(exam, today, date = planWeek(exam, today)) {
   const start = weekStartOf(date, exam.weekStartsOn);
   const end = addDays(start, 6);
   const [items, changes] = await Promise.all([listPlanItems(exam.id, { from: start, to: end }), listPlanChanges(exam.id, 20)]);
@@ -238,7 +241,9 @@ async function weekView(exam, today, date) {
       items: dayItems,
     };
   });
-  const weekly = changes.find((c) => c.kind === "weekly" && c.date >= start && c.date <= end);
+  // A week planned early was planned the week before.
+  const plannedAhead = start === exam.weekStart && start > today;
+  const weekly = changes.find((c) => c.kind === "weekly" && (plannedAhead || (c.date >= start && c.date <= end)));
   return {
     examId: exam.id,
     planKind: exam.planKind,
@@ -248,6 +253,7 @@ async function weekView(exam, today, date) {
     previousWeek: addDays(start, -7),
     nextWeek: addDays(start, 7),
     isCurrentWeek: today >= start && today <= end,
+    plannedAhead,
     planned: Boolean(exam.weekStart),
     theme: weekly?.summary ?? null,
     replanning: isReplanning(exam.id),
@@ -278,18 +284,18 @@ examsRouter.post(
     const language = await responseLanguage(req.user.id, req.exam.notebookId);
     const { theme } = await withPlanLock(req.exam.id, async () => generateWeeklyPlan(await getExam(req.exam.id, req.user.id), req.user.id, today, { language }));
     const exam = await getExam(req.exam.id, req.user.id);
-    res.json({ theme, ...(await weekView(exam, today, today)) });
+    res.json({ theme, ...(await weekView(exam, today)) });
   })
 );
 
-// ?week=YYYY-MM-DD (any day of the week; default this week)
+// ?week=YYYY-MM-DD (any day of the week; default this week, or next week when it was planned early)
 examsRouter.get(
   "/exams/:examId/weekly-plan",
   asyncHandler(async (req, res) => {
     const today = await examToday(req.exam, req.tz);
     const week = req.query.week;
     if (week !== undefined && !isRealDate(week)) throw httpError(400, "week must be a date (YYYY-MM-DD).");
-    res.json(await weekView(req.exam, today, week ?? today));
+    res.json(await weekView(req.exam, today, week));
   })
 );
 
@@ -303,7 +309,7 @@ examsRouter.post(
     if (today >= req.exam.examDate) throw httpError(409, "The exam is today or over — there's nothing left to replan.");
     const language = await responseLanguage(req.user.id, req.exam.notebookId);
     const result = await withPlanLock(req.exam.id, async () => replanIfDue(await getExam(req.exam.id, req.user.id), req.user.id, today, { language, force: true }));
-    res.json({ result, ...(await weekView(await getExam(req.exam.id, req.user.id), today, today)) });
+    res.json({ result, ...(await weekView(await getExam(req.exam.id, req.user.id), today)) });
   })
 );
 

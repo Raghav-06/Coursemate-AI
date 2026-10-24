@@ -9,7 +9,8 @@ import { listDiagnoses } from "../db/diagnoses.js";
 import { addPlanChange, applyReplan, cardsInScope, listPlanItems, replaceWeekItems, setPlanState } from "../db/exams.js";
 
 // The agent's weekly plan and daily replanning.
-//   Weekly (Ultra, at the start of each study week or on demand): Ultra orders the week's focus
+//   Weekly (Ultra, at the start of each study week or on demand; next week's straight away when
+//     this week has no study days left): Ultra orders the week's focus
 //     topics (high exam weight × low mastery, diagnosed misconceptions) and
 //     words a reason for each; CODE computes and enforces everything else —
 //     days, the student's minutes per weekday, rest day, session length,
@@ -44,6 +45,19 @@ export function weekDays(today, examDate, restDay, startsOn = "mon") {
     if (weekdayOf(d) === lastDay) break;
   }
   return days;
+}
+
+/**
+ * The days a weekly plan made today covers: the rest of this week, or all of
+ * next week when this week has no study days left (e.g. today is the rest day
+ * and the week's last day). Returns { start, days }.
+ */
+export function planDays(exam, today) {
+  const days = weekDays(today, exam.examDate, exam.restDay, exam.weekStartsOn);
+  if (days.length) return { start: today, days };
+  const next = addDays(weekStartOf(today, exam.weekStartsOn), 7);
+  const nextDays = weekDays(next, exam.examDate, exam.restDay, exam.weekStartsOn);
+  return nextDays.length ? { start: next, days: nextDays } : { start: today, days };
 }
 
 export const minutesFor = (exam, date) => (exam.studyMinutes ?? DEFAULT_MINUTES)[weekdayOf(date)] ?? 0;
@@ -222,13 +236,15 @@ function mockFor(profile, nodes) {
 }
 
 /**
- * Builds this week's plan (from today); keeps done tasks. Returns { items, theme }.
+ * Builds this week's plan (from today), or next week's when this week has no
+ * study days left; keeps done tasks. Returns { items, theme, weekStart }.
  * `useModel: false` skips Ultra and uses the priority order (no AI call; the demo seed uses it).
  */
 export async function generateWeeklyPlan(exam, userId, today, { language, useModel = true } = {}) {
   const inputs = await planInputs(exam, userId, today);
   if (!inputs.nodes.length) throw Object.assign(new Error("Build the course's knowledge map first — the weekly plan is made from it."), { status: 409 });
-  const days = weekDays(today, exam.examDate, exam.restDay, exam.weekStartsOn);
+  const { start, days } = planDays(exam, today);
+  const nextWeek = start !== today;
   const daysLeft = daysBetween(today, exam.examDate);
   const { order, theme } = useModel
     ? await weeklyPriorities(exam, inputs, daysLeft, language)
@@ -270,18 +286,22 @@ export async function generateWeeklyPlan(exam, userId, today, { language, useMod
     sectional: sectionalFor(inputs.profile, ordered, inputs.nodes),
   });
   await replaceWeekItems(exam.id, today, items);
-  await setPlanState(exam.id, { weekStart: weekStartOf(today, exam.weekStartsOn), lastReplannedOn: today, masterySnapshot: snapshotOf(inputs.mastery, inputs.topics) });
+  const weekStart = weekStartOf(start, exam.weekStartsOn);
+  await setPlanState(exam.id, { weekStart, lastReplannedOn: today, masterySnapshot: snapshotOf(inputs.mastery, inputs.topics) });
   const minutes = items.reduce((s, i) => s + i.minutes, 0);
   await addPlanChange(exam.id, {
     date: today,
     kind: "weekly",
     summary: theme,
     lines: [
-      { type: "weekly", text: `Planned ${items.length} tasks (${Math.round(minutes / 6) / 10} h) over ${days.length} day${days.length === 1 ? "" : "s"}${exam.restDay ? `, ${exam.restDay} off` : ""}.` },
+      {
+        type: "weekly",
+        text: `Planned ${items.length} tasks (${Math.round(minutes / 6) / 10} h) over ${days.length} day${days.length === 1 ? "" : "s"}${nextWeek ? " next week" : ""}${exam.restDay ? `, ${exam.restDay} off` : ""}.${nextWeek ? " No study days were left this week." : ""}`,
+      },
       ...ordered.slice(0, 3).map((t) => ({ type: "focus", text: `Focus: ${t.name} — ${t.reason}` })),
     ],
   });
-  return { items, theme };
+  return { items, theme, weekStart };
 }
 
 // ---- Daily replanning -----------------------------------------------------------------
@@ -322,19 +342,23 @@ function templateLine(c) {
 const label = (today, date) => (date === today ? "today" : date === addDays(today, 1) ? "tomorrow" : date === addDays(today, -1) ? "yesterday" : date);
 
 /**
- * Adjusts today and the rest of the week (once per day). New week → a new
- * weekly plan instead. Returns { kind, lines } or null when already done today.
+ * Adjusts today and the rest of the week (once per day). New week, or no
+ * study days left this week → a new weekly plan instead (next week's, in the
+ * second case). Returns { kind, lines } or null when already done today.
  */
 export async function replanIfDue(exam, userId, today, { language, force = false } = {}) {
   if (exam.planKind !== "weekly" || !exam.weekStart || today >= exam.examDate) return null;
   if (!force && exam.lastReplannedOn === today) return null;
-  if (weekStartOf(today, exam.weekStartsOn) !== exam.weekStart) {
+  const thisWeek = weekStartOf(today, exam.weekStartsOn);
+  // Next week was planned early: nothing to adjust until it starts.
+  if (exam.weekStart > thisWeek && !force) return null;
+  const days = weekDays(today, exam.examDate, exam.restDay, exam.weekStartsOn);
+  if (thisWeek !== exam.weekStart || (!days.length && planDays(exam, today).days.length)) {
     const { theme } = await generateWeeklyPlan(exam, userId, today, { language });
     return { kind: "weekly", theme };
   }
 
   const [items, inputs] = await Promise.all([listPlanItems(exam.id), planInputs(exam, userId, today)]);
-  const days = weekDays(today, exam.examDate, exam.restDay, exam.weekStartsOn);
   const load = new Map(days.map((d) => [d, items.filter((i) => i.date === d && !i.done && !i.skipped).reduce((s, i) => s + (i.minutes ?? 0), 0)]));
   const nextPos = new Map(days.map((d) => [d, Math.max(-1, ...items.filter((i) => i.date === d).map((i) => i.position)) + 1]));
   const fits = (date, minutes) => load.get(date) + minutes <= minutesFor(exam, date);

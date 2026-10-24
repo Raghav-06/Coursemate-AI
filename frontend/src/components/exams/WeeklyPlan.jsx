@@ -198,7 +198,7 @@ function ChangeList({ changes }) {
  * previous and next weeks, "Replan now" and what each (re)plan changed.
  */
 export default function WeeklyPlan({ exam, onStartTask, onPlaySession, onOpenSchedule, onChanged }) {
-  const [week, setWeek] = useState(null); // null = this week
+  const [week, setWeek] = useState(null); // null = this week, or next week when it was planned early
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [changes, setChanges] = useState(null);
@@ -280,11 +280,12 @@ export default function WeeklyPlan({ exam, onStartTask, onPlaySession, onOpenSch
   const make = async () => {
     setBusy("make");
     try {
-      setData(await api.generateWeeklyPlan(exam.id));
+      const out = await api.generateWeeklyPlan(exam.id);
+      setData(out);
       setWeek(null);
       loadChanges();
       onChanged?.();
-      toast("This week's plan is ready");
+      toast(out.plannedAhead ? "Next week's plan is ready" : "This week's plan is ready");
     } catch (err) {
       toast(err.message, "error");
     } finally {
@@ -388,7 +389,7 @@ export default function WeeklyPlan({ exam, onStartTask, onPlaySession, onOpenSch
             </button>
           </div>
           {!view.isCurrentWeek && (
-            <button type="button" className="btn-ghost h-9 px-3 text-sm" onClick={() => setWeek(null)}>
+            <button type="button" className="btn-ghost h-9 px-3 text-sm" onClick={() => setWeek(view.today)}>
               Today
             </button>
           )}
@@ -407,7 +408,8 @@ export default function WeeklyPlan({ exam, onStartTask, onPlaySession, onOpenSch
             <Spinner /> Updating today's plan from your latest results…
           </p>
         )}
-        {view.isCurrentWeek && view.theme && <p className="text-sm text-ink-2 leading-6">{view.theme}</p>}
+        {view.plannedAhead && week === null && <p className="text-sm text-ink-2">No study days are left this week, so here's next week's plan.</p>}
+        {(view.isCurrentWeek || view.plannedAhead) && view.theme && <p className="text-sm text-ink-2 leading-6">{view.theme}</p>}
 
         <div className="grid grid-cols-7 gap-1 sm:gap-2">
           {view.days.map((d) => (

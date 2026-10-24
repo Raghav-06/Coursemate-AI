@@ -378,12 +378,13 @@ async function main() {
     signatureOf(sources.filter((s) => s.kind === "material")),
   ]);
 
-  // This week's plan from the data above (priority order, no model call).
+  // This week's plan from the data above (priority order, no model call); next
+  // week's when no study days are left this week (e.g. on the Sunday rest day).
   const exam = await getExam(ids.examId, ids.userId);
-  const { items } = await generateWeeklyPlan(exam, ids.userId, today, { useModel: false });
+  const { items, weekStart } = await generateWeeklyPlan(exam, ids.userId, today, { useModel: false });
 
   console.log(`
-✅ Demo data ready (${items.length} tasks planned this week).
+✅ Demo data ready (${items.length} tasks planned ${weekStart > today ? `for next week, from ${weekStart}` : "this week"}).
 
    Sign in with email + password:
      Email:    ${EMAIL}
